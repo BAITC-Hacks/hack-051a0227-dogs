@@ -282,6 +282,9 @@ test(
         where: { applicationId: app.id, kind: "Анкета" },
       });
       await staff.call("assessment", {
+        materialVersion: (
+          await staff.call("review.profile", { applicationId: app.id })
+        ).materialVersion,
         applicationId: app.id,
         domain: "Командная работа",
         level: "Есть проявление",
@@ -309,6 +312,9 @@ test(
         409,
       );
       await staff.call("decision", {
+        materialVersion: (
+          await staff.call("review.profile", { applicationId: app.id })
+        ).materialVersion,
         applicationId: app.id,
         revision: 2,
         action: "CLARIFICATION",
@@ -329,6 +335,9 @@ test(
         source.content,
       );
       await staff.call("decision", {
+        materialVersion: (
+          await staff.call("review.profile", { applicationId: app.id })
+        ).materialVersion,
         applicationId: app.id,
         revision: 3,
         action: "INTERVIEW",
@@ -350,10 +359,18 @@ test(
       };
       await staff.call("interview.save", {
         id: interview.id,
+        materialVersion: (
+          await staff.call("review.profile", { applicationId: app.id })
+        ).materialVersion,
         revision: 0,
         notes,
-        finish: true,
+        finish: false,
       });
+      assert.equal(
+        (await db.interview.findUniqueOrThrow({ where: { id: interview.id } }))
+          .status,
+        "SCHEDULED",
+      );
       assert.equal(
         await db.interviewVersion.count({
           where: { interviewId: interview.id },

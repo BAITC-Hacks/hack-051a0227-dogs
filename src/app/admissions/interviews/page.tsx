@@ -24,7 +24,7 @@ export default async function Interviews() {
         </div>
       </div>
       <div className="table-scroll">
-        <table className="candidate-table" style={{ minWidth: 680 }}>
+        <table className="candidate-table interview-list">
           <thead>
             <tr>
               <th>Кандидат</th>
@@ -45,8 +45,16 @@ export default async function Interviews() {
                     {i.application.user.name}
                   </Link>
                 </td>
-                <td>{i.application.program.shortTitle}</td>
-                <td>{dateLabel(i.scheduledAt)}</td>
+                <td data-label="Программа">
+                  {i.application.program.shortTitle}
+                </td>
+                <td data-label="Алматы">
+                  {dateLabel(
+                    i.status === "COMPLETED" && i.performedAt
+                      ? i.performedAt
+                      : i.scheduledAt,
+                  )}
+                </td>
                 <td>
                   <Tag tone={i.status === "COMPLETED" ? "success" : "blue"}>
                     {i.status === "COMPLETED" ? "Завершено" : "Назначено"}

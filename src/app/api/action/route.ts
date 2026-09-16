@@ -32,7 +32,8 @@ import {
   checkProject,
   scenarioVersion,
 } from "@/lib/projects";
-import { programFor, domains, actionLabels } from "@/lib/catalog";
+import { reviewAction } from "@/lib/review-service.server";
+import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
 const id = z.string().min(1).max(100);
@@ -369,6 +370,22 @@ export async function POST(req: Request) {
               kind: "Анкета",
               content: fields.motivation,
             },
+            {
+              applicationId: app.id,
+              title: "Выбор утверждений",
+              kind: "Forced-choice",
+              content: `Больше похоже: ${forcedStatements[Number(fields.most)]}. Меньше похоже: ${forcedStatements[Number(fields.least)]}. Выбор не является оценкой потенциала.`,
+            },
+            ...(fields.videoUrl
+              ? [
+                  {
+                    applicationId: app.id,
+                    title: "Видеопрезентация по ссылке",
+                    kind: "Видео (ссылка)",
+                    content: fields.videoUrl,
+                  },
+                ]
+              : []),
             ...app.transfers.map((t) => ({
               applicationId: app.id,
               title: "Учебная работа из проекта",
@@ -411,8 +428,26 @@ export async function POST(req: Request) {
       if (!app.submittedAt)
         throw new AppError("Переписка доступна после отправки заявки.");
       const body = z.string().trim().min(3).max(5000).parse(b.body);
-      result = await db.message.create({
-        data: { applicationId: app.id, authorId: u.id, body },
+      result = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${app.id} FOR UPDATE`;
+        const message = await tx.message.create({
+          data: { applicationId: app.id, authorId: u.id, body },
+        });
+        if (u.role === "CANDIDATE")
+          await tx.source.create({
+            data: {
+              applicationId: app.id,
+              messageId: message.id,
+              title: "Ответ в переписке",
+              kind: "Уточнение кандидата",
+              content: body,
+            },
+          });
+        await tx.application.update({
+          where: { id: app.id },
+          data: { updatedAt: new Date() },
+        });
+        return message;
       });
     } else if (type === "correction") {
       const u = await requireUser();
@@ -427,8 +462,16 @@ export async function POST(req: Request) {
         .min(10)
         .max(3000)
         .parse(b.explanation);
-      result = await db.correction.create({
-        data: { sourceId: source.id, authorId: u.id, explanation },
+      result = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${source.applicationId} FOR UPDATE`;
+        const correction = await tx.correction.create({
+          data: { sourceId: source.id, authorId: u.id, explanation },
+        });
+        await tx.application.update({
+          where: { id: source.applicationId },
+          data: { updatedAt: new Date() },
+        });
+        return correction;
       });
     } else if (type.startsWith("audio.")) {
       const u = await requireUser();
@@ -637,158 +680,14 @@ export async function POST(req: Request) {
           },
         });
       });
-    } else if (type === "assessment") {
-      const u = await requireStaff();
-      const app = await assertApplication(id.parse(b.applicationId), u);
-      const v = z
-        .object({
-          domain: z.enum(domains),
-          level: z.enum([
-            "Не рассмотрено",
-            "Есть проявление",
-            "Устойчивое проявление",
-            "Нужно уточнение",
-          ]),
-          sufficiency: z.enum(["Недостаточно", "Частично", "Достаточно"]),
-          contradiction: z.string().max(2000),
-          interpretation: z.string().trim().min(15).max(4000),
-          sourceIds: z.array(id).min(1).max(8),
-        })
-        .parse(b);
-      const n = await db.source.count({
-        where: { applicationId: app.id, id: { in: v.sourceIds } },
-      });
-      if (n !== new Set(v.sourceIds).size)
-        throw new AppError("Выберите источники этой заявки.");
-      const setting = await db.setting.findUnique({ where: { key: "rubric" } });
-      const version = (setting?.value as { version?: number })?.version ?? 1;
-      result = await db.assessment.create({
-        data: {
-          ...v,
-          applicationId: app.id,
-          authorId: u.id,
-          rubricVersion: version,
-        },
-      });
-    } else if (type === "decision") {
-      const u = await requireStaff();
-      const app = await assertApplication(id.parse(b.applicationId), u);
-      const action = z
-        .enum([
-          "CLARIFICATION",
-          "LANGUAGE",
-          "INTERVIEW",
-          "CONTINUE",
-          "ACCEPT",
-          "DECLINE",
-          "REOPEN",
-        ])
-        .parse(b.action);
-      const reason = z.string().trim().min(15).max(4000).parse(b.reason);
-      if (app.stage === "DECIDED" && action !== "REOPEN")
-        throw new AppError("Сначала возобновите рассмотрение.");
-      if (app.stage !== "DECIDED" && action === "REOPEN")
-        throw new AppError("Рассмотрение уже открыто.");
-      const next: Record<string, string> = {
-        CLARIFICATION: "CLARIFICATION",
-        LANGUAGE: "LANGUAGE",
-        INTERVIEW: "INTERVIEW",
-        CONTINUE: "REVIEW",
-        REOPEN: "REVIEW",
-        ACCEPT: "DECIDED",
-        DECLINE: "DECIDED",
-      };
-      const scheduledAt =
-        action === "INTERVIEW" ? z.coerce.date().parse(b.scheduledAt) : null;
-      if (scheduledAt && scheduledAt.getTime() < Date.now() - 60000)
-        throw new AppError("Выберите будущее время интервью.");
-      await db.$transaction(async (tx) => {
-        const r = await tx.application.updateMany({
-          where: {
-            id: app.id,
-            stage: app.stage,
-            revision: z.number().int().parse(b.revision),
-          },
-          data: { stage: next[action], revision: { increment: 1 } },
-        });
-        if (!r.count)
-          throw new AppError("Заявка изменилась. Обновите страницу.", 409);
-        await tx.decision.create({
-          data: {
-            applicationId: app.id,
-            authorId: u.id,
-            action,
-            reason,
-            fromStage: app.stage,
-            toStage: next[action],
-          },
-        });
-        await tx.message.create({
-          data: {
-            applicationId: app.id,
-            authorId: u.id,
-            kind: action,
-            body: `${actionLabels[action]}. ${reason}${scheduledAt ? " Время: " + scheduledAt.toLocaleString("ru-RU", { timeZone: "Asia/Almaty" }) + " (Алматы)." : ""}`,
-          },
-        });
-        if (scheduledAt)
-          await tx.interview.create({
-            data: {
-              applicationId: app.id,
-              scheduledAt,
-              notes: json({
-                a1: "",
-                t: "",
-                o: "",
-                l: "",
-                a2: "",
-                observation: "",
-                assessment: "",
-              }),
-            },
-          });
-      });
-    } else if (type === "interview.save") {
-      const u = await requireStaff();
-      const interview = await db.interview.findUnique({
-        where: { id: id.parse(b.id) },
-      });
-      if (!interview) throw new AppError("Интервью не найдено.", 404);
-      const notes = z
-        .object({
-          a1: z.string().max(4000),
-          t: z.string().max(4000),
-          o: z.string().max(4000),
-          l: z.string().max(4000),
-          a2: z.string().max(4000),
-          observation: z.string().max(4000),
-          assessment: z.string().max(4000),
-        })
-        .parse(b.notes);
-      if (b.finish && notes.assessment.trim().length < 20)
-        throw new AppError("Добавьте оценку сотрудника и её основание.");
-      const rev = z.number().int().parse(b.revision);
-      await db.$transaction(async (tx) => {
-        const r = await tx.interview.updateMany({
-          where: { id: interview.id, revision: rev },
-          data: {
-            notes: json(notes),
-            status: b.finish ? "COMPLETED" : "SCHEDULED",
-            revision: { increment: 1 },
-          },
-        });
-        if (!r.count)
-          throw new AppError("Интервью изменено. Обновите страницу.", 409);
-        await tx.interviewVersion.create({
-          data: {
-            interviewId: interview.id,
-            revision: rev + 1,
-            authorId: u.id,
-            notes: json(notes),
-          },
-        });
-      });
-      result = { revision: rev + 1 };
+    } else if (
+      type.startsWith("review.") ||
+      type.startsWith("feedback.") ||
+      type === "assessment" ||
+      type === "decision" ||
+      type.startsWith("interview.")
+    ) {
+      result = await reviewAction(type, b, await requireStaff());
     } else if (type === "settings") {
       await requireStaff();
       const guidance = z.string().trim().min(40).max(5000).parse(b.guidance);

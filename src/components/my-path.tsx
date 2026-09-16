@@ -8,6 +8,7 @@ import { programFor, stageLabels } from "@/lib/catalog";
 import { action, dateLabel } from "@/lib/client";
 import { changesBetween, initialState } from "@/lib/projects";
 import type { ProjectState } from "@/lib/types";
+import { PublishedFeedback } from "./published-feedback";
 import { Messages } from "./messages";
 import { Feedback, useTask, Tag } from "./ui";
 export function MyPath({
@@ -49,20 +50,26 @@ export function MyPath({
                     : "Комиссия ждёт уточнение"
                   : app?.submittedAt
                     ? "Следи за следующим шагом"
-                    : attempts.length
-                      ? "Первый результат есть. Что дальше?"
-                      : "Сделай первый ход"}
+                    : app
+                      ? "Продолжи свою заявку"
+                      : attempts.length
+                        ? "Первый результат есть. Что дальше?"
+                        : "Сделай первый ход"}
             </h2>
             <p>
-              {user.role === "GUEST"
-                ? "Создай аккаунт, чтобы продолжать с другого устройства. Гостевая работа сохранится."
-                : app?.stage === "CLARIFICATION"
-                  ? replied
-                    ? "Уточнение сохранено в переписке. Можно дополнить ответ или дождаться следующего действия сотрудника."
-                    : "Открой сообщение ниже и ответь на конкретный вопрос сотрудника."
-                  : app?.submittedAt
-                    ? "Заявка сохранена. Сообщения и решения комиссии появятся в твоём статусе."
-                    : "Можно продолжить проект, попробовать другое направление или сразу перейти к поступлению."}
+              {app?.stage === "CLARIFICATION" && replied
+                ? "Уточнение сохранено. Можно дополнить ответ в переписке; проверка комиссии продолжается."
+                : app?.feedback[0]
+                  ? app.feedback[0].nextAction
+                  : user.role === "GUEST"
+                    ? "Создай аккаунт, чтобы продолжать с другого устройства. Гостевая работа сохранится."
+                    : app?.stage === "CLARIFICATION"
+                      ? replied
+                        ? "Уточнение сохранено в переписке. Можно дополнить ответ или дождаться следующего действия сотрудника."
+                        : "Открой сообщение ниже и ответь на конкретный вопрос сотрудника."
+                      : app?.submittedAt
+                        ? "Заявка сохранена. Сообщения и решения комиссии появятся в твоём статусе."
+                        : "Можно продолжить проект, попробовать другое направление или сразу перейти к поступлению."}
             </p>
             <Link
               className="button dark"
@@ -71,7 +78,7 @@ export function MyPath({
                   ? "/login?mode=register&next=/my"
                   : app?.submittedAt
                     ? "/apply/status"
-                    : attempts.length
+                    : app || attempts.length
                       ? "/apply"
                       : "/projects/digital-products"
               }
@@ -80,12 +87,24 @@ export function MyPath({
                 ? "Создать аккаунт"
                 : app?.submittedAt
                   ? "Открыть статус"
-                  : attempts.length
-                    ? "Перейти к заявке"
-                    : "Начать проект"}
+                  : app
+                    ? "Продолжить заявку"
+                    : attempts.length
+                      ? "Перейти к заявке"
+                      : "Начать проект"}
               <ArrowUpRight size={18} />
             </Link>
+            {user.role !== "GUEST" && !app && (
+              <Link
+                href="/apply"
+                className="text-link"
+                style={{ marginTop: 18 }}
+              >
+                Сразу перейти к заявке <ArrowRight size={16} />
+              </Link>
+            )}
           </section>
+          {app?.submittedAt && <PublishedFeedback application={app} />}
           <div className="row between">
             <h2>Мои работы</h2>
             <Link href="/#projects" className="text-link">
@@ -318,7 +337,10 @@ export function MyPath({
           <section className="panel" style={{ marginTop: 24 }}>
             <h2>Сообщения</h2>
             {app?.submittedAt ? (
-              <Messages applicationId={app.id} messages={app.messages} />
+              <Messages
+                applicationId={app.id}
+                messages={app.messages.filter((m) => m.kind !== "FEEDBACK")}
+              />
             ) : (
               <p className="subtle">
                 После отправки заявки здесь будет переписка с комиссией.

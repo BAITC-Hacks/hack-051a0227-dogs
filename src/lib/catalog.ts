@@ -107,9 +107,13 @@ export const stageLabels: Record<string, string> = {
   LANGUAGE: "Языковая проверка",
   INTERVIEW: "Интервью",
   DECIDED: "Решение принято",
+  CHECK: "Дополнительная проверка",
+  FINAL_REVIEW: "Итоговое рассмотрение",
 };
 export const actionLabels: Record<string, string> = {
   CLARIFICATION: "Запросить уточнение",
+  CHECK: "Дополнительная проверка",
+  FINAL_REVIEW: "Итоговое рассмотрение",
   LANGUAGE: "Передать на языковую проверку",
   INTERVIEW: "Пригласить на интервью",
   CONTINUE: "Продолжить рассмотрение",

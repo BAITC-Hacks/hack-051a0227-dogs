@@ -20,7 +20,7 @@ export function LanguageWorkspace({
   audio,
 }: {
   applicationId: string;
-  check: LanguageCheck | null;
+  check: Pick<LanguageCheck,"id"|"state"|"revision"|"status"> | null;
   consented: boolean;
   userId: string;
   submitted: boolean;
@@ -316,7 +316,7 @@ export function LanguageWorkspace({
           {check?.status === "REVIEWED" && (
             <div style={{ marginTop: 24 }}>
               <h3>Обратная связь сотрудника</h3>
-              <p style={{ fontSize: 13, marginTop: 12 }}>{check.result}</p>
+              <p style={{ fontSize: 13, marginTop: 12 }}>Опубликованные рекомендации доступны в статусе заявки.</p>
             </div>
           )}
           <hr className="divider" />

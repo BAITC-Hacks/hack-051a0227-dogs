@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, FileText } from "lucide-react";
 import { myData } from "@/lib/data";
-import { stageLabels, programFor, actionLabels } from "@/lib/catalog";
+import { stageLabels, programFor } from "@/lib/catalog";
 import type { ApplicationFields } from "@/lib/types";
 import { dateLabel } from "@/lib/client";
 import { Messages } from "@/components/messages";
 import { Tag } from "@/components/ui";
+import { PublishedFeedback } from "@/components/published-feedback";
 import { CorrectionForm } from "@/components/correction-form";
 export default async function Status() {
   const data = await myData();
@@ -38,17 +39,19 @@ export default async function Status() {
           <section className="next-step">
             <h2>{stageLabels[app.stage]}</h2>
             <p>
-              {app.stage === "CLARIFICATION"
-                ? replied
-                  ? "Ответ сохранён в переписке. Сотрудник рассмотрит уточнение и сообщит следующий шаг."
-                  : "Сотрудник задал вопрос. Ответь ниже — сообщение будет сохранено в истории заявки."
-                : app.stage === "LANGUAGE"
-                  ? "Комиссия просит пройти отдельную языковую проверку. Технические сложности можно указать в пояснении."
-                  : app.stage === "INTERVIEW"
-                    ? "Приглашение и время интервью находятся в переписке. Можно задать уточняющий вопрос."
-                    : app.stage === "DECIDED"
-                      ? "Сотрудник зафиксировал решение и основание. Они доступны ниже в истории."
-                      : "Комиссия получила заявку. Следующие действия и вопросы будут появляться в этом разделе."}
+              {app.feedback[0]
+                ? app.feedback[0].nextAction
+                : app.stage === "CLARIFICATION"
+                  ? replied
+                    ? "Ответ сохранён в переписке. Сотрудник рассмотрит уточнение и сообщит следующий шаг."
+                    : "Сотрудник задал вопрос. Ответь ниже — сообщение будет сохранено в истории заявки."
+                  : app.stage === "LANGUAGE"
+                    ? "Комиссия просит пройти отдельную языковую проверку. Технические сложности можно указать в пояснении."
+                    : app.stage === "INTERVIEW"
+                      ? "Приглашение и время интервью находятся в переписке. Можно задать уточняющий вопрос."
+                      : app.stage === "DECIDED"
+                        ? "Сотрудник зафиксировал решение и основание. Они доступны ниже в истории."
+                        : "Комиссия получила заявку. Следующие действия и вопросы будут появляться в этом разделе."}
             </p>
             {app.stage === "LANGUAGE" ? (
               <Link className="button dark" href="/apply/english">
@@ -60,9 +63,13 @@ export default async function Status() {
               </a>
             )}
           </section>
+          <PublishedFeedback application={app} />
           <section id="messages">
             <h2>Переписка с комиссией</h2>
-            <Messages applicationId={app.id} messages={app.messages} />
+            <Messages
+              applicationId={app.id}
+              messages={app.messages.filter((m) => m.kind !== "FEEDBACK")}
+            />
           </section>
           <section className="review-section" style={{ marginTop: 35 }}>
             <h2>Отправленная заявка</h2>
@@ -129,22 +136,14 @@ export default async function Status() {
                 <h3>Заявка отправлена</h3>
                 <p>Материалы зафиксированы для рассмотрения.</p>
               </div>
-              {[...app.decisions].reverse().map((d) => (
-                <div className="timeline-item" key={d.id}>
-                  <span className="subtle">
-                    {dateLabel(d.createdAt)} · {d.author.name}
-                  </span>
-                  <h3>{actionLabels[d.action]}</h3>
-                  <p>{d.reason}</p>
-                </div>
-              ))}
             </div>
           </section>
           <section className="panel" style={{ marginTop: 24 }}>
             <h2>Языковая готовность</h2>
             <p>
-              {app.language?.result ??
-                "Можно сохранить языковой ответ отдельно от проекта и заявки."}
+              {app.language?.status === "REVIEWED"
+                ? "Ответ рассмотрен сотрудником. Опубликованные рекомендации доступны в обратной связи."
+                : "Языковой ответ рассматривается отдельно от опыта. Его можно открыть и дополнить."}
             </p>
             <Link
               href="/apply/english"

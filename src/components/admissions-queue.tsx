@@ -19,6 +19,8 @@ const nextAction: Record<string, string> = {
   LANGUAGE: "Проверить языковой ответ",
   INTERVIEW: "Подготовиться к интервью",
   DECIDED: "Открыть решение",
+  CHECK: "Рассмотреть новые сведения",
+  FINAL_REVIEW: "Подготовить обратную связь",
 };
 export function AdmissionsQueue({ applications }: { applications: Queue }) {
   const [search, setSearch] = useState("");
@@ -62,6 +64,8 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
           ["CLARIFICATION", "Нужно уточнение"],
           ["LANGUAGE", "Язык"],
           ["INTERVIEW", "Интервью"],
+          ["CHECK", "Дополнительная проверка"],
+          ["FINAL_REVIEW", "Итоговое рассмотрение"],
           ["DECIDED", "Решения"],
         ].map(([value, label]) => (
           <button
@@ -153,19 +157,36 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                 <dl>
                   <div>
                     <dt>Языковая готовность</dt>
-                    <dd>{a.language?.result ?? "Ответ ещё не рассмотрен"}</dd>
+                    <dd>
+                      {a.language?.result ?? "Языковой ответ не сохранён"}
+                    </dd>
                   </div>
-                  {[domains[0], domains[3], domains[5]].map((d) => {
+                  {domains.map((d) => {
                     const assessment = a.assessments.find(
                       (x) => x.domain === d,
                     );
+                    const review = a.domainReviews.find((x) => x.domain === d);
                     return (
                       <div key={d}>
                         <dt>{d}</dt>
                         <dd>
                           {assessment
-                            ? `${assessment.level}. Оснований: ${assessment.sufficiency.toLowerCase()}.`
-                            : "Не рассмотрено"}
+                            ? assessment.level
+                            : "Оценка проявления не выставлена"}
+                          <p className="meta">
+                            Сведения:{" "}
+                            {review?.sufficiency ??
+                              assessment?.sufficiency ??
+                              "Не рассмотрено"}
+                            . Согласованность:{" "}
+                            {review?.consistency ?? "Не проверено"}.
+                          </p>
+                          {assessment && (
+                            <p className="meta">
+                              Критерии: {assessment.rubricVersion}. Актуальность
+                              оснований проверьте в карточке.
+                            </p>
+                          )}
                         </dd>
                       </div>
                     );
@@ -184,7 +205,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
         </section>
       )}
       <div className="table-scroll">
-        <table className="candidate-table">
+        <table className="candidate-table queue-table">
           <thead>
             <tr>
               <th>
@@ -237,11 +258,34 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                   </Link>
                   <div className="mobile-candidate-context">
                     <span>{a.program.shortTitle}</span>
-                    <Tag tone={a.stage === "CLARIFICATION" ? "warning" : a.stage === "INTERVIEW" ? "blue" : a.stage === "DECIDED" ? "success" : "neutral"}>
+                    <Tag
+                      tone={
+                        a.stage === "CLARIFICATION"
+                          ? "warning"
+                          : a.stage === "INTERVIEW"
+                            ? "blue"
+                            : a.stage === "DECIDED"
+                              ? "success"
+                              : "neutral"
+                      }
+                    >
                       {stageLabels[a.stage]}
                     </Tag>
-                    <span>Язык: {a.language?.status === "REVIEWED" ? "рассмотрено" : a.language?.status === "PENDING_REVIEW" ? "ожидает проверки" : a.language ? "ожидает ответа" : "не начато"} · Источники: {a._count.sources}</span>
-                    <Link className="text-link" href={"/admissions/candidates/" + a.id}>
+                    <span>
+                      Язык:{" "}
+                      {a.language?.status === "REVIEWED"
+                        ? "рассмотрено"
+                        : a.language?.status === "PENDING_REVIEW"
+                          ? "ожидает проверки"
+                          : a.language
+                            ? "ожидает ответа"
+                            : "не начато"}{" "}
+                      · Источники: {a._count.sources}
+                    </span>
+                    <Link
+                      className="text-link"
+                      href={"/admissions/candidates/" + a.id}
+                    >
                       {nextAction[a.stage]} <ArrowUpRight size={14} />
                     </Link>
                   </div>
@@ -282,7 +326,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                   <span className="subtle" style={{ fontSize: 10 }}>
                     {a.assessments.length
                       ? "Есть оценка сотрудника"
-                      : "Нужен первый просмотр"}
+                      : "Оценка ещё не выставлена"}
                   </span>
                 </td>
                 <td>

@@ -91,6 +91,8 @@ model Application {
   audioConsent AudioConsent?
   audioConsentEvents AudioConsentEvent[]
   audioJobs AudioJob[]
+  domainReviews DomainReview[]
+  feedback FeedbackPublication[]
 }
 model ApplicationVersion {
   id String @id @default(cuid())
@@ -136,6 +138,11 @@ model Episode {
   title String
   personalRole String
   sources Source[]
+  annotations EpisodeAnnotation[]
+  mergedIntoId String?
+  mergedAt DateTime?
+  mergedBy String?
+  mergeReason String?
 }
 model Source {
   id String @id @default(cuid())
@@ -151,6 +158,9 @@ model Source {
   provenance String @default("CANDIDATE_ACCOUNT")
   createdAt DateTime @default(now())
   corrections Correction[]
+  messageId String? @unique
+  views SourceView[]
+  annotations EpisodeAnnotation[]
 }
 model Correction {
   id String @id @default(cuid())
@@ -173,6 +183,8 @@ model Assessment {
   interpretation String
   sourceIds String[]
   rubricVersion Int @default(1)
+  materialVersion String?
+  reviewedSnapshot Json?
   createdAt DateTime @default(now())
 }
 model Decision {
@@ -185,6 +197,9 @@ model Decision {
   reason String
   fromStage String
   toStage String
+  materialVersion String?
+  reviewedSnapshot Json?
+  feedback FeedbackPublication[]
   createdAt DateTime @default(now())
 }
 model Message {
@@ -206,6 +221,11 @@ model Interview {
   notes Json
   revision Int @default(0)
   revisions InterviewVersion[]
+  plan Json?
+  result Json?
+  performedAt DateTime?
+  completedBy String?
+  materialVersion String?
 }
 model InterviewVersion {
   id String @id @default(cuid())
@@ -214,6 +234,8 @@ model InterviewVersion {
   authorId String
   notes Json
   revision Int
+  kind String @default("LEGACY")
+  materialVersion String?
   createdAt DateTime @default(now())
   @@unique([interviewId,revision])
 }
@@ -355,4 +377,63 @@ model RateLimit {
   key String @id
   count Int @default(1)
   resetAt DateTime
+}
+
+model DomainReview {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  authorId String
+  domain String
+  sourceIds String[]
+  sufficiency String
+  consistency String
+  question String
+  gap String
+  observation String
+  materialVersion String
+  reviewedSnapshot Json
+  createdAt DateTime @default(now())
+  @@index([applicationId,domain,createdAt])
+}
+model SourceView {
+  id String @id @default(cuid())
+  sourceId String
+  source Source @relation(fields:[sourceId],references:[id],onDelete:Cascade)
+  authorId String
+  correctionIds String[]
+  createdAt DateTime @default(now())
+  @@index([sourceId,createdAt])
+}
+model EpisodeAnnotation {
+  id String @id @default(cuid())
+  episodeId String
+  episode Episode @relation(fields:[episodeId],references:[id],onDelete:Cascade)
+  sourceId String
+  source Source @relation(fields:[sourceId],references:[id],onDelete:Cascade)
+  authorId String
+  quote String
+  personalAction String
+  createdAt DateTime @default(now())
+}
+model FeedbackPublication {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  decisionId String
+  decision Decision @relation(fields:[decisionId],references:[id],onDelete:Cascade)
+  authorId String
+  observation String
+  suggestion String
+  nextAction String
+  sourceIds String[]
+  materialVersion String
+  reviewedSnapshot Json
+  previewedBy String?
+  previewedAt DateTime?
+  publishedBy String?
+  publishedAt DateTime?
+  messageId String? @unique
+  createdAt DateTime @default(now())
+  @@index([applicationId,createdAt])
 }
