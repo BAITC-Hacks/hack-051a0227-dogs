@@ -1,3 +1,4 @@
+import { projectMilestones } from "./journey";
 import { db } from "./db";
 import { materialContext } from "./review-service.server";
 import {
@@ -62,6 +63,7 @@ export async function myData() {
       interests: u.interests,
     },
     attempts,
+    milestones: projectMilestones(attempts),
     application: application
       ? {
           ...application,

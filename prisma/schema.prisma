@@ -44,6 +44,11 @@ model ProjectAttempt {
   userId String
   user User @relation(fields:[userId],references:[id])
   slug String
+  context String @default("WORKSHOP")
+  startKey String? @unique
+  parentVersionId String?
+  parentVersion AttemptVersion? @relation("ContextSource", fields:[parentVersionId], references:[id], onDelete:Cascade)
+  hintsUsed String[] @default([])
   configVersion Int @default(1)
   revision Int @default(0)
   state Json
@@ -54,6 +59,7 @@ model ProjectAttempt {
   versions AttemptVersion[]
   transfers WorkTransfer[]
   @@index([userId,slug])
+  @@unique([parentVersionId,context])
 }
 model AttemptVersion {
   id String @id @default(cuid())
@@ -62,8 +68,15 @@ model AttemptVersion {
   revision Int
   state Json
   feedback Json
+  completed Boolean @default(false)
+  ruleVersion Int @default(0)
+  hintsUsed String[] @default([])
+  saveKey String?
+  basedOnRevision Int?
+  followups ProjectAttempt[] @relation("ContextSource")
   createdAt DateTime @default(now())
   @@unique([attemptId,revision])
+  @@unique([attemptId,saveKey])
 }
 model Application {
   id String @id @default(cuid())

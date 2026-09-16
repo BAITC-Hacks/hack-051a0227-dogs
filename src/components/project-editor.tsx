@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ProductWorkspace,
   MediaWorkspace,
@@ -19,15 +19,26 @@ import {
   RotateCcw,
   LayoutGrid,
 } from "lucide-react";
-import { action, dateLabel } from "@/lib/client";
-import { describeWork } from "@/lib/presentation";
-import { programFor, programs } from "@/lib/catalog";
+import { action, ActionError } from "@/lib/client";
+import { EquipmentWorkspace } from "./equipment-workspace";
 import {
-  initialState,
-  modules,
-  checkProject,
-  changesBetween,
-} from "@/lib/projects";
+  equipmentInitial,
+  equipmentSchema,
+  type EquipmentState,
+} from "@/lib/equipment";
+import {
+  sameWorkState,
+  versionCompleted,
+  workFeedback,
+  workCompleted,
+  workHref,
+  workTitle,
+  type Milestone,
+} from "@/lib/journey";
+import { WorkResult } from "./work-result";
+import { ContextStart, MilestoneMarks, WorkspaceTip } from "./journey-actions";
+import { programFor, programs } from "@/lib/catalog";
+import { initialState, modules } from "@/lib/projects";
 import type { ProjectState, Feedback as ProjectFeedback } from "@/lib/types";
 import type { ProjectAttempt, AttemptVersion } from "@prisma/client";
 import { Feedback, useTask, Tag } from "./ui";
@@ -35,28 +46,50 @@ export function ProjectEditor({
   slug,
   attempt,
   authenticated,
+  milestones: initialMilestones,
+  selectedRevision,
+  fromRevision,
+  parent,
 }: {
   slug: string;
   attempt: (ProjectAttempt & { versions: AttemptVersion[] }) | null;
   authenticated: boolean;
+  milestones: Milestone[];
+  selectedRevision?: number;
+  fromRevision?: number;
+  parent?: { attemptId: string; revision: number; feedback: unknown };
 }) {
   const p = programFor(slug)!;
   const router = useRouter();
+  const context = attempt?.context ?? "WORKSHOP";
+  const editing =
+    fromRevision === undefined
+      ? attempt?.state
+      : attempt?.versions.find((v) => v.revision === fromRevision)?.state;
+  const [equipment, setEquipment] = useState<EquipmentState>(
+    context === "EQUIPMENT" ? equipmentSchema.parse(editing) : equipmentInitial,
+  );
+  const [milestones, setMilestones] = useState(initialMilestones);
+  const [resultRevision, setResultRevision] = useState(
+    selectedRevision ?? attempt?.revision ?? 0,
+  );
+  const request = useRef({ signature: "", key: "" });
+  const ownerReady = useRef(!!attempt || authenticated);
   const task = useTask();
+  const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [state, setState] = useState<ProjectState>(
-    attempt
-      ? (attempt.state as unknown as ProjectState)
+    editing && context === "WORKSHOP"
+      ? (editing as unknown as ProjectState)
       : structuredClone(initialState),
   );
-  const [saved, setSaved] = useState(
-    (attempt?.state as unknown as ProjectState) ?? null,
-  );
+  const [saved, setSaved] = useState<unknown>(attempt?.state ?? null);
   const [attemptId, setAttemptId] = useState(attempt?.id ?? "");
   const [revision, setRevision] = useState(attempt?.revision ?? 0);
   const [feedback, setFeedback] = useState<ProjectFeedback | null>(null);
   const [versions, setVersions] = useState(attempt?.versions ?? []);
-  const dirty = JSON.stringify(state) !== JSON.stringify(saved);
+  const currentState = context === "EQUIPMENT" ? equipment : state;
+  const dirty = !sameWorkState(currentState, saved);
   const update = <K extends keyof ProjectState>(
     key: K,
     value: ProjectState[K],
@@ -70,18 +103,60 @@ export function ProjectEditor({
     [arr[i], arr[i + direction]] = [arr[i + direction], arr[i]];
     update(key, arr);
   }
-  async function save() {
+  async function save(againstRevision = revision) {
     await task.run(async () => {
+      // Establish the guest cookie before saving: a lost first save response
+      // can then be retried under the same owner and idempotency key.
+      if (!ownerReady.current) {
+        await action("project.progress");
+        ownerReady.current = true;
+      }
+      const signature = JSON.stringify({
+        state: currentState,
+        revision: againstRevision,
+        id: attemptId,
+      });
+      if (request.current.signature !== signature)
+        request.current = { signature, key: crypto.randomUUID() };
       const result = await action<{
         id: string;
         revision: number;
         feedback: ProjectFeedback;
         versions: AttemptVersion[];
-      }>("project.save", { slug, state, id: attemptId || undefined, revision });
+        state: unknown;
+        milestones: Milestone[];
+      }>("project.save", {
+        slug,
+        state: currentState,
+        id: attemptId || undefined,
+        revision: againstRevision,
+        requestKey: request.current.key,
+        basedOnRevision: fromRevision ?? revision,
+      }).catch(async (error: unknown) => {
+        if (error instanceof ActionError && error.status === 409 && attemptId) {
+          try {
+            const progress = await action<{
+              attempts: { id: string; revision: number }[];
+            }>("project.progress");
+            const latest = progress.attempts.find((a) => a.id === attemptId);
+            if (latest && latest.revision !== againstRevision)
+              setConflictRevision(latest.revision);
+          } catch {
+            /* The original error and the edited work remain available. */
+          }
+        }
+        throw error;
+      });
+      setConflictRevision(null);
       setAttemptId(result.id);
       setRevision(result.revision);
-      setSaved(structuredClone(state));
-      setFeedback(result.feedback);
+      setSaved(result.state);
+      if (context === "EQUIPMENT")
+        setEquipment(equipmentSchema.parse(result.state));
+      else setState(result.state as ProjectState);
+      setResultRevision(result.revision);
+      setMilestones(result.milestones);
+      setFeedback(null);
       setVersions(result.versions);
       router.refresh();
     }, "Работа сохранена. Можно продолжить с этого места.");
@@ -92,11 +167,15 @@ export function ProjectEditor({
       <div className="breadcrumbs">
         <Link href="/">Проекты</Link>
         <ArrowRight size={12} />
-        <span>Открытая площадка</span>
+        <span>
+          {context === "EQUIPMENT"
+            ? "Новый контекст · оборудование"
+            : "Открытая площадка"}
+        </span>
       </div>
       <div className="page-title">
         <div>
-          <h1>{p.action}</h1>
+          <h1>{workTitle({ slug, context }, p.action)}</h1>
           <p>Маленькое действие. Результат, который принадлежит тебе.</p>
         </div>
         <Tag tone="blue">{p.shortTitle}</Tag>
@@ -115,142 +194,201 @@ export function ProjectEditor({
       <div className="workspace">
         <details className="brief-panel panel" open>
           <summary>Что произошло</summary>
-          <p>
-            Команда готовит открытую образовательную площадку в библиотеке. Зал
-            освободится позже, часть участников придёт впервые. План нужно
-            пересмотреть.
-          </p>
-          <div className="team-message">
-            <strong>Дана · координирует площадку</strong>
-            <p>
-              «Начинаем в 16:00 вместо 14:00. Мастерские остаются бесплатными.
-              Ждём ребят без предварительного опыта».
-            </p>
-          </div>
-          {slug === "digital-products" && (
+          {context === "EQUIPMENT" ? (
             <>
+              <p>
+                Команда готовит съёмку в библиотеке. Посетителю нужно
+                забронировать оборудование на один час. У него есть почта, но
+                нет телефона.
+              </p>
+              <table className="source-table">
+                <caption>Доступность оборудования</caption>
+                <thead>
+                  <tr>
+                    <th>Вещь</th>
+                    <th>16:00</th>
+                    <th>17:00</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Камера</td>
+                    <td>Занята</td>
+                    <td>Свободна</td>
+                  </tr>
+                  <tr>
+                    <td>Диктофон</td>
+                    <td>Свободен</td>
+                    <td>Проверка</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                Покажи доступность до запроса контакта. Для занятого времени
+                предложи свободное. В подтверждении оставь вещь и время.
+              </p>
+              {parent && (
+                <details className="versions">
+                  <summary>Из какой работы пришёл принцип</summary>
+                  <Link
+                    className="text-link"
+                    href={workHref(
+                      { id: parent.attemptId, slug },
+                      parent.revision,
+                    )}
+                  >
+                    Открыть исходный результат · версия {parent.revision}
+                  </Link>
+                  <p>Сохранённая обратная связь исходной работы:</p>
+                  <ul>
+                    {(parent.feedback as ProjectFeedback).checks.map((c) => (
+                      <li key={c.label}>{c.detail}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </>
+          ) : (
+            <>
+              <p>
+                Команда готовит открытую образовательную площадку в библиотеке.
+                Зал освободится позже, часть участников придёт впервые. План
+                нужно пересмотреть.
+              </p>
               <div className="team-message">
-                <strong>Алия · будущая участница</strong>
+                <strong>Дана · координирует площадку</strong>
                 <p>
-                  «У меня нет личного телефона. Сначала хочу выбрать мастерскую,
-                  а потом рассказывать о себе».
+                  «Начинаем в 16:00 вместо 14:00. Мастерские остаются
+                  бесплатными. Ждём ребят без предварительного опыта».
                 </p>
               </div>
-              <p>
-                Условия: покажи выбор до личных данных, сделай телефон
-                необязательным, заверши путь подтверждением.
-              </p>
-            </>
-          )}
-          {slug === "digital-media" && (
-            <>
-              <div className="team-message">
-                <strong>Марат · редактор</strong>
-                <p>
-                  «В чате уже пишут об отмене. Сверь историю с сообщением Даны и
-                  помоги участникам не запутаться».
-                </p>
-              </div>
-              <p>
-                Используй подготовленные фрагменты, придумай заголовок и
-                подпись. Проверь время начала.
-              </p>
-            </>
-          )}
-          {slug === "creative-engineering" && (
-            <>
-              <p>
-                План: 4 × 3 клетки. Правая колонка — проход. Ресурс: 12 единиц.
-                Нужны стол и питание. Экран должен стоять рядом с питанием по
-                стороне.
-              </p>
-              <table className="source-table">
-                <caption className="screen-reader-only">
-                  Стоимость модулей
-                </caption>
-                <thead>
-                  <tr>
-                    <th>Модуль</th>
-                    <th>Ресурс</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.values(modules).map((m) => (
-                    <tr key={m.title}>
-                      <td>{m.title}</td>
-                      <td>{m.cost}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="subtle">
-                Это схема по условиям задачи, без расчёта физических нагрузок.
-              </p>
-            </>
-          )}
-          {slug === "sociology" && (
-            <>
-              <table className="source-table">
-                <caption>Опрос 30 посетителей библиотеки</caption>
-                <thead>
-                  <tr>
-                    <th>Удобное время</th>
-                    <th>Ответы</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>До 14:00</td>
-                    <td>7</td>
-                  </tr>
-                  <tr>
-                    <td>14:00–16:00</td>
-                    <td>5</td>
-                  </tr>
-                  <tr>
-                    <td>После 16:00</td>
-                    <td>18</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p>
-                Другая аудитория в опрос не попала. Отдели то, что известно, от
-                предположений.
-              </p>
-            </>
-          )}
-          {slug === "public-policy" && (
-            <>
-              <p>
-                Всего 12 единиц ресурса. Одна единица покрывает потребность 5
-                участников в материалах, 3 — в помощи наставника или 4 — в тихих
-                местах.
-              </p>
-              <table className="source-table">
-                <thead>
-                  <tr>
-                    <th>Потребность</th>
-                    <th>Участники</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Материалы</td>
-                    <td>30</td>
-                  </tr>
-                  <tr>
-                    <td>Наставник</td>
-                    <td>18</td>
-                  </tr>
-                  <tr>
-                    <td>Тихое место</td>
-                    <td>16</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p className="subtle">
-                Покрытие рассчитывается по этим правилам учебной задачи.
-              </p>
+              {context === "WORKSHOP" && slug === "digital-products" && (
+                <>
+                  <div className="team-message">
+                    <strong>Алия · будущая участница</strong>
+                    <p>
+                      «У меня нет личного телефона. Сначала хочу выбрать
+                      мастерскую, а потом рассказывать о себе».
+                    </p>
+                  </div>
+                  <p>
+                    Условия: покажи выбор до личных данных, сделай телефон
+                    необязательным, заверши путь подтверждением.
+                  </p>
+                </>
+              )}
+              {context === "WORKSHOP" && slug === "digital-media" && (
+                <>
+                  <div className="team-message">
+                    <strong>Марат · редактор</strong>
+                    <p>
+                      «В чате уже пишут об отмене. Сверь историю с сообщением
+                      Даны и помоги участникам не запутаться».
+                    </p>
+                  </div>
+                  <p>
+                    Используй подготовленные фрагменты, придумай заголовок и
+                    подпись. Проверь время начала.
+                  </p>
+                </>
+              )}
+              {context === "WORKSHOP" && slug === "creative-engineering" && (
+                <>
+                  <p>
+                    План: 4 × 3 клетки. Правая колонка — проход. Ресурс: 12
+                    единиц. Нужны стол и питание. Экран должен стоять рядом с
+                    питанием по стороне.
+                  </p>
+                  <table className="source-table">
+                    <caption className="screen-reader-only">
+                      Стоимость модулей
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th>Модуль</th>
+                        <th>Ресурс</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(modules).map((m) => (
+                        <tr key={m.title}>
+                          <td>{m.title}</td>
+                          <td>{m.cost}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="subtle">
+                    Это схема по условиям задачи, без расчёта физических
+                    нагрузок.
+                  </p>
+                </>
+              )}
+              {context === "WORKSHOP" && slug === "sociology" && (
+                <>
+                  <table className="source-table">
+                    <caption>Опрос 30 посетителей библиотеки</caption>
+                    <thead>
+                      <tr>
+                        <th>Удобное время</th>
+                        <th>Ответы</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>До 14:00</td>
+                        <td>7</td>
+                      </tr>
+                      <tr>
+                        <td>14:00–16:00</td>
+                        <td>5</td>
+                      </tr>
+                      <tr>
+                        <td>После 16:00</td>
+                        <td>18</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p>
+                    Другая аудитория в опрос не попала. Отдели то, что известно,
+                    от предположений.
+                  </p>
+                </>
+              )}
+              {context === "WORKSHOP" && slug === "public-policy" && (
+                <>
+                  <p>
+                    Всего 12 единиц ресурса. Одна единица покрывает потребность
+                    5 участников в материалах, 3 — в помощи наставника или 4 — в
+                    тихих местах.
+                  </p>
+                  <table className="source-table">
+                    <thead>
+                      <tr>
+                        <th>Потребность</th>
+                        <th>Участники</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Материалы</td>
+                        <td>30</td>
+                      </tr>
+                      <tr>
+                        <td>Наставник</td>
+                        <td>18</td>
+                      </tr>
+                      <tr>
+                        <td>Тихое место</td>
+                        <td>16</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className="subtle">
+                    Покрытие рассчитывается по этим правилам учебной задачи.
+                  </p>
+                </>
+              )}
             </>
           )}
           <hr className="divider" />
@@ -266,14 +404,34 @@ export function ProjectEditor({
               <p>
                 {revision
                   ? `Сохранена версия ${revision}`
-                  : "Измени исходный план — это станет твоей первой версией."}
+                  : "Измени исходный план и проверь условия задачи."}
                 {dirty && revision > 0 ? " · Есть несохранённые изменения" : ""}
               </p>
             </div>
             <Tag>{p.artifact}</Tag>
           </div>
+          {(!attempt || attempt.revision === 0) && <WorkspaceTip />}
+          {fromRevision !== undefined && (
+            <p className="notice info">
+              Доработка версии {fromRevision}. Сохранение добавит новый вариант;
+              предыдущие останутся в истории.
+            </p>
+          )}
           <div className="editor-surface">
-            {slug === "digital-products" && (
+            {context === "EQUIPMENT" && (
+              <EquipmentWorkspace
+                state={equipment}
+                setState={(s) => {
+                  setEquipment(s);
+                  setFeedback(null);
+                  task.setNotice("");
+                }}
+                id={attemptId}
+                hintsUsed={attempt?.hintsUsed ?? []}
+              />
+            )}
+
+            {context === "WORKSHOP" && slug === "digital-products" && (
               <ProductWorkspace
                 key={resetKey}
                 state={state}
@@ -281,7 +439,7 @@ export function ProjectEditor({
                 reorder={move}
               />
             )}
-            {slug === "digital-media" && (
+            {context === "WORKSHOP" && slug === "digital-media" && (
               <MediaWorkspace
                 key={resetKey}
                 state={state}
@@ -289,36 +447,42 @@ export function ProjectEditor({
                 reorder={move}
               />
             )}
-            {slug === "creative-engineering" && (
+            {context === "WORKSHOP" && slug === "creative-engineering" && (
               <EngineeringWorkspace
                 key={resetKey}
                 state={state}
                 update={update}
               />
             )}
-            {slug === "sociology" && (
+            {context === "WORKSHOP" && slug === "sociology" && (
               <SociologyWorkspace
                 key={resetKey}
                 state={state}
                 update={update}
               />
             )}
-            {slug === "public-policy" && (
+            {context === "WORKSHOP" && slug === "public-policy" && (
               <PolicyWorkspace key={resetKey} state={state} update={update} />
             )}
           </div>
           <div className="editor-toolbar">
             <button
               className="button primary"
-              disabled={task.busy}
-              onClick={save}
+              disabled={task.busy || !dirty}
+              onClick={() => save()}
             >
               <Save size={17} />
-              Сохранить работу
+              {task.error
+                ? "Повторить сохранение"
+                : workCompleted(slug, currentState, context)
+                  ? "Сохранить результат"
+                  : "Сохранить черновик"}
             </button>
             <button
               className="button secondary"
-              onClick={() => setFeedback(checkProject(slug, state))}
+              onClick={() =>
+                setFeedback(workFeedback(slug, currentState, context))
+              }
             >
               Проверить условия <CheckCircle2 size={17} />
             </button>
@@ -326,6 +490,7 @@ export function ProjectEditor({
               className="button quiet"
               onClick={() => {
                 setState(structuredClone(initialState));
+                setEquipment(structuredClone(equipmentInitial));
                 setFeedback(null);
                 setResetKey((key) => key + 1);
               }}
@@ -334,6 +499,35 @@ export function ProjectEditor({
             </button>
           </div>
           <Feedback task={task} />
+          {conflictRevision !== null && (
+            <div className="conflict-recovery">
+              <p>
+                На сервере уже версия {conflictRevision}. Твой вариант можно
+                сохранить отдельно: обе работы останутся в истории.
+              </p>
+              <a
+                className="text-link"
+                target="_blank"
+                rel="noopener"
+                href={workHref({ id: attemptId, slug }, conflictRevision)}
+              >
+                Открыть версию {conflictRevision} в новой вкладке
+              </a>
+              <button
+                className="button secondary"
+                disabled={task.busy}
+                onClick={() => save(conflictRevision)}
+              >
+                Сохранить мой вариант новой версией
+              </button>
+            </div>
+          )}
+          {revision > 0 && !dirty && (
+            <a className="text-link" href="#result">
+              Посмотреть сохранённый результат · версия {revision}{" "}
+              <ArrowRight size={16} />
+            </a>
+          )}
           {feedback && (
             <section className="feedback-panel" aria-label="Обратная связь">
               <h3>Что говорит проверка</h3>
@@ -357,75 +551,89 @@ export function ProjectEditor({
               </p>
             </section>
           )}
-          {saved && (
-            <section className="artifact-summary">
+          {saved !== null && revision > 0 && versions.length > 0 && (
+            <section className="artifact-summary" id="result">
               <div className="result-title">
                 <LayoutGrid size={18} />
-                {p.artifact} · версия {revision}
+                {context === "EQUIPMENT" ? "Маршрут бронирования" : p.artifact}
               </div>
-              <h3>Ты уже сделал первый ход.</h3>
-              <p className="subtle">В сохранённой работе изменено:</p>
-              <ul>
-                {(changesBetween(slug, initialState, saved).length
-                  ? changesBetween(slug, initialState, saved)
-                  : ["Исходный план сохранён для дальнейшей работы"]
-                ).map((x) => (
-                  <li key={x}>{x}</li>
-                ))}
-              </ul>
-              <p style={{ fontSize: 13 }}>
-                Ты попробовал:{" "}
-                {checkProject(slug, saved).actions.join(", ").toLowerCase()}.
-                Эти действия связаны с дисциплинами: {p.disciplines.join(", ")}.
-              </p>
-              <details className="versions">
-                <summary>Как продолжить с D.R.I.V.E.</summary>
+              <h2>Твоя сохранённая работа</h2>
+              <WorkResult
+                work={{ slug, context, versions }}
+                revision={resultRevision}
+                onRevision={setResultRevision}
+                expanded
+              />
+              <MilestoneMarks
+                items={milestones.filter((m) => m.attemptId === attemptId)}
+              />
+              <div className="result-next">
+                <h3>Что можно сделать дальше</h3>
+                {context === "WORKSHOP" &&
+                slug === "digital-products" &&
+                versions.some(
+                  (v) =>
+                    v.revision === resultRevision &&
+                    versionCompleted({ slug, context }, v),
+                ) ? (
+                  <>
+                    <p>
+                      Примени порядок «сначала выбор, затем контакт» в
+                      бронировании оборудования. Здесь нужно ещё учитывать
+                      занятое время и детали брони.
+                    </p>
+                    <ContextStart
+                      versionId={
+                        versions.find((v) => v.revision === resultRevision)!.id
+                      }
+                    />
+                  </>
+                ) : (
+                  <p>
+                    {workCompleted(
+                      slug,
+                      versions.find((v) => v.revision === resultRevision)
+                        ?.state ?? saved,
+                      context,
+                    )
+                      ? "Условия выполнены. Можно сохранить другой обоснованный вариант или попробовать другую мастерскую."
+                      : "Вернись к условиям, отмеченным в разборе, и сохрани новый вариант. Текущий останется в истории."}
+                  </p>
+                )}
                 <p>
-                  Проверь предположение по материалам, примени обратную связь,
-                  учти контекст аудитории, объясни выбор команде и заверши
-                  изменение. Это способы работы, которые можно попробовать, а не
-                  оценка личности.
+                  В этой работе используются:{" "}
+                  {workFeedback(slug, saved, context)
+                    .actions.join(", ")
+                    .toLowerCase()}
+                  . На программе есть дисциплины: {p.disciplines.join(", ")}.
                 </p>
-              </details>
-              <div className="row" style={{ marginTop: 20 }}>
-                <Link
-                  className="button dark"
-                  href={authenticated ? "/my" : "/login?mode=register&next=/my"}
-                >
-                  {authenticated ? "Открыть мой путь" : "Сохранить в аккаунте"}
-                  <ArrowUpRight size={18} />
-                </Link>
-                <Link className="text-link" href={"/programs/" + slug}>
-                  Что изучают на программе <ArrowRight size={16} />
-                </Link>
+                <div className="row">
+                  <Link className="button dark" href="/my">
+                    Открыть мой путь <ArrowUpRight size={18} />
+                  </Link>
+                  <Link className="text-link" href={"/programs/" + slug}>
+                    Изучить направление <ArrowRight size={16} />
+                  </Link>
+                </div>
+                {!authenticated && (
+                  <p className="subtle">
+                    Работа уже доступна в этом браузере.{" "}
+                    <Link
+                      className="text-link"
+                      href={
+                        "/login?mode=register&next=" +
+                        encodeURIComponent(
+                          workHref({ id: attemptId, slug }, resultRevision),
+                        )
+                      }
+                    >
+                      Сохранить доступ в аккаунте
+                    </Link>{" "}
+                    — без повторного прохождения.
+                  </p>
+                )}
               </div>
-              {!authenticated && (
-                <p className="subtle" style={{ marginTop: 12 }}>
-                  Работа уже сохранена для этого браузера. Аккаунт позволит
-                  вернуться с другого устройства.
-                </p>
-              )}
             </section>
-          )}
-          {versions.length > 0 && (
-            <details className="versions">
-              <summary>
-                Исходная работа и история изменений · {versions.length}
-              </summary>
-              {versions.map((v) => (
-                <details className="version-row" key={v.id}>
-                  <summary>
-                    Версия {v.revision} ·{" "}
-                    {v.revision === 0
-                      ? "Исходный план"
-                      : dateLabel(v.createdAt)}
-                  </summary>
-                  <pre>
-                    {describeWork(slug, v.state as unknown as ProjectState)}
-                  </pre>
-                </details>
-              ))}
-            </details>
           )}
         </div>
       </div>

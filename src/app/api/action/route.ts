@@ -14,7 +14,6 @@ import {
 import type { ProjectState } from "@/lib/types";
 import {
   actor,
-  guestActor,
   requireUser,
   requireStaff,
   setSession,
@@ -26,12 +25,7 @@ import {
   checkOrigin,
   tokenHash,
 } from "@/lib/security";
-import {
-  projectSchema,
-  initialState,
-  checkProject,
-  scenarioVersion,
-} from "@/lib/projects";
+import { journeyAction } from "@/lib/journey.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
@@ -89,9 +83,23 @@ export async function POST(req: Request) {
         )
           throw new AppError("Почта или пароль не совпадают.", 401);
         if (old?.role === "GUEST" && existing.role === "CANDIDATE")
-          await db.projectAttempt.updateMany({
-            where: { userId: old.id },
-            data: { userId: existing.id },
+          await db.$transaction(async (tx) => {
+            // Serialize with project saves, and preserve both owners' explicit interests.
+            for (const ownerId of [old.id, existing.id].sort())
+              await tx.$queryRaw`SELECT id FROM "User" WHERE id=${ownerId} FOR UPDATE`;
+            await tx.projectAttempt.updateMany({
+              where: { userId: old.id },
+              data: { userId: existing.id },
+            });
+            const owners = await tx.user.findMany({
+              where: { id: { in: [old.id, existing.id] } },
+            });
+            await tx.user.update({
+              where: { id: existing.id },
+              data: {
+                interests: [...new Set(owners.flatMap((o) => o.interests))],
+              },
+            });
           });
         await setSession(existing.id);
         result = { role: existing.role };
@@ -102,75 +110,15 @@ export async function POST(req: Request) {
       if (token)
         await db.session.deleteMany({ where: { tokenHash: tokenHash(token) } });
       jar.delete("leader_session");
-    } else if (type === "project.save") {
-      const u = await guestActor();
-      if (u.role === "STAFF")
-        throw new AppError("Для учебной работы войдите как кандидат.");
-      await rateLimit("project:" + u.id, 60);
-      const slug = z.string().parse(b.slug);
-      if (!programFor(slug)) throw new AppError("Задание не найдено.", 404);
-      const state = projectSchema.parse(b.state);
-      const feedback = checkProject(slug, state);
-      if (b.id) {
-        const attempt = await db.projectAttempt.findFirst({
-          where: { id: id.parse(b.id), userId: u.id },
-        });
-        if (!attempt) throw new AppError("Работа недоступна.", 404);
-        if (attempt.slug !== slug)
-          throw new AppError(
-            "Задание не соответствует сохранённой работе.",
-            400,
-          );
-        const rev = z.number().int().parse(b.revision);
-        await db.$transaction(async (tx) => {
-          const updated = await tx.projectAttempt.updateMany({
-            where: { id: attempt.id, revision: rev },
-            data: { state: json(state), revision: { increment: 1 } },
-          });
-          if (!updated.count)
-            throw new AppError(
-              "Работа изменена в другой вкладке. Обновите страницу перед сохранением.",
-              409,
-            );
-          await tx.attemptVersion.create({
-            data: {
-              attemptId: attempt.id,
-              revision: rev + 1,
-              state: json(state),
-              feedback: json(feedback),
-            },
-          });
-        });
-        result = { id: attempt.id, revision: rev + 1, feedback };
-      } else {
-        const a = await db.projectAttempt.create({
-          data: {
-            userId: u.id,
-            slug,
-            state: json(state),
-            revision: 1,
-            configVersion: scenarioVersion,
-            versions: {
-              create: [
-                {
-                  revision: 0,
-                  state: json(initialState),
-                  feedback: json(checkProject(slug, initialState)),
-                },
-                { revision: 1, state: json(state), feedback: json(feedback) },
-              ],
-            },
-          },
-        });
-        result = { id: a.id, revision: 1, feedback };
-      }
-      result = {
-        ...(result as object),
-        versions: await db.attemptVersion.findMany({
-          where: { attemptId: (result as { id: string }).id },
-          orderBy: { revision: "desc" },
-        }),
-      };
+    } else if (
+      [
+        "project.save",
+        "project.context",
+        "project.hint",
+        "project.progress",
+      ].includes(type)
+    ) {
+      result = await journeyAction(type, b);
     } else if (type === "interest") {
       const u = await requireUser();
       const slug = z.string().parse(b.slug);
@@ -183,11 +131,22 @@ export async function POST(req: Request) {
     } else if (type === "attempt.interest") {
       const u = await requireUser();
       const value = z.enum(["MORE", "ANOTHER", "UNDECIDED"]).parse(b.value);
-      const r = await db.projectAttempt.updateMany({
-        where: { id: id.parse(b.id), userId: u.id },
-        data: { interest: value },
+      await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id=${u.id} FOR UPDATE`;
+        const owned = await tx.projectAttempt.findFirst({
+          where: { id: id.parse(b.id), userId: u.id },
+        });
+        if (!owned) throw new AppError("Работа недоступна.", 404);
+        if (value === "MORE")
+          await tx.projectAttempt.updateMany({
+            where: { userId: u.id, interest: "MORE" },
+            data: { interest: "UNDECIDED" },
+          });
+        await tx.projectAttempt.update({
+          where: { id: owned.id },
+          data: { interest: value },
+        });
       });
-      if (!r.count) throw new AppError("Работа недоступна.", 404);
     } else if (type === "application.save") {
       const u = await requireUser();
       if (u.role !== "CANDIDATE")
@@ -259,11 +218,7 @@ export async function POST(req: Request) {
         );
       if (app.submittedAt)
         throw new AppError("Отправленная заявка зафиксирована.", 409);
-      const requestedRevision = z
-        .number()
-        .int()
-        .nonnegative()
-        .parse(b.revision);
+      const requestedRevision = z.number().int().positive().parse(b.revision);
       const v = await db.attemptVersion.findUnique({
         where: {
           attemptId_revision: {
@@ -294,6 +249,7 @@ export async function POST(req: Request) {
             revision: v.revision,
             snapshot: json({
               slug: attempt.slug,
+              context: attempt.context,
               state: v.state,
               label: "Учебное упражнение",
               conditions: attempt.conditions,
@@ -397,6 +353,7 @@ export async function POST(req: Request) {
                 describeWork(
                   (t.snapshot as { slug: string }).slug,
                   (t.snapshot as unknown as { state: ProjectState }).state,
+                  (t.snapshot as { context?: string }).context,
                 ),
             })),
             ...app.materials.map((m) => ({

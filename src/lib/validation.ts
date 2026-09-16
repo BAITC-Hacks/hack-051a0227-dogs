@@ -42,39 +42,65 @@ export const emptyFields = {
   audioConsent: false,
   documentNote: "",
 };
+export function applicationRequirements(
+  fields: typeof emptyFields,
+  materialKinds: string[],
+) {
+  return [
+    {
+      title: "Имя, почта и город",
+      complete:
+        fields.name.trim().length >= 3 &&
+        z.email().safeParse(fields.email).success &&
+        !!fields.city.trim(),
+      issue: "Заполните имя, почту и город.",
+    },
+    {
+      title: "Опыт и личная роль",
+      complete:
+        fields.experience.trim().length >= 30 &&
+        fields.personalRole.trim().length >= 15,
+      issue: "Опишите опыт и свою личную роль.",
+    },
+    {
+      title: "Мотивация",
+      complete: fields.motivation.trim().length >= 30,
+      issue: "Расскажите о мотивации.",
+    },
+    {
+      title: "Два разных утверждения",
+      complete:
+        ["0", "1", "2", "3"].includes(fields.most) &&
+        ["0", "1", "2", "3"].includes(fields.least) &&
+        fields.most !== fields.least,
+      issue: "Выберите два разных утверждения.",
+    },
+    {
+      title: "Согласие на рассмотрение",
+      complete: fields.processing,
+      issue: "Подтвердите согласие на обработку заявки.",
+    },
+    {
+      title: "Видеопрезентация",
+      complete: !!fields.videoUrl || materialKinds.includes("video"),
+      issue: "Добавьте видеопрезентацию: файл или ссылку.",
+    },
+    {
+      title: "Документы или пояснение",
+      complete:
+        materialKinds.includes("document") || !!fields.documentNote.trim(),
+      issue:
+        "Добавьте документы или объясните, какие материалы требуют уточнения.",
+    },
+  ];
+}
 export function submissionIssues(
   fields: typeof emptyFields,
   materialKinds: string[],
 ) {
-  const issues: string[] = [];
-  if (
-    fields.name.trim().length < 3 ||
-    !z.email().safeParse(fields.email).success ||
-    !fields.city.trim()
-  )
-    issues.push("Заполните имя, почту и город.");
-  if (
-    fields.experience.trim().length < 30 ||
-    fields.personalRole.trim().length < 15
-  )
-    issues.push("Опишите опыт и свою личную роль.");
-  if (fields.motivation.trim().length < 30)
-    issues.push("Расскажите о мотивации.");
-  if (
-    !["0", "1", "2", "3"].includes(fields.most) ||
-    !["0", "1", "2", "3"].includes(fields.least) ||
-    fields.most === fields.least
-  )
-    issues.push("Выберите два разных утверждения.");
-  if (!fields.processing)
-    issues.push("Подтвердите согласие на обработку заявки.");
-  if (!fields.videoUrl && !materialKinds.includes("video"))
-    issues.push("Добавьте видеопрезентацию: файл или ссылку.");
-  if (!materialKinds.includes("document") && !fields.documentNote.trim())
-    issues.push(
-      "Добавьте документы или объясните, какие материалы требуют уточнения.",
-    );
-  return issues;
+  return applicationRequirements(fields, materialKinds)
+    .filter((r) => !r.complete)
+    .map((r) => r.issue);
 }
 export const fileTypes: Record<string, string[]> = {
   document: ["application/pdf", "image/jpeg", "image/png"],

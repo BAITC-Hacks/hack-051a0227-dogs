@@ -137,8 +137,8 @@ export function checkProject(slug: string, s: ProjectState): Feedback {
     );
     check(
       "Подтверждённое сообщение",
-      !s.fragments.includes("cancel") && !/отмен/i.test(s.headline),
-      "Редактор: организатор изменил время, а не отменил встречу.",
+      !s.fragments.includes("cancel"),
+      "Фрагмент «Всё отменяется?» противоречит сообщению организатора о переносе времени. Заголовок и свободный текст проверь самостоятельно.",
     );
     check(
       "История с контекстом",

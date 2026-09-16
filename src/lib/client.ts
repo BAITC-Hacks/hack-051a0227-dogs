@@ -1,3 +1,11 @@
+export class ActionError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
 export async function action<T = Record<string, unknown>>(
   type: string,
   data: Record<string, unknown> = {},
@@ -16,8 +24,9 @@ export async function action<T = Record<string, unknown>>(
   }
   const payload = await res.json();
   if (!res.ok || !payload.ok)
-    throw new Error(
+    throw new ActionError(
       payload.error ?? "Не удалось сохранить. Повторите попытку.",
+      res.status,
     );
   return payload.data as T;
 }

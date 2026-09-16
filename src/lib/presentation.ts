@@ -1,7 +1,16 @@
+import { equipmentSchema, equipmentNames } from "./equipment";
 import type { ApplicationFields, ProjectState, LanguageState } from "./types";
 import { screenNames, fragments, modules, testimonies } from "./projects";
 import { programFor, forcedStatements } from "./catalog";
-export function describeWork(slug: string, s: ProjectState): string {
+export function describeWork(
+  slug: string,
+  s: ProjectState,
+  context = "WORKSHOP",
+): string {
+  if (context === "EQUIPMENT") {
+    const b = equipmentSchema.parse(s);
+    return `Бронирование оборудования: ${b.screens.map((k) => equipmentNames[k]).join(" → ")}\nТелефон: ${b.requiredPhone ? "обязателен" : "по желанию"}\nЗанятое время: ${b.unavailable === "alternatives" ? "предложить свободное" : "подтвердить без проверки"}\nНазвание и время в подтверждении: ${b.reservationDetails ? "да" : "нет"}`;
+  }
   if (slug === "digital-products")
     return (
       "Маршрут: " +

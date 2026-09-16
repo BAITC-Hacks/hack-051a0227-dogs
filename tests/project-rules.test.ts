@@ -46,6 +46,8 @@ test("Медиа проверяет изменённое время и непо�
   s.caption = "Встречаемся в 16:00";
   assert.ok(checkProject("digital-media", s).checks.every((c) => c.passed));
   s.headline = "Встреча отменена";
+  assert.equal(checkProject("digital-media", s).checks[1].passed, true);
+  s.fragments = ["place", "cancel", "people"];
   assert.equal(checkProject("digital-media", s).checks[1].passed, false);
   s.headline = "Встречаемся";
   s.caption = "Встречаемся в 14:00, а потом в 16:00";
