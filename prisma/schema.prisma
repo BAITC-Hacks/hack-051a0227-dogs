@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(cuid())
+  email String? @unique
+  name String @default("Гость")
+  passwordHash String?
+  role String @default("GUEST")
+  origin String @default("USER")
+  interests String[] @default([])
+  createdAt DateTime @default(now())
+  sessions Session[]
+  attempts ProjectAttempt[]
+  application Application?
+  materials Material[]
+  messages Message[]
+  assessments Assessment[]
+  decisions Decision[]
+}
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  @@index([userId])
+}
+model Program {
+  slug String @id
+  title String
+  shortTitle String
+  description String
+  disciplines String[]
+  sourceUrl String
+  checkedAt DateTime
+  applications Application[]
+}
+model ProjectAttempt {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  slug String
+  configVersion Int @default(1)
+  revision Int @default(0)
+  state Json
+  interest String @default("UNDECIDED")
+  conditions String @default("Самостоятельная учебная работа, без ограничения времени")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions AttemptVersion[]
+  transfers WorkTransfer[]
+  @@index([userId,slug])
+}
+model AttemptVersion {
+  id String @id @default(cuid())
+  attemptId String
+  attempt ProjectAttempt @relation(fields:[attemptId], references:[id], onDelete:Cascade)
+  revision Int
+  state Json
+  feedback Json
+  createdAt DateTime @default(now())
+  @@unique([attemptId,revision])
+}
+model Application {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id])
+  programSlug String
+  program Program @relation(fields:[programSlug],references:[slug])
+  fields Json
+  stage String @default("DRAFT")
+  revision Int @default(0)
+  origin String @default("USER")
+  submittedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions ApplicationVersion[]
+  materials Material[]
+  sources Source[]
+  episodes Episode[]
+  assessments Assessment[]
+  decisions Decision[]
+  messages Message[]
+  interviews Interview[]
+  language LanguageCheck?
+  transfers WorkTransfer[]
+  audioConsent AudioConsent?
+  audioConsentEvents AudioConsentEvent[]
+  audioJobs AudioJob[]
+}
+model ApplicationVersion {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  revision Int
+  snapshot Json
+  kind String
+  createdAt DateTime @default(now())
+  @@unique([applicationId,revision])
+}
+model WorkTransfer {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  attemptId String
+  attempt ProjectAttempt @relation(fields:[attemptId],references:[id])
+  revision Int
+  snapshot Json
+  consentAt DateTime @default(now())
+  @@unique([applicationId,attemptId,revision])
+}
+model Material {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  applicationId String?
+  application Application? @relation(fields:[applicationId],references:[id])
+  name String
+  mime String
+  size Int
+  kind String
+  bytes Bytes
+  createdAt DateTime @default(now())
+  sources Source[]
+  sha256 String?
+  durationMs Int?
+}
+model Episode {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  title String
+  personalRole String
+  sources Source[]
+}
+model Source {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  episodeId String?
+  episode Episode? @relation(fields:[episodeId],references:[id])
+  materialId String?
+  material Material? @relation(fields:[materialId],references:[id])
+  title String
+  kind String
+  content String
+  provenance String @default("CANDIDATE_ACCOUNT")
+  createdAt DateTime @default(now())
+  corrections Correction[]
+}
+model Correction {
+  id String @id @default(cuid())
+  sourceId String
+  source Source @relation(fields:[sourceId],references:[id])
+  authorId String
+  explanation String
+  createdAt DateTime @default(now())
+}
+model Assessment {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  authorId String
+  author User @relation(fields:[authorId],references:[id])
+  domain String
+  level String
+  sufficiency String
+  contradiction String
+  interpretation String
+  sourceIds String[]
+  rubricVersion Int @default(1)
+  createdAt DateTime @default(now())
+}
+model Decision {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  authorId String
+  author User @relation(fields:[authorId],references:[id])
+  action String
+  reason String
+  fromStage String
+  toStage String
+  createdAt DateTime @default(now())
+}
+model Message {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  authorId String
+  author User @relation(fields:[authorId],references:[id])
+  body String
+  kind String @default("MESSAGE")
+  createdAt DateTime @default(now())
+}
+model Interview {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  scheduledAt DateTime
+  status String @default("SCHEDULED")
+  notes Json
+  revision Int @default(0)
+  revisions InterviewVersion[]
+}
+model InterviewVersion {
+  id String @id @default(cuid())
+  interviewId String
+  interview Interview @relation(fields:[interviewId],references:[id])
+  authorId String
+  notes Json
+  revision Int
+  createdAt DateTime @default(now())
+  @@unique([interviewId,revision])
+}
+model LanguageCheck {
+  id String @id @default(cuid())
+  applicationId String @unique
+  application Application @relation(fields:[applicationId],references:[id])
+  state Json
+  revision Int @default(0)
+  status String @default("IN_PROGRESS")
+  result String @default("Ожидает ответа")
+  reviewerId String?
+  reviewedAt DateTime?
+  history LanguageVersion[]
+  audioJobs AudioJob[]
+}
+
+model AudioConsent {
+  applicationId String @id
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  version String
+  revision Int @default(1)
+  granted Boolean
+  updatedAt DateTime @updatedAt
+}
+model AudioConsentEvent {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  actorId String
+  version String
+  revision Int
+  granted Boolean
+  text String
+  createdAt DateTime @default(now())
+  @@unique([applicationId,revision])
+}
+model AudioJob {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  checkId String
+  check LanguageCheck @relation(fields:[checkId],references:[id],onDelete:Cascade)
+  identity String @unique
+  mode String @default("LIVE")
+  oralId String
+  followupId String
+  oralHash String
+  followupHash String
+  taskVersion String
+  taskSnapshot Json
+  instructionVersion String
+  consentRevision Int
+  provider String @default("openai")
+  transcriptionModel String
+  textModel String
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  nextRunAt DateTime @default(now())
+  leaseToken String?
+  leaseUntil DateTime?
+  errorCode String?
+  summary Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  completedAt DateTime?
+  transcripts AudioTranscript[]
+  calls AudioProviderCall[]
+  reviews AudioReview[]
+  @@index([mode,status,nextRunAt])
+  @@index([applicationId,createdAt])
+}
+model AudioTranscript {
+  id String @id @default(cuid())
+  jobId String
+  job AudioJob @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  materialId String
+  kind String
+  text String
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  corrections AudioTranscriptCorrection[]
+  @@unique([jobId,kind])
+}
+model AudioTranscriptCorrection {
+  id String @id @default(cuid())
+  transcriptId String
+  transcript AudioTranscript @relation(fields:[transcriptId],references:[id],onDelete:Cascade)
+  authorId String
+  version Int
+  text String
+  reason String
+  createdAt DateTime @default(now())
+  @@unique([transcriptId,version])
+}
+model AudioProviderCall {
+  id String @id @default(cuid())
+  jobId String
+  job AudioJob @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  step String
+  status String @default("STARTED")
+  requestId String?
+  responseId String?
+  model String
+  usage Json?
+  errorCode String?
+  createdAt DateTime @default(now())
+  finishedAt DateTime?
+  @@index([createdAt])
+}
+model AudioReview {
+  id String @id @default(cuid())
+  jobId String
+  job AudioJob @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  authorId String
+  languageRevision Int
+  transcriptVersions Json
+  rejectedIds String[]
+  note String
+  conclusion String
+  createdAt DateTime @default(now())
+}
+model LanguageVersion {
+  id String @id @default(cuid())
+  checkId String
+  check LanguageCheck @relation(fields:[checkId],references:[id])
+  revision Int
+  state Json
+  authorId String
+  createdAt DateTime @default(now())
+  @@unique([checkId,revision])
+}
+model Setting {
+  key String @id
+  value Json
+  updatedAt DateTime @updatedAt
+}
+model RateLimit {
+  key String @id
+  count Int @default(1)
+  resetAt DateTime
+}

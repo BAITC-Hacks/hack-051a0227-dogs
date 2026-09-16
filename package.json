@@ -1,0 +1,46 @@
+{
+  "name": "ai-leader-id",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "prisma generate && next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/audio/*.test.ts",
+    "db:start": "bash scripts/db-start.sh",
+    "db:stop": "bash scripts/db-stop.sh",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "setup": "npm run db:start && prisma generate && npm run db:migrate && npm run db:seed",
+    "format": "prettier --write src prisma tests",
+    "audio:live": "node --conditions=react-server --import tsx scripts/audio-live.ts",
+    "audio:virtual": "tsc src/lib/audio-capture.ts src/lib/microphone.ts --target ES2022 --module ES2022 --outDir .local/virtual-mic --skipLibCheck && node scripts/audio-virtual-server.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@fontsource-variable/golos-text": "^5.2.0",
+    "@fontsource-variable/manrope": "^5.2.0",
+    "@prisma/client": "6.19.0",
+    "lucide-react": "^0.468.0",
+    "next": "^16.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.2.0",
+    "prettier": "^3.9.6",
+    "prisma": "6.19.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,161 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight, FileText } from "lucide-react";
+import { myData } from "@/lib/data";
+import { stageLabels, programFor, actionLabels } from "@/lib/catalog";
+import type { ApplicationFields } from "@/lib/types";
+import { dateLabel } from "@/lib/client";
+import { Messages } from "@/components/messages";
+import { Tag } from "@/components/ui";
+import { CorrectionForm } from "@/components/correction-form";
+export default async function Status() {
+  const data = await myData();
+  if (!data || data.user.role === "GUEST")
+    redirect("/login?next=/apply/status");
+  const app = data.application;
+  if (!app?.submittedAt) redirect("/apply");
+  const fields = app.fields as unknown as ApplicationFields;
+  const replied =
+    app.messages.at(-1)?.authorId === data.user.id &&
+    app.messages.at(-1)?.kind === "MESSAGE";
+  return (
+    <div className="page wrap">
+      <div className="page-title">
+        <div>
+          <h1>
+            {app.stage === "CLARIFICATION"
+              ? replied
+                ? "Твой ответ у комиссии"
+                : "Давай уточним одну деталь"
+              : "Твоя заявка — на своём пути"}
+          </h1>
+          <p>{programFor(app.programSlug)?.title}</p>
+        </div>
+        <Tag tone="blue">{stageLabels[app.stage]}</Tag>
+      </div>
+      <div className="journey-layout">
+        <div>
+          <section className="next-step">
+            <h2>{stageLabels[app.stage]}</h2>
+            <p>
+              {app.stage === "CLARIFICATION"
+                ? replied
+                  ? "Ответ сохранён в переписке. Сотрудник рассмотрит уточнение и сообщит следующий шаг."
+                  : "Сотрудник задал вопрос. Ответь ниже — сообщение будет сохранено в истории заявки."
+                : app.stage === "LANGUAGE"
+                  ? "Комиссия просит пройти отдельную языковую проверку. Технические сложности можно указать в пояснении."
+                  : app.stage === "INTERVIEW"
+                    ? "Приглашение и время интервью находятся в переписке. Можно задать уточняющий вопрос."
+                    : app.stage === "DECIDED"
+                      ? "Сотрудник зафиксировал решение и основание. Они доступны ниже в истории."
+                      : "Комиссия получила заявку. Следующие действия и вопросы будут появляться в этом разделе."}
+            </p>
+            {app.stage === "LANGUAGE" ? (
+              <Link className="button dark" href="/apply/english">
+                Перейти к языковому ответу <ArrowRight size={18} />
+              </Link>
+            ) : (
+              <a href="#messages" className="button dark">
+                Открыть переписку <ArrowRight size={18} />
+              </a>
+            )}
+          </section>
+          <section id="messages">
+            <h2>Переписка с комиссией</h2>
+            <Messages applicationId={app.id} messages={app.messages} />
+          </section>
+          <section className="review-section" style={{ marginTop: 35 }}>
+            <h2>Отправленная заявка</h2>
+            <p className="subtle">
+              Версия зафиксирована {dateLabel(app.submittedAt)}. Уточнения
+              сохраняются отдельно.
+            </p>
+            <dl>
+              {[
+                ["Кандидат", fields.name],
+                ["Опыт", fields.experience],
+                ["Личная роль", fields.personalRole],
+                ["Мотивация", fields.motivation],
+              ].map(([label, value]) => (
+                <div className="review-item" key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="file-list">
+              {app.materials.map((m) => (
+                <a
+                  key={m.id}
+                  href={"/api/files/" + m.id}
+                  className="file-row"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <FileText size={16} />
+                  <span>{m.name}</span>
+                  <ArrowUpRight size={17} />
+                </a>
+              ))}
+            </div>
+            {app.sources
+              .filter((s) => s.kind === "Анкета")
+              .map((s) => (
+                <details className="versions" key={s.id}>
+                  <summary>{s.title} · источник</summary>
+                  <p style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
+                    {s.content}
+                  </p>
+                  {s.corrections.map((c) => (
+                    <div
+                      className="notice info"
+                      style={{ marginTop: 14 }}
+                      key={c.id}
+                    >
+                      {c.explanation} · {dateLabel(c.createdAt)}
+                    </div>
+                  ))}
+                  <CorrectionForm sourceId={s.id} />
+                </details>
+              ))}
+          </section>
+        </div>
+        <aside>
+          <section className="panel">
+            <h2>История рассмотрения</h2>
+            <div className="timeline">
+              <div className="timeline-item">
+                <span className="subtle">{dateLabel(app.submittedAt)}</span>
+                <h3>Заявка отправлена</h3>
+                <p>Материалы зафиксированы для рассмотрения.</p>
+              </div>
+              {[...app.decisions].reverse().map((d) => (
+                <div className="timeline-item" key={d.id}>
+                  <span className="subtle">
+                    {dateLabel(d.createdAt)} · {d.author.name}
+                  </span>
+                  <h3>{actionLabels[d.action]}</h3>
+                  <p>{d.reason}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="panel" style={{ marginTop: 24 }}>
+            <h2>Языковая готовность</h2>
+            <p>
+              {app.language?.result ??
+                "Можно сохранить языковой ответ отдельно от проекта и заявки."}
+            </p>
+            <Link
+              href="/apply/english"
+              className="text-link"
+              style={{ marginTop: 18 }}
+            >
+              Открыть языковую проверку <ArrowUpRight size={16} />
+            </Link>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}
