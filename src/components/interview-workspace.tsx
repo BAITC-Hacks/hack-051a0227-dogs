@@ -363,7 +363,7 @@ export function InterviewWorkspace({
                   );
                   setRevision(r.revision);
                   router.refresh();
-                }, "План сохранён. Встреча не отмечена проведённой.")
+                }, "План сохранён отдельно от результатов встречи.")
               }
             >
               Сохранить подготовку

@@ -415,3 +415,78 @@ test(
     }
   },
 );
+
+test("Материал черновика: чужой доступ, удаление, повтор и неизменяемость после отправки", async () => {
+  const db = new PrismaClient();
+  const run = Date.now();
+  const emails = [`delete-${run}@qa.local`, `delete-other-${run}@qa.local`];
+  const owner = new BrowserSession(),
+    other = new BrowserSession(),
+    staff = new BrowserSession();
+  try {
+    for (const [index, session] of [owner, other].entries()) {
+      await session.call("register", {
+        name: "Проверка Материала",
+        email: emails[index],
+        password: "MaterialCheck2026!",
+      });
+      await db.user.update({
+        where: { email: emails[index] },
+        data: { origin: "QA" },
+      });
+    }
+    const app = await owner.call("application.save", {
+      revision: 0,
+      programSlug: "digital-products",
+      fields: {
+        ...emptyFields,
+        name: "Проверка Материала",
+        email: emails[0],
+        city: "Алматы",
+        experience:
+          "Я составил маршрут выставки и проверил его с тремя участниками.",
+        personalRole: "Я подготовил маршрут и записал замечания.",
+        motivation:
+          "Хочу изучать исследование пользователей и проверять решения на программе.",
+        videoUrl: "https://example.org/material-test",
+        most: "0",
+        least: "1",
+        processing: true,
+      },
+    });
+    await db.application.update({
+      where: { id: app.id },
+      data: { origin: "QA" },
+    });
+    const bytes = Buffer.from(
+      "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF",
+    );
+    const material = await owner.upload(bytes, "document", "application/pdf");
+    await other.call(
+      "material.delete",
+      { id: material.id, role: "STAFF" },
+      404,
+    );
+    await staff.call("login", {
+      email: "admissions@invision.local",
+      password: "LeaderDesk2026!",
+    });
+    await staff.call("material.delete", { id: material.id }, 403);
+    await owner.call("material.delete", { id: material.id });
+    await owner.file(material.id, 404);
+    await owner.call("material.delete", { id: material.id }, 404);
+    const retained = await owner.upload(bytes, "document", "application/pdf");
+    await owner.call("application.submit", {
+      revision: app.revision,
+      confirm: true,
+    });
+    await owner.call("material.delete", { id: retained.id }, 409);
+    await owner.file(retained.id);
+    await owner.call("logout");
+    await owner.file(retained.id, 401);
+    assert.equal(await db.material.count({ where: { id: retained.id } }), 1);
+  } finally {
+    await cleanupRun(db, emails);
+    await db.$disconnect();
+  }
+});

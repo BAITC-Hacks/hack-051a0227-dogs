@@ -9,7 +9,9 @@ import {
 } from "../src/lib/scoring-scenarios.server";
 import { scoringInput, digest } from "../src/lib/scoring-input.server";
 import { assertPreparedScope } from "../src/lib/scoring-provider.server";
-const origin = "http://127.0.0.1:3000";
+const origin = process.env.APP_ORIGIN ?? "http://127.0.0.1:3000";
+if (!["localhost", "127.0.0.1"].includes(new URL(origin).hostname))
+  throw new Error("Assessment fixtures require a local application origin.");
 assertPreparedScope("ASSESSMENT_QA");
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;

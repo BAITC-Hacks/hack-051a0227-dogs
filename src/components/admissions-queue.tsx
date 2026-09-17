@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -13,6 +13,7 @@ import type { queueData } from "@/lib/data";
 import { programs, stageLabels, domains } from "@/lib/catalog";
 import { humanComparisonIssue } from "@/lib/comparison";
 import { Tag } from "./ui";
+import { queueQuery, type QueueFilters } from "@/lib/queue-location";
 type Queue = Awaited<ReturnType<typeof queueData>>;
 const nextAction: Record<string, string> = {
   REVIEW: "Рассмотреть источники",
@@ -23,11 +24,29 @@ const nextAction: Record<string, string> = {
   CHECK: "Рассмотреть новые сведения",
   FINAL_REVIEW: "Подготовить обратную связь",
 };
-export function AdmissionsQueue({ applications }: { applications: Queue }) {
-  const [search, setSearch] = useState("");
-  const [program, setProgram] = useState("");
-  const [stage, setStage] = useState("");
-  const [check, setCheck] = useState("");
+export function AdmissionsQueue({
+  applications,
+  initialFilters,
+}: {
+  applications: Queue;
+  initialFilters: QueueFilters;
+}) {
+  const [search, setSearch] = useState(initialFilters.search);
+  const [program, setProgram] = useState(initialFilters.program);
+  const [stage, setStage] = useState(initialFilters.stage);
+  const [check, setCheck] = useState(initialFilters.check);
+  const query = queueQuery({ search, program, stage, check });
+  useEffect(() => {
+    window.history.replaceState(
+      null,
+      "",
+      "/admissions" + (query ? "?" + query : ""),
+    );
+  }, [query]);
+  const candidateHref = (id: string) =>
+    "/admissions/candidates/" +
+    id +
+    (query ? "?queue=" + encodeURIComponent(query) : "");
   const [selected, setSelected] = useState<string[]>([]);
   const [compare, setCompare] = useState(false);
   const filtered = applications.filter(
@@ -53,7 +72,9 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
           <h1>Кандидаты</h1>
           <p>Сначала — контекст. Затем — следующий осмысленный шаг.</p>
         </div>
-        <Link className="text-link" href="/admissions/workflow">Проверка рабочего процесса</Link>
+        <Link className="text-link" href="/admissions/workflow">
+          Проверка рабочего процесса
+        </Link>
         <Link className="button secondary small" href="/settings">
           <Settings2 size={15} />
           Настройки рассмотрения
@@ -211,10 +232,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                         </dl>
                       </>
                     )}
-                    <Link
-                      className="text-link"
-                      href={"/admissions/candidates/" + a.id}
-                    >
+                    <Link className="text-link" href={candidateHref(a.id)}>
                       Открыть основания и шкалу
                     </Link>
                   </div>
@@ -239,26 +257,45 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                       (x) => x.domain === d,
                     );
                     const review = a.domainReviews.find((x) => x.domain === d);
-                    const currentReview = review?.materialVersion === a.materialVersion ? review : undefined;
-                    const issue = humanComparisonIssue(assessment, a.materialVersion, pick.map((item) => item.assessments.find((x) => x.domain === d)));
+                    const currentReview =
+                      review?.materialVersion === a.materialVersion
+                        ? review
+                        : undefined;
+                    const issue = humanComparisonIssue(
+                      assessment,
+                      a.materialVersion,
+                      pick.map((item) =>
+                        item.assessments.find((x) => x.domain === d),
+                      ),
+                    );
                     return (
                       <div key={d}>
                         <dt>{d}</dt>
                         <dd>
-                          {issue ? issue : assessment
-                            ? assessment.level
-                            : "Оценка проявления не выставлена"}
+                          {issue
+                            ? issue
+                            : assessment
+                              ? assessment.level
+                              : "Оценка проявления не выставлена"}
                           <p className="meta">
                             Сведения:{" "}
-                            {issue ? "Нужна сверка" : currentReview?.sufficiency ??
-                              assessment?.sufficiency ??
-                              "Не рассмотрено"}
+                            {issue
+                              ? "Нужна сверка"
+                              : (currentReview?.sufficiency ??
+                                assessment?.sufficiency ??
+                                "Не рассмотрено")}
                             . Согласованность:{" "}
-                            {issue ? "Нужна сверка" : currentReview?.consistency ?? "Не проверено"}.
+                            {issue
+                              ? "Нужна сверка"
+                              : (currentReview?.consistency ?? "Не проверено")}
+                            .
                           </p>
                           {assessment && (
                             <p className="meta">
-                              Критерии: {assessment.rubricVersion}. {issue ? "Откройте историческую оценку и основания в карточке." : "Версия материалов совпадает."}
+                              Критерии: {assessment.rubricVersion}.{" "}
+                              {issue
+                                ? "Откройте историческую оценку и основания в карточке."
+                                : "Версия материалов совпадает."}
                             </p>
                           )}
                         </dd>
@@ -268,7 +305,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                 </dl>
                 <Link
                   className="text-link"
-                  href={"/admissions/candidates/" + a.id}
+                  href={candidateHref(a.id)}
                   style={{ marginTop: 18 }}
                 >
                   К источникам <ArrowUpRight size={14} />
@@ -312,10 +349,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                   />
                 </td>
                 <td>
-                  <Link
-                    className="name-cell"
-                    href={"/admissions/candidates/" + a.id}
-                  >
+                  <Link className="name-cell" href={candidateHref(a.id)}>
                     <span
                       className={`avatar ${i % 3 === 1 ? "lime" : i % 3 === 2 ? "pink" : ""}`}
                     >
@@ -356,10 +390,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                             : "не начато"}{" "}
                       · Источники: {a._count.sources}
                     </span>
-                    <Link
-                      className="text-link"
-                      href={"/admissions/candidates/" + a.id}
-                    >
+                    <Link className="text-link" href={candidateHref(a.id)}>
                       {nextAction[a.stage]} <ArrowUpRight size={14} />
                     </Link>
                   </div>
@@ -407,7 +438,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                   <Link
                     className="text-link"
                     style={{ fontSize: 11 }}
-                    href={"/admissions/candidates/" + a.id}
+                    href={candidateHref(a.id)}
                   >
                     {nextAction[a.stage]}
                     <ArrowUpRight size={14} />

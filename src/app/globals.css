@@ -3477,3 +3477,10 @@ video {
   .workflow-grid > aside { grid-column: 1; grid-row: 1; }
   .workflow-main { grid-column: 1; grid-row: 2; }
 }
+
+/* Draft materials keep removal and its confirmation beside the selected file. */
+.material-entry { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.material-entry .file-row { overflow-wrap: anywhere; font-size: 16px; }
+.material-entry .file-row span:last-of-type { flex: 0 0 auto; white-space: nowrap; }
+.material-confirm { padding: 16px; background: var(--blue); border-radius: 12px; }
+.material-confirm p { margin-bottom: 12px; overflow-wrap: anywhere; }

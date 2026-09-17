@@ -183,6 +183,25 @@ export async function POST(req: Request) {
           data: { interest: value },
         });
       });
+    } else if (type === "material.delete") {
+      const u = await requireUser();
+      if (u.role !== "CANDIDATE") throw new AppError("Материалами управляет кандидат.", 403);
+      const materialId = id.parse(b.id);
+      const material = await db.material.findFirst({ where: { id: materialId, userId: u.id } });
+      if (!material?.applicationId) throw new AppError("Файл недоступен.", 404);
+      if (!["document", "video"].includes(material.kind))
+        throw new AppError("Устный ответ изменяется в языковой проверке.", 409);
+      await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${material.applicationId} FOR UPDATE`;
+        const app = await tx.application.findUniqueOrThrow({ where: { id: material.applicationId! } });
+        if (app.userId !== u.id) throw new AppError("Файл недоступен.", 404);
+        if (app.submittedAt) throw new AppError("Материалы отправленной заявки зафиксированы. Для исправления используйте запрос комиссии.", 409);
+        // Only a draft's original upload is removable. Published sources are never rewritten.
+        if (await tx.source.count({ where: { materialId } }))
+          throw new AppError("Материал уже связан с источником рассмотрения.", 409);
+        await tx.material.deleteMany({ where: { id: materialId, userId: u.id } });
+      });
+      result = { removed: true };
     } else if (type === "application.save") {
       const u = await requireUser();
       if (u.role !== "CANDIDATE")

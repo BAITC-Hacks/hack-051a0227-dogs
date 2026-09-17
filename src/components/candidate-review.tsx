@@ -33,10 +33,12 @@ export function CandidateReview({
   application: a,
   guidance,
   audio,
+  returnHref = "/admissions",
 }: {
   application: Candidate;
   guidance: string;
   audio: AudioState;
+  returnHref?: string;
 }) {
   const [sourceId, setSourceId] = useState(
     a.sources.find((s) => s.title === "Опыт и личная роль")?.id ??
@@ -67,11 +69,11 @@ export function CandidateReview({
     if (window.innerWidth < 1000)
       document
         .getElementById("source-panel")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        ?.scrollIntoView({ block: "start" });
   }
   return (
     <div className="staff-page">
-      <Link href="/admissions" className="breadcrumbs">
+      <Link href={returnHref} className="breadcrumbs">
         <ArrowLeft size={14} />
         Все кандидаты
       </Link>
@@ -779,7 +781,7 @@ export function CandidateReview({
               Открыть историю
             </button>
             <Link
-              href="/admissions"
+              href={returnHref}
               className="text-link"
               style={{ fontSize: 12 }}
             >

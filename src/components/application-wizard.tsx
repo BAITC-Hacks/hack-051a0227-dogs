@@ -41,6 +41,7 @@ export function ApplicationWizard({
   const [applicationId, setApplicationId] = useState(app?.id ?? "");
   const [step, setStep] = useState(0);
   const [materials, setMaterials] = useState(app?.materials ?? []);
+  const [removing, setRemoving] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [attached, setAttached] = useState(
     app?.transfers.map((t) => t.attemptId) ?? [],
@@ -253,6 +254,7 @@ export function ApplicationWizard({
                       disabled={task.busy}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
+                        e.target.value = "";
                         if (file)
                           task.run(async () => {
                             await save();
@@ -292,6 +294,7 @@ export function ApplicationWizard({
                       disabled={task.busy}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
+                        e.target.value = "";
                         if (file)
                           task.run(async () => {
                             await save();
@@ -304,20 +307,70 @@ export function ApplicationWizard({
                 </div>
                 <div className="file-list">
                   {materials.map((m) => (
-                    <a
-                      className="file-row"
-                      href={"/api/files/" + m.id}
-                      key={m.id}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Paperclip size={16} />
-                      <span>{m.name}</span>
-                      <span className="subtle">
-                        {(m.size / 1024 / 1024).toFixed(1)} МБ
-                      </span>
-                      <ArrowUpRight size={16} />
-                    </a>
+                    <div className="material-entry" key={m.id}>
+                      <a
+                        className="file-row"
+                        href={"/api/files/" + m.id}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Paperclip size={16} />
+                        <span>{m.name}</span>
+                        <span className="subtle">
+                        {m.size < 1024 * 1024
+                          ? `${Math.max(1, Math.ceil(m.size / 1024))} КБ`
+                          : `${(m.size / 1024 / 1024).toFixed(1)} МБ`}
+                        </span>
+                        <ArrowUpRight size={16} />
+                      </a>
+                      {["document", "video"].includes(m.kind) &&
+                        (removing === m.id ? (
+                          <div className="material-confirm">
+                            <p>
+                              Удалить «{m.name}» из черновика? При необходимости
+                              файл можно загрузить заново.
+                            </p>
+                            <div className="row">
+                              <button
+                                type="button"
+                                className="button secondary"
+                                disabled={task.busy}
+                                onClick={() =>
+                                  task.run(async () => {
+                                    await action("material.delete", {
+                                      id: m.id,
+                                    });
+                                    setMaterials((items) =>
+                                      items.filter((item) => item.id !== m.id),
+                                    );
+                                    setRemoving("");
+                                  }, "Файл удалён из черновика.")
+                                }
+                              >
+                                Подтвердить удаление
+                              </button>
+                              <button
+                                type="button"
+                                className="button quiet"
+                                disabled={task.busy}
+                                onClick={() => setRemoving("")}
+                              >
+                                Оставить файл
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="button quiet"
+                            disabled={task.busy}
+                            aria-label={`Удалить ${m.name} из черновика`}
+                            onClick={() => setRemoving(m.id)}
+                          >
+                            Удалить из черновика
+                          </button>
+                        ))}
+                    </div>
                   ))}
                 </div>
                 <div className="stack" style={{ marginTop: 28 }}>

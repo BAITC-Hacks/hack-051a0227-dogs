@@ -6,6 +6,23 @@ export class ActionError extends Error {
     super(message);
   }
 }
+async function responseData(res: Response) {
+  try {
+    const payload = await res.json();
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      typeof payload.ok !== "boolean"
+    )
+      throw new Error("INVALID_RESPONSE");
+    return payload;
+  } catch {
+    throw new ActionError(
+      "Не удалось подтвердить сохранение. Введённое осталось на странице — повторите попытку.",
+      res.status,
+    );
+  }
+}
 export async function action<T = Record<string, unknown>>(
   type: string,
   data: Record<string, unknown> = {},
@@ -22,7 +39,7 @@ export async function action<T = Record<string, unknown>>(
       "Соединение прервалось. Ваш текст остался на странице — повторите сохранение.",
     );
   }
-  const payload = await res.json();
+  const payload = await responseData(res);
   if (!res.ok || !payload.ok)
     throw new ActionError(
       payload.error ?? "Не удалось сохранить. Повторите попытку.",
@@ -34,8 +51,15 @@ export async function upload(file: File, kind: string) {
   const body = new FormData();
   body.append("file", file);
   body.append("kind", kind);
-  const res = await fetch("/api/files", { method: "POST", body });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch("/api/files", { method: "POST", body });
+  } catch {
+    throw new Error(
+      "Загрузка прервалась. Файл не подтверждён — повторите загрузку.",
+    );
+  }
+  const data = await responseData(res);
   if (!res.ok || !data.ok)
     throw new Error(data.error ?? "Загрузка прервалась. Повторите попытку.");
   return data.data as {

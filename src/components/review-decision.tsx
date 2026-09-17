@@ -89,6 +89,7 @@ export function ReviewDecision({
                 : undefined,
             });
             setReason("");
+            publishTask.setNotice("");
             resetPreview();
             router.refresh();
           }, "Решение сохранено внутри комиссии. Сообщение кандидату ещё не опубликовано.");
@@ -269,6 +270,7 @@ export function ReviewDecision({
                   id: preview.id,
                   confirm,
                 });
+                decisionTask.setNotice("");
                 resetPreview();
                 router.refresh();
               }, "Обратная связь опубликована в приложении. Кандидату доступен только показанный текст.")

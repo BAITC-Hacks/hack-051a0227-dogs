@@ -310,7 +310,7 @@ export function InteractiveProfile({
                                   requestAnimationFrame(() => {
                                     sourcePanel.current?.focus();
                                     sourcePanel.current?.scrollIntoView({
-                                      block: "nearest",
+                                      block: "start",
                                     });
                                   });
                                 });
