@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { queueData } from "@/lib/data";
 import { programs, stageLabels, domains } from "@/lib/catalog";
+import { humanComparisonIssue } from "@/lib/comparison";
 import { Tag } from "./ui";
 type Queue = Awaited<ReturnType<typeof queueData>>;
 const nextAction: Record<string, string> = {
@@ -52,6 +53,7 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
           <h1>Кандидаты</h1>
           <p>Сначала — контекст. Затем — следующий осмысленный шаг.</p>
         </div>
+        <Link className="text-link" href="/admissions/workflow">Проверка рабочего процесса</Link>
         <Link className="button secondary small" href="/settings">
           <Settings2 size={15} />
           Настройки рассмотрения
@@ -237,25 +239,26 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
                       (x) => x.domain === d,
                     );
                     const review = a.domainReviews.find((x) => x.domain === d);
+                    const currentReview = review?.materialVersion === a.materialVersion ? review : undefined;
+                    const issue = humanComparisonIssue(assessment, a.materialVersion, pick.map((item) => item.assessments.find((x) => x.domain === d)));
                     return (
                       <div key={d}>
                         <dt>{d}</dt>
                         <dd>
-                          {assessment
+                          {issue ? issue : assessment
                             ? assessment.level
                             : "Оценка проявления не выставлена"}
                           <p className="meta">
                             Сведения:{" "}
-                            {review?.sufficiency ??
+                            {issue ? "Нужна сверка" : currentReview?.sufficiency ??
                               assessment?.sufficiency ??
                               "Не рассмотрено"}
                             . Согласованность:{" "}
-                            {review?.consistency ?? "Не проверено"}.
+                            {issue ? "Нужна сверка" : currentReview?.consistency ?? "Не проверено"}.
                           </p>
                           {assessment && (
                             <p className="meta">
-                              Критерии: {assessment.rubricVersion}. Актуальность
-                              оснований проверьте в карточке.
+                              Критерии: {assessment.rubricVersion}. {issue ? "Откройте историческую оценку и основания в карточке." : "Версия материалов совпадает."}
                             </p>
                           )}
                         </dd>

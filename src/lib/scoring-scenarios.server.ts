@@ -446,7 +446,10 @@ export function preparedStory(
     result.recommendation = {
       action: "CHECK",
       reason:
-        "Сначала сверьте два описания одного проекта. Английский также ожидает отдельной человеческой проверки; он не снижает оценки опыта.",
+        "Сначала сверьте два описания одного проекта." +
+        (input.language?.status === "PENDING_REVIEW"
+          ? " Английский ожидает отдельной человеческой проверки; он не снижает оценки опыта."
+          : ""),
       sourceIds: [experience.id],
     };
     result.feedback = {

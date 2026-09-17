@@ -25,6 +25,7 @@ model User {
   twinReviews TwinReview[]
   profileAnswers ProfileAnswer[]
   developmentSteps DevelopmentStep[]
+  workflowSessions WorkflowSession[]
 }
 model Session {
   tokenHash String @id
@@ -574,4 +575,35 @@ model FeedbackPublication {
   messageId String? @unique
   createdAt DateTime @default(now())
   @@index([applicationId,createdAt])
+}
+
+// Isolated workflow checks; no relation or writes to official application results.
+model WorkflowSession {
+  id String @id @default(cuid())
+  ownerId String
+  owner User @relation(fields:[ownerId], references:[id], onDelete:Cascade)
+  participant String
+  technical Boolean
+  requestKey String @unique
+  caseKey String
+  caseVersion String
+  family String
+  mode String
+  materialVersion String
+  profileVersion String?
+  package Json
+  order Int
+  familiar Boolean
+  familiarityNote String
+  status String @default("ACTIVE")
+  revision Int @default(1)
+  work Json
+  events Json
+  annotations Json
+  startedAt DateTime @default(now())
+  savedAt DateTime @default(now())
+  pausedAt DateTime?
+  pausedMs Int @default(0)
+  completedAt DateTime?
+  @@index([ownerId,startedAt])
 }

@@ -88,6 +88,10 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
       let allowed = true;
       try {
         scope(app.origin, r.scenarioVersion, r.provider);
+        const ownInput = r.input as unknown as ScoringInput;
+        if (digest(ownInput) !== r.inputHash) throw new Error("INPUT_HASH_MISMATCH");
+        if (r.result) validateScoringResult(r.result, ownInput);
+        for (const review of r.reviews) validateScoringResult(review.result, ownInput, true);
       } catch {
         allowed = false;
       }

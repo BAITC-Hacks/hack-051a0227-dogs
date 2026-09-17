@@ -17,7 +17,8 @@
     "setup": "npm run db:start && prisma generate && npm run db:migrate && npm run db:seed",
     "format": "prettier --write src prisma tests",
     "audio:live": "node --conditions=react-server --import tsx scripts/audio-live.ts",
-    "audio:virtual": "tsc src/lib/audio-capture.ts src/lib/microphone.ts --target ES2022 --module ES2022 --outDir .local/virtual-mic --skipLibCheck && node scripts/audio-virtual-server.mjs"
+    "audio:virtual": "tsc src/lib/audio-capture.ts src/lib/microphone.ts --target ES2022 --module ES2022 --outDir .local/virtual-mic --skipLibCheck && node scripts/audio-virtual-server.mjs",
+    "quality:check": "ASSESSMENT_ENVIRONMENT=isolated-local ASSESSMENT_PROVIDER=local PROFILE_PROVIDER=local AUDIO_WORKER_ENABLED=false OPENAI_API_KEY= node --conditions=react-server --import tsx scripts/quality-check.ts"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

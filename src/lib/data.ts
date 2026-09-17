@@ -159,7 +159,7 @@ export async function queueData() {
     orderBy: { updatedAt: "desc" },
   });
   return Promise.all(
-    applications.map(async (a) => ({ ...a, scoring: await scoringView(a.id) })),
+    applications.map(async (a) => ({ ...a, scoring: await scoringView(a.id), materialVersion: (await materialContext(db, a.id)).version })),
   );
 }
 export async function interviewData(id: string) {

@@ -133,7 +133,9 @@ export function ScoringPanel({
         <>
           <div className="scoring-toolbar">
             <Tag tone={run.current ? "blue" : "warning"}>
-              {!run.current
+              {run.status === "UNAVAILABLE"
+                ? "Требует проверки"
+                : !run.current
                 ? "Материалы изменились"
                 : run.status === "COMPLETED"
                   ? "Результат сохранён"
@@ -166,7 +168,8 @@ export function ScoringPanel({
               проверьте настройки обработки. Предыдущие результаты сохранены.
             </p>
           )}
-          {!run.current && (
+          {run.status === "UNAVAILABLE" && <p role="alert" className="notice warning">Основания анализа не прошли проверку источников, версий или разрешений. Результат недоступен для использования; откройте исходные материалы.</p>}
+          {!run.current && run.status !== "UNAVAILABLE" && (
             <p className="notice warning">
               Этот анализ относится к прежним материалам или критериям. Его
               можно изучить в истории; для новой интерпретации запустите анализ

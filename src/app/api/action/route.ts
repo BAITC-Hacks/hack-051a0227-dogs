@@ -29,6 +29,7 @@ import { journeyAction } from "@/lib/journey.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
 import { twinAction } from "@/lib/twin-service.server";
+import { workflowAction } from "@/lib/workflow-service.server";
 import { profileAction } from "@/lib/profile-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
@@ -46,7 +47,10 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("profile.")) {
+    if (type.startsWith("workflow.")) {
+      result = await workflowAction(type, b, await requireStaff());
+      return NextResponse.json({ ok: true, data: result }, { headers: { "Cache-Control": "private, no-store" } });
+    } else if (type.startsWith("profile.")) {
       const user = await actor();
       if (!user) throw new AppError("Сначала сохраните работу или войдите в аккаунт.", 401);
       result = await profileAction(type, b, user);
