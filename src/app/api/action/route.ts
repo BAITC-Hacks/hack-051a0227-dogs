@@ -29,6 +29,7 @@ import { journeyAction } from "@/lib/journey.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
 import { twinAction } from "@/lib/twin-service.server";
+import { profileAction } from "@/lib/profile-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
@@ -45,7 +46,12 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("twin.")) {
+    if (type.startsWith("profile.")) {
+      const user = await actor();
+      if (!user) throw new AppError("Сначала сохраните работу или войдите в аккаунт.", 401);
+      result = await profileAction(type, b, user);
+      return NextResponse.json({ ok: true, data: result }, { headers: { "Cache-Control": "private, no-store" } });
+    } else if (type.startsWith("twin.")) {
       result = await twinAction(type, b, await requireStaff());
       if (type === "twin.launch" || type === "twin.status") {
         const auditId = (result as { id: string }).id;
@@ -115,6 +121,8 @@ export async function POST(req: Request) {
               where: { userId: old.id },
               data: { userId: existing.id },
             });
+            await tx.profileAnswer.updateMany({ where: { userId: old.id, audience: "CANDIDATE" }, data: { userId: existing.id } });
+            await tx.developmentStep.updateMany({ where: { userId: old.id }, data: { userId: existing.id } });
             const owners = await tx.user.findMany({
               where: { id: { in: [old.id, existing.id] } },
             });

@@ -1,5 +1,6 @@
 import type { myData } from "@/lib/data";
 import { dateLabel } from "@/lib/client";
+import { InteractiveProfile } from "./interactive-profile";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
 export function PublishedFeedback({
   application: app,
@@ -47,6 +48,7 @@ export function PublishedFeedback({
               ) : null;
             })}
           </details>
+          <InteractiveProfile scope={{feedbackId:f.id}} title="Разобрать обратную связь и подготовить свой шаг" initialTopic="feedback"/>
         </article>
       ))}
     </section>

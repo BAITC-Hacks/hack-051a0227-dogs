@@ -6,6 +6,7 @@ import { workChanges, versionCompleted, type Work } from "@/lib/journey";
 import type { Feedback } from "@/lib/types";
 import { dateLabel } from "@/lib/client";
 import { equipmentHints } from "@/lib/equipment";
+import { InteractiveProfile } from "./interactive-profile";
 export function WorkResult({
   work,
   revision,
@@ -13,7 +14,7 @@ export function WorkResult({
   expanded = false,
   compact = false,
 }: {
-  work: Pick<Work, "slug" | "context" | "versions">;
+  work: Pick<Work, "slug" | "context" | "versions"> & { id?: string };
   revision: number;
   onRevision: (n: number) => void;
   expanded?: boolean;
@@ -153,6 +154,7 @@ export function WorkResult({
           </p>
         )}
       </details>
+      {work.id && v.revision > 0 && <InteractiveProfile key={`${work.id}-${v.revision}`} scope={{attemptId:work.id,revision:v.revision}} title="Объяснить изменения и выбрать продолжение" initialTopic="changes"/>}
     </div>
   );
 }

@@ -559,7 +559,7 @@ export function ProjectEditor({
               </div>
               <h2>Твоя сохранённая работа</h2>
               <WorkResult
-                work={{ slug, context, versions }}
+                work={{ id: attemptId, slug, context, versions }}
                 revision={resultRevision}
                 onRevision={setResultRevision}
                 expanded

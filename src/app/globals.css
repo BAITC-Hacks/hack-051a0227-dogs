@@ -3390,3 +3390,47 @@ video {
  .scoring-summary { padding:18px; }
  .scoring-toolbar .field { max-width:none; }
 }
+
+/* Contextual profile and private actions: no admission scores or decorative progress. */
+.interactive-profile { margin:24px 0; border:1px solid var(--line, #d8d8ca); border-radius:14px; background:var(--paper, #fffef8); }
+.profile-trigger { display:flex; justify-content:space-between; gap:20px; width:100%; padding:18px 22px; text-align:left; font:inherit; font-weight:650; font-size:17px; border:0; background:transparent; border-radius:14px; cursor:pointer; }
+.profile-trigger:hover { background:#e7edf1; }
+.profile-trigger > span:last-child { font-size:24px; line-height:1; }
+.profile-body { padding:0 22px 24px; }
+.profile-body p,.profile-body label,.profile-body textarea,.profile-body select { font-size:16px; line-height:1.55; }
+.profile-boundary { max-width:72ch; }
+.profile-prompts { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.profile-prompts .button { font-size:15px; padding:10px 13px; min-height:44px; }
+.profile-conversation { outline-offset:5px; }
+.profile-answer { padding:22px 0; border-top:1px solid var(--line, #d8d8ca); }
+.profile-answer h3 { font-size:22px; margin:10px 0 14px; }
+.profile-answer-date { color:#585a54; margin:0 0 8px; }
+.profile-claim { border-left:3px solid #bed4e4; padding-left:16px; margin:18px 0; }
+.profile-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+.profile-source-links { display:flex; gap:16px; flex-wrap:wrap; }
+.profile-source-links .text-link { min-height:44px; font-size:15px; }
+.profile-source { background:#e2edf5; border:1px solid #c1d1db; border-radius:12px; padding:20px; margin:20px 0; scroll-margin-top:20px; }
+.profile-source-heading { display:flex; align-items:start; gap:14px; justify-content:space-between; }
+.profile-source-heading h3 { margin:0; font-size:20px; }
+.profile-source .profile-text { max-height:420px; overflow:auto; }
+.profile-question { border-top:1px solid var(--line, #d8d8ca); padding-top:20px; }
+.development-area { margin-top:32px; border-top:2px solid #171a15; padding-top:22px; }
+.development-area h3 { font-size:24px; }
+.development-recommendation,.development-step { padding:20px 0; border-bottom:1px solid var(--line, #d8d8ca); }
+.development-recommendation h4,.development-step h4 { font-size:20px; margin:10px 0; }
+.development-step { background:#f6f5e9; padding:20px; margin:16px 0; border-radius:12px; }
+.development-step .field { margin:16px 0; }
+.development-step > .text-link { display:block; margin-top:16px; }
+.drive-mark { display:inline-block; background:#e3edf4; padding:5px 10px; border-radius:5px; }
+.drive-framework { margin-top:24px; }
+.drive-framework summary { cursor:pointer; min-height:44px; }
+@media (max-width:700px) {
+ .profile-trigger { padding:16px; font-size:17px; }
+ .profile-body { padding:0 16px 20px; }
+ .profile-prompts { display:grid; grid-template-columns:1fr; }
+ .profile-prompts .button { text-align:left; justify-content:flex-start; font-size:16px; }
+ .profile-source-heading { flex-direction:column; }
+ .profile-source { padding:16px; }
+ .profile-claim { padding-left:12px; }
+ .development-step { padding:16px; }
+}

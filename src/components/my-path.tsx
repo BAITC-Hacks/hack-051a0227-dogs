@@ -16,6 +16,7 @@ import {
   WorkshopChoices,
 } from "./journey-actions";
 import { ProjectPassport } from "./project-passport";
+import { InteractiveProfile } from "./interactive-profile";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
 export function MyPath({ data }: { data: Data }) {
   const { user, attempts, application: app } = data;
@@ -223,6 +224,7 @@ export function MyPath({ data }: { data: Data }) {
           )}
         </section>
       )}
+      {(attempts.length > 0 || app) && <InteractiveProfile title="AI-профиль · мои работы и личный план"/>}
       {attempts.length > 0 && (
         <>
           <section className="work-route" aria-label="Маршрут знакомства">

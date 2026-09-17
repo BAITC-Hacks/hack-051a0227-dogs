@@ -23,6 +23,8 @@ model User {
   decisions Decision[]
   scoringReviews ScoringReview[]
   twinReviews TwinReview[]
+  profileAnswers ProfileAnswer[]
+  developmentSteps DevelopmentStep[]
 }
 model Session {
   tokenHash String @id
@@ -111,6 +113,39 @@ model Application {
   scoringRuns ScoringRun[]
   scoringFixtures ScoringFixture[]
   twinAudits TwinAudit[]
+  profileAnswers ProfileAnswer[]
+}
+
+model ProfileAnswer {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  applicationId String?
+  application Application? @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  audience String
+  scopeKey String
+  requestKey String @unique
+  request Json
+  answer Json
+  inputHash String
+  provider String
+  instructionVersion String
+  createdAt DateTime @default(now())
+  @@index([userId,scopeKey,createdAt])
+}
+
+model DevelopmentStep {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  key String
+  recommendation Json
+  note String @default("")
+  selfCompletedAt DateTime?
+  revision Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId,key])
 }
 model ApplicationVersion {
   id String @id @default(cuid())

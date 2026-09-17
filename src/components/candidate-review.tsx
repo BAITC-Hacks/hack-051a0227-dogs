@@ -27,6 +27,7 @@ import { EpisodeNotes, MergeEpisodes } from "./episode-notes";
 import { submissionIssues } from "@/lib/validation";
 import { ScoringPanel } from "./scoring-panel";
 import type { ScoringResult } from "@/lib/scoring-contract";
+import { InteractiveProfile } from "./interactive-profile";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 export function CandidateReview({
   application: a,
@@ -113,6 +114,15 @@ export function CandidateReview({
       </div>
       <div className="review-layout">
         <div className="review-main">
+          <InteractiveProfile
+            scope={{ applicationId: a.id }}
+            title="AI-профиль · объяснить оценку и изменения"
+            initialTopic="assessment"
+            onFeedback={(runId, result) => {
+              setScoringDraft({ result, runId });
+              setTab("decision");
+            }}
+          />{" "}
           {tab === "scoring" && (
             <ScoringPanel
               applicationId={a.id}
