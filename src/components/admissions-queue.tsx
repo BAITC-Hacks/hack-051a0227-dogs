@@ -150,6 +150,77 @@ export function AdmissionsQueue({ applications }: { applications: Queue }) {
           <p className="subtle" style={{ margin: "10px 0 20px" }}>
             Сопоставление без общего балла и автоматического ранжирования.
           </p>
+          <h3>AI-скоринг · предварительные оценки</h3>
+          {new Set(
+            pick
+              .map(
+                (a) =>
+                  a.scoring.runs.find(
+                    (r) => r.current && r.status === "COMPLETED",
+                  )?.criteriaVersion,
+              )
+              .filter(Boolean),
+          ).size > 1 ? (
+            <p className="notice warning">
+              Версии критериев различаются. Перезапустите анализ по одинаковой
+              конфигурации перед сопоставлением оценок.
+            </p>
+          ) : (
+            <div className="compare-grid scoring-comparison">
+              {pick.map((a) => {
+                const run = a.scoring.runs.find(
+                  (r) => r.current && r.status === "COMPLETED",
+                );
+                return (
+                  <div key={a.id}>
+                    <h3>{a.user.name}</h3>
+                    {!run?.result ? (
+                      <p>
+                        Нет актуального анализа. Откройте карточку и запустите
+                        обработку.
+                      </p>
+                    ) : (
+                      <>
+                        <p>
+                          Критерии {a.scoring.criteria.rubricVersion} ·{" "}
+                          {run.reviews.length
+                            ? "Есть человеческая проверка"
+                            : "Предварительная оценка"}
+                        </p>
+                        <dl>
+                          {domains.map((domain) => {
+                            const d = (
+                              run.reviews[0]?.result ?? run.result!
+                            ).domains.find((d) => d.domain === domain)!;
+                            return (
+                              <div key={domain}>
+                                <dt>{domain}</dt>
+                                <dd>
+                                  {d.rating
+                                    ? `${d.rating.value !== null ? d.rating.value + " · " : ""}${d.rating.label}`
+                                    : "Не установлена"}
+                                  <p>
+                                    Основания: {d.sufficiency}. {d.consistency}.
+                                  </p>
+                                </dd>
+                              </div>
+                            );
+                          })}
+                        </dl>
+                      </>
+                    )}
+                    <Link
+                      className="text-link"
+                      href={"/admissions/candidates/" + a.id}
+                    >
+                      Открыть основания и шкалу
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <h3>Человеческие оценки и языковая готовность</h3>
           <div className="compare-grid">
             {pick.map((a) => (
               <div key={a.id}>

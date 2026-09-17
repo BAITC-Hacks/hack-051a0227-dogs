@@ -1951,8 +1951,12 @@ video {
 }
 .interview-layout {
   display: grid;
+  align-items: start;
   gap: 26px;
 }
+#interview-source { scroll-margin-top: 24px; }
+.interview-layout .source-panel blockquote { font-size: 16px; }
+.interview-layout .source-panel select { font-size: 16px; }
 .interview-step {
   padding: 24px 0;
   border-bottom: 1px solid var(--line);
@@ -3292,4 +3296,45 @@ video {
   border-radius: 10px;
   font-size: 16px;
   justify-items: start;
+}
+/* The assessment stays in the existing review/source layout. */
+.scoring-panel { font-size: 16px; }
+.scoring-language { margin:12px 0; font-size:15px; }
+#scoring-human-review, #scoring-domain-list { scroll-margin-top:24px; }
+.scoring-heading { display:flex; gap:20px; align-items:flex-start; justify-content:space-between; }
+.scoring-heading p { margin:10px 0 0; }
+.scoring-heading .button { flex-shrink:0; }
+.scoring-summary { background:var(--blue, #e1ecf6); padding:22px; border-radius:12px; margin:16px 0; }
+.scoring-summary p, .scoring-scale p { margin:12px 0; }
+.scoring-toolbar { display:flex; gap:16px; justify-content:space-between; align-items:center; }
+.scoring-toolbar .field { max-width:340px; }
+.scoring-scale { padding:16px 0; border-bottom:1px solid var(--line, #dcded0); }
+.scoring-scale summary, .scoring-domain summary { cursor:pointer; }
+.scoring-domain { border-bottom:1px solid var(--line, #dcded0); padding:18px 0; }
+.scoring-domain summary { display:flex; gap:16px; justify-content:space-between; list-style:none; }
+.scoring-domain summary::before { content:'+'; font-weight:700; }
+.scoring-domain[open] summary::before { content:'−'; }
+.scoring-domain summary > span:first-of-type { flex:1; }
+.scoring-domain p { margin:12px 0; }
+.scoring-axes { display:flex; flex-direction:column; margin-top:8px; font-size:15px; color:var(--muted, #606557); }
+.scoring-level { text-align:right; max-width:210px; font-weight:600; }
+.scoring-level small { display:block; font-size:14px; font-weight:400; margin-top:8px; }
+.scoring-evidence { border-left:3px solid var(--lime, #c0f336); padding:8px 16px; margin:14px 0; }
+.scoring-evidence blockquote { margin:0; white-space:pre-wrap; }
+.scoring-question { margin:14px 0; padding:14px 0; border-bottom:1px solid var(--line, #dcded0); }
+.scoring-panel .field { margin:18px 0; }
+.scoring-comparison { margin:20px 0 32px; font-size:16px; }
+.scoring-comparison dd p { font-size:15px; margin-top:8px; }
+.compare-panel .compare-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); }
+.compare-panel .compare-grid dt { font-size:15px; font-weight:600; line-height:1.45; margin-bottom:8px; }
+.compare-panel .compare-grid dd { font-size:16px; line-height:1.55; }
+.compare-panel .compare-grid .meta { font-size:15px; }
+.compare-panel .compare-grid dl > div { padding:12px 0; border-bottom:1px solid #c8d7e2; }
+@media(max-width:700px) {
+ .scoring-heading, .scoring-toolbar { flex-direction:column; align-items:stretch; }
+ .scoring-domain summary { flex-wrap:wrap; gap:10px; }
+ .scoring-domain summary > span:first-of-type { flex-basis:calc(100% - 32px); }
+ .scoring-level { text-align:left; max-width:none; padding-left:25px; }
+ .scoring-summary { padding:18px; }
+ .scoring-toolbar .field { max-width:none; }
 }

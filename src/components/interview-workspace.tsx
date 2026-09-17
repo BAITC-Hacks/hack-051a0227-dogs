@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -55,6 +55,15 @@ export function InterviewWorkspace({
     resultTask = useTask(),
     router = useRouter();
   const source = i.application.sources.find((s) => s.id === sourceId);
+  const sourceReturn = useRef<HTMLElement | null>(null);
+  function openSource(id: string) {
+    sourceReturn.current = document.activeElement as HTMLElement;
+    setSourceId(id);
+    if (window.innerWidth < 1000)
+      document
+        .getElementById("interview-source")
+        ?.scrollIntoView({ block: "start" });
+  }
   const base = {
     id: i.id,
     applicationId: i.applicationId,
@@ -66,6 +75,9 @@ export function InterviewWorkspace({
       all.findIndex((other) => other.domain === r.domain) === index &&
       questionTemplates[r.gap] &&
       r.sourceIds.length > 0,
+  );
+  const scoring = i.scoring.runs.find(
+    (r) => r.current && r.status === "COMPLETED",
   );
   function add(
     text: string,
@@ -123,6 +135,56 @@ export function InterviewWorkspace({
           </section>
           <section className="review-section">
             <h2>План интервью</h2>
+            {scoring?.result && (
+              <details className="scoring-scale">
+                <summary>Вопросы AI-скоринга к этим материалам</summary>
+                <p>
+                  Выберите нужные вопросы, затем измените их в соответствующей
+                  секции и сохраните план.
+                </p>
+                {scoring.result.questions.map((q) => (
+                  <div className="scoring-question" key={q.id}>
+                    <p>{q.text}</p>
+                    <p>Пробел: {q.gap}</p>
+                    <button
+                      className="text-link"
+                      onClick={() => openSource(q.sourceId)}
+                    >
+                      Открыть материал
+                    </button>
+                    <button
+                      className="button secondary"
+                      disabled={plan.questions.some(
+                        (p) =>
+                          p.scoringRunId === scoring.id &&
+                          p.scoringQuestionId === q.id,
+                      )}
+                      onClick={() =>
+                        setPlan((p) => ({
+                          ...p,
+                          questions: [
+                            ...p.questions,
+                            {
+                              id: crypto.randomUUID(),
+                              section: q.section,
+                              text: q.text,
+                              sourceId: q.sourceId,
+                              scoringRunId: scoring.id,
+                              scoringQuestionId: q.id,
+                            },
+                          ],
+                        }))
+                      }
+                    >
+                      Добавить в{" "}
+                      {sections
+                        .find((s) => s.key === q.section)
+                        ?.title.toLowerCase()}
+                    </button>
+                  </div>
+                ))}
+              </details>
+            )}
             {sections.map((s) => (
               <section className="interview-step" key={s.key}>
                 <h3>{s.title}</h3>
@@ -162,6 +224,8 @@ export function InterviewWorkspace({
                                       ...x,
                                       sourceId: e.target.value,
                                       reviewId: undefined,
+                                      scoringRunId: undefined,
+                                      scoringQuestionId: undefined,
                                     }
                                   : x,
                               ),
@@ -181,12 +245,7 @@ export function InterviewWorkspace({
                       {q.sourceId && (
                         <button
                           className="text-link"
-                          onClick={() => {
-                            setSourceId(q.sourceId);
-                            document
-                              .getElementById("interview-source")
-                              ?.scrollIntoView({ block: "center" });
-                          }}
+                          onClick={() => openSource(q.sourceId)}
                         >
                           Открыть материал
                         </button>
@@ -510,6 +569,15 @@ export function InterviewWorkspace({
                 ))}
               </select>
             </label>
+            <button
+              className="text-link source-return"
+              onClick={() => {
+                sourceReturn.current?.scrollIntoView({ block: "center" });
+                sourceReturn.current?.focus({ preventScroll: true });
+              }}
+            >
+              Вернуться к вопросу
+            </button>
             {source && <SourceContent source={source} />}
           </div>
         </aside>

@@ -25,6 +25,8 @@ import { ReviewDecision } from "./review-decision";
 import { SourceContent } from "./review-source";
 import { EpisodeNotes, MergeEpisodes } from "./episode-notes";
 import { submissionIssues } from "@/lib/validation";
+import { ScoringPanel } from "./scoring-panel";
+import type { ScoringResult } from "@/lib/scoring-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 export function CandidateReview({
   application: a,
@@ -40,7 +42,11 @@ export function CandidateReview({
       a.sources[0]?.id ??
       "",
   );
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("scoring");
+  const [scoringDraft, setScoringDraft] = useState<{
+    result: ScoringResult;
+    runId: string;
+  } | null>(null);
   const [domain, setDomain] = useState<string>(domains[5]);
   const [sourceIds, setSourceIds] = useState<string[]>(
     a.sources[0] ? [a.sources[0].id] : [],
@@ -85,6 +91,7 @@ export function CandidateReview({
       </div>
       <div className="tabs" role="tablist" aria-label="Рассмотрение кандидата">
         {[
+          ["scoring", "AI-скоринг"],
           ["overview", "Обзор"],
           ["check", "Карта проверки"],
           ["decision", "Решение и публикация"],
@@ -106,6 +113,22 @@ export function CandidateReview({
       </div>
       <div className="review-layout">
         <div className="review-main">
+          {tab === "scoring" && (
+            <ScoringPanel
+              applicationId={a.id}
+              data={a.scoring}
+              language={a.language?.result ?? "Ответ не сохранён"}
+              onReadiness={() => setTab("overview")}
+              onSource={openSource}
+              interviewId={
+                a.interviews.find((i) => i.status !== "COMPLETED")?.id
+              }
+              onUse={(result, runId) => {
+                setScoringDraft({ result, runId });
+                setTab("decision");
+              }}
+            />
+          )}
           {tab === "overview" && (
             <>
               <section
@@ -505,7 +528,9 @@ export function CandidateReview({
               </section>
             </>
           )}
-          {tab === "decision" && <ReviewDecision application={a} />}
+          {tab === "decision" && (
+            <ReviewDecision application={a} scoringDraft={scoringDraft} />
+          )}
           {tab === "sources" && (
             <section>
               <h2>Источники и материалы</h2>

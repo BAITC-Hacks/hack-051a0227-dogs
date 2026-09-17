@@ -113,6 +113,21 @@ async function rubricVersion(tx: Tx) {
     );
   return v.version;
 }
+async function scoringReference(tx: Tx, applicationId: string, runId: unknown) {
+  if (!runId) return {};
+  const { requireCurrentScoring } = await import("./scoring-service.server");
+  const scoring = await requireCurrentScoring(
+    tx,
+    applicationId,
+    id.parse(runId),
+  );
+  if (!scoring.run.reviews.length)
+    throw new AppError("Сначала сохраните человеческую проверку AI-скоринга.");
+  return {
+    scoringRunId: scoring.run.id,
+    scoringReviewId: scoring.run.reviews[0].id,
+  };
+}
 export async function reviewAction(
   type: string,
   b: Record<string, unknown>,
@@ -136,6 +151,11 @@ export async function reviewAction(
     if (type === "review.profile")
       return { materialVersion: context.version, snapshot: context.snapshot };
     current(b.materialVersion, context.version);
+    const scoringRef = await scoringReference(
+      tx,
+      applicationId,
+      b.scoringRunId,
+    );
     if (type === "review.source") {
       const sourceId = id.parse(b.sourceId);
       await validSources(tx, applicationId, [sourceId]);
@@ -297,7 +317,10 @@ export async function reviewAction(
           fromStage: app.stage,
           toStage,
           materialVersion: context.version,
-          reviewedSnapshot: json(context.snapshot),
+          reviewedSnapshot: json({
+            ...context.snapshot,
+            ...scoringRef,
+          }),
         },
       });
       await tx.application.update({
@@ -394,6 +417,25 @@ export async function reviewAction(
                 "Вопрос должен ссылаться на источник отмеченного пробела.",
               );
           }
+        for (const q of plan.questions)
+          if (q.scoringRunId) {
+            const { requireCurrentScoring } =
+              await import("./scoring-service.server");
+            const scoring = await requireCurrentScoring(
+              tx,
+              applicationId,
+              q.scoringRunId,
+            );
+            if (
+              !scoring.result.questions.some(
+                (p) =>
+                  p.id === q.scoringQuestionId && p.sourceId === q.sourceId,
+              )
+            )
+              throw new AppError(
+                "Вопрос должен сохранять связь с основанием AI-скоринга.",
+              );
+          }
         await tx.interview.update({
           where: { id: interview.id },
           data: {
@@ -436,7 +478,16 @@ export async function reviewAction(
           applicationId,
           authorId: u.id,
           materialVersion: context.version,
-          reviewedSnapshot: json(context.snapshot),
+          reviewedSnapshot: json({
+            ...context.snapshot,
+            ...(await scoringReference(
+              tx,
+              applicationId,
+              b.scoringRunId ??
+                (decision.reviewedSnapshot as Record<string, unknown> | null)
+                  ?.scoringRunId,
+            )),
+          }),
         },
       });
     }
@@ -448,6 +499,23 @@ export async function reviewAction(
       if (!feedback) throw new AppError("Сообщение недоступно.", 404);
       if (feedback.publishedAt) return { published: true, id: feedback.id };
       current(feedback.materialVersion, context.version);
+      const savedRef = (feedback.reviewedSnapshot ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const currentRef = await scoringReference(
+        tx,
+        applicationId,
+        savedRef.scoringRunId,
+      );
+      if (
+        savedRef.scoringRunId &&
+        currentRef.scoringReviewId !== savedRef.scoringReviewId
+      )
+        throw new AppError(
+          "Человеческая интерпретация изменена. Подготовьте и проверьте новое сообщение.",
+          409,
+        );
       const latest = await tx.decision.findFirst({
         where: { applicationId },
         orderBy: { createdAt: "desc" },

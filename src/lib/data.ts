@@ -1,6 +1,7 @@
 import { projectMilestones } from "./journey";
 import { db } from "./db";
 import { materialContext } from "./review-service.server";
+import { scoringView } from "./scoring-service.server";
 import {
   actor,
   assertApplication,
@@ -137,12 +138,13 @@ export async function loadCandidate(id: string) {
   });
   return {
     ...application,
+    scoring: await scoringView(id),
     materialVersion: (await materialContext(db, id)).version,
   };
 }
 export async function queueData() {
   await requireStaff();
-  return db.application.findMany({
+  const applications = await db.application.findMany({
     where: { submittedAt: { not: null } },
     include: {
       user: { select: { name: true, email: true } },
@@ -156,6 +158,9 @@ export async function queueData() {
     },
     orderBy: { updatedAt: "desc" },
   });
+  return Promise.all(
+    applications.map(async (a) => ({ ...a, scoring: await scoringView(a.id) })),
+  );
 }
 export async function interviewData(id: string) {
   const user = await requireStaff();
@@ -183,6 +188,7 @@ export async function interviewData(id: string) {
   await assertApplication(interview.applicationId, user);
   return {
     ...interview,
+    scoring: await scoringView(interview.applicationId),
     currentMaterialVersion: (await materialContext(db, interview.applicationId))
       .version,
   };

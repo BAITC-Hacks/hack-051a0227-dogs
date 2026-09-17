@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -27,6 +27,7 @@ import {
 } from "@/lib/security";
 import { journeyAction } from "@/lib/journey.server";
 import { reviewAction } from "@/lib/review-service.server";
+import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
@@ -43,7 +44,20 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type === "register" || type === "login") {
+    if (type.startsWith("scoring.")) {
+      result = await scoringAction(type, b, await requireStaff());
+      if (type === "scoring.launch") {
+        const runId = (result as { id: string }).id;
+        after(() => processScoringRun(runId));
+      } else if (type === "scoring.status") {
+        const pending = (
+          result as { runs: { id: string; status: string }[] }
+        ).runs.filter((r) => ["QUEUED", "RUNNING"].includes(r.status));
+        after(async () => {
+          for (const r of pending) await processScoringRun(r.id);
+        });
+      }
+    } else if (type === "register" || type === "login") {
       await rateLimit("authentication", 60);
       const v = z
         .object({

@@ -21,6 +21,7 @@ model User {
   messages Message[]
   assessments Assessment[]
   decisions Decision[]
+  scoringReviews ScoringReview[]
 }
 model Session {
   tokenHash String @id
@@ -106,6 +107,8 @@ model Application {
   audioJobs AudioJob[]
   domainReviews DomainReview[]
   feedback FeedbackPublication[]
+  scoringRuns ScoringRun[]
+  scoringFixtures ScoringFixture[]
 }
 model ApplicationVersion {
   id String @id @default(cuid())
@@ -385,6 +388,55 @@ model Setting {
   key String @id
   value Json
   updatedAt DateTime @updatedAt
+}
+
+model ScoringRun {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  identity String @unique
+  inputHash String
+  materialVersion String
+  criteriaVersion String
+  provider String
+  scenarioVersion String
+  input Json
+  result Json?
+  status String @default("QUEUED")
+  requestedBy String
+  leaseToken String?
+  leaseUntil DateTime?
+  errorCode String?
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  reviews ScoringReview[]
+  @@index([applicationId, createdAt])
+}
+
+model ScoringReview {
+  id String @id @default(cuid())
+  runId String
+  run ScoringRun @relation(fields:[runId], references:[id], onDelete:Cascade)
+  authorId String
+  author User @relation(fields:[authorId], references:[id])
+  requestKey String @unique
+  result Json
+  rejectedEvidenceIds String[]
+  reason String
+  createdAt DateTime @default(now())
+}
+
+// Developer-only fixtures: no application-facing write API.
+model ScoringFixture {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  inputHash String
+  scenarioVersion String
+  result Json
+  createdAt DateTime @default(now())
+  @@unique([applicationId, inputHash])
 }
 model RateLimit {
   key String @id

@@ -5,20 +5,39 @@ import { reviewActions } from "@/lib/review-contract";
 import { action, dateLabel } from "@/lib/client";
 import type { loadCandidate } from "@/lib/data";
 import { Feedback, useTask } from "./ui";
+import type { ScoringResult } from "@/lib/scoring-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
-export function ReviewDecision({ application: a }: { application: Candidate }) {
+export function ReviewDecision({
+  application: a,
+  scoringDraft,
+}: {
+  application: Candidate;
+  scoringDraft?: { result: ScoringResult; runId: string } | null;
+}) {
   const router = useRouter(),
     decisionTask = useTask(),
     publishTask = useTask();
   const [decision, setDecision] = useState(
-    a.stage === "DECIDED" ? "REOPEN" : "CONTINUE",
+    a.stage === "DECIDED"
+      ? "REOPEN"
+      : (scoringDraft?.result.recommendation.action ?? "CONTINUE"),
   );
-  const [reason, setReason] = useState(""),
+  const [reason, setReason] = useState(
+      scoringDraft?.result.recommendation.reason ?? "",
+    ),
     [scheduled, setScheduled] = useState("");
-  const [observation, setObservation] = useState(""),
-    [suggestion, setSuggestion] = useState(""),
-    [nextAction, setNextAction] = useState("");
-  const [sourceIds, setSourceIds] = useState<string[]>([]);
+  const [observation, setObservation] = useState(
+      scoringDraft?.result.feedback.observation ?? "",
+    ),
+    [suggestion, setSuggestion] = useState(
+      scoringDraft?.result.feedback.suggestion ?? "",
+    ),
+    [nextAction, setNextAction] = useState(
+      scoringDraft?.result.feedback.nextAction ?? "",
+    );
+  const [sourceIds, setSourceIds] = useState<string[]>(
+    scoringDraft?.result.feedback.sourceIds ?? [],
+  );
   const [preview, setPreview] = useState<{
     id: string;
     body: string;
@@ -42,6 +61,13 @@ export function ReviewDecision({ application: a }: { application: Candidate }) {
   return (
     <section className="review-section" id="decision-publication">
       <h2>Решение и обратная связь</h2>
+      {scoringDraft && (
+        <p className="notice info">
+          Перенесена проверенная рекомендация AI-скоринга. Отредактируйте текст
+          под выбранное действие перед предпросмотром. Сообщение ещё не
+          опубликовано.
+        </p>
+      )}
       <p className="section-subtitle">
         Внутреннее основание и сообщение кандидату сохраняются отдельно.
         Кандидат увидит только опубликованный текст.
@@ -52,6 +78,7 @@ export function ReviewDecision({ application: a }: { application: Candidate }) {
           e.preventDefault();
           decisionTask.run(async () => {
             await action("decision", {
+              scoringRunId: scoringDraft?.runId,
               applicationId: a.id,
               materialVersion: a.materialVersion,
               revision: a.revision,
@@ -122,6 +149,7 @@ export function ReviewDecision({ application: a }: { application: Candidate }) {
           e.preventDefault();
           publishTask.run(async () => {
             const draft = await action<{ id: string }>("feedback.save", {
+              scoringRunId: scoringDraft?.runId,
               applicationId: a.id,
               materialVersion: a.materialVersion,
               decisionId: latest?.id,

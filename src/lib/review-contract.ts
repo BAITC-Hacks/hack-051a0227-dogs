@@ -101,6 +101,8 @@ export const questionSchema = z.object({
   text: z.string().trim().min(5).max(1000),
   sourceId: z.string().max(100),
   reviewId: z.string().max(100).optional(),
+  scoringRunId: z.string().max(100).optional(),
+  scoringQuestionId: z.string().max(100).optional(),
 });
 export const planSchema = z.object({
   questions: z.array(questionSchema).max(30),
