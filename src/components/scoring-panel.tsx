@@ -112,6 +112,12 @@ export function ScoringPanel({
       </div>
       <Feedback task={task} />
       <p className="scoring-language">
+        <Link className="text-link" href={`/admissions/candidates/${applicationId}/stability`}>
+          Проверить устойчивость
+        </Link>
+        {" · Контролируемая пара без изменения официального профиля"}
+      </p>
+      <p className="scoring-language">
         Английский: {language}.{" "}
         <button className="text-link" onClick={onReadiness}>
           Отдельная языковая проверка

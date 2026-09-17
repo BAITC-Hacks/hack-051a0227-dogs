@@ -3299,6 +3299,58 @@ video {
 }
 /* The assessment stays in the existing review/source layout. */
 .scoring-panel { font-size: 16px; }
+.twin-workspace { font-size: 16px; }
+.twin-intro { max-width: 78ch; margin-bottom: 24px; }
+.twin-choice { display: grid; grid-template-columns: minmax(220px,1fr) minmax(220px,1fr); gap: 16px 28px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; }
+.twin-choice .field { margin: 0; }
+.twin-choice p { align-self: center; }
+.twin-choice .button { justify-self: start; }
+.twin-purpose { padding: 28px 0; }
+.twin-purpose h2 { margin: 10px 0 18px; }
+.twin-purpose dl { display: grid; gap: 14px; margin: 20px 0; }
+.twin-purpose dl > div { display: grid; grid-template-columns: 170px 1fr; gap: 20px; }
+.twin-purpose dt { font-weight: 600; }
+.twin-purpose p, .twin-purpose li { margin: 12px 0; }
+.twin-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 28px; align-items: start; }
+.twin-material { background: var(--paper); border-top: 3px solid var(--ink); padding: 22px; }
+.twin-workspace h3 { margin-bottom: 20px; }
+.twin-workspace h4 { margin: 16px 0 8px; }
+.twin-workspace p { overflow-wrap: anywhere; }
+.twin-columns p { margin: 12px 0; }
+.twin-columns details { margin-top: 18px; }
+.twin-workspace summary { cursor: pointer; font-weight: 500; }
+.twin-workspace .field { font-size: 16px; }
+.twin-workspace select, .twin-workspace textarea { font-size: 16px; }
+.twin-background, .twin-source { background: var(--blue); padding: 16px; border-radius: 8px; }
+.twin-launch, .twin-result, .twin-review { margin: 32px 0; padding: 24px; border: 1px solid var(--line); border-radius: 12px; }
+.twin-launch .button { margin-top: 16px; }
+.twin-result { background: var(--blue); }
+.twin-result h2 { font-size: 24px; line-height: 1.3; }
+.twin-result p { margin: 16px 0; }
+.twin-difference { display: grid; gap: 6px; padding: 16px 0; border-top: 1px solid #bdcdd7; }
+.twin-domain { padding: 16px 0; border-top: 1px solid var(--line); }
+.twin-domain summary { line-height: 1.6; }
+.twin-evidence { padding: 14px 0 14px 16px; margin: 16px 0; border-left: 3px solid var(--lime); }
+.twin-evidence blockquote { white-space: pre-wrap; }
+.twin-review { max-width: 850px; }
+.twin-review .field { margin: 18px 0; }
+.twin-review-entry { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; }
+.twin-review-entry p { margin-top: 10px; white-space: pre-wrap; }
+.twin-end { padding: 10px 0 30px; }
+.twin-switch { display: none; }
+#twin-grounds { scroll-margin-top: 24px; }
+#twin-result, #twin-review, #twin-materials { scroll-margin-top: 24px; }
+.twin-jumps { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0 0 24px; }
+.twin-jumps a { text-decoration: underline; text-underline-offset: 4px; }
+@media(max-width: 799px) {
+  .twin-choice, .twin-columns { grid-template-columns: minmax(0,1fr); }
+  .twin-choice, .twin-material, .twin-result, .twin-review, .twin-launch { padding: 18px; }
+  .twin-purpose dl > div { grid-template-columns: 1fr; gap: 4px; }
+  .twin-switch { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+  .twin-switch .button { flex: 1 1 145px; }
+  .twin-columns[data-side="A"] > .twin-side-B, .twin-columns[data-side="B"] > .twin-side-A { display: none; }
+  .twin-result h2 { font-size: 22px; }
+}
 .scoring-language { margin:12px 0; font-size:15px; }
 #scoring-human-review, #scoring-domain-list { scroll-margin-top:24px; }
 .scoring-heading { display:flex; gap:20px; align-items:flex-start; justify-content:space-between; }

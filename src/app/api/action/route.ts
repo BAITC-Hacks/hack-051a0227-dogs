@@ -28,6 +28,7 @@ import {
 import { journeyAction } from "@/lib/journey.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
+import { twinAction } from "@/lib/twin-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
@@ -44,7 +45,16 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("scoring.")) {
+    if (type.startsWith("twin.")) {
+      result = await twinAction(type, b, await requireStaff());
+      if (type === "twin.launch" || type === "twin.status") {
+        const auditId = (result as { id: string }).id;
+        after(async () => {
+          const runs = await db.scoringRun.findMany({ where: { auditId, applicationId: String(b.applicationId), context: "AUDIT", status: { in: ["QUEUED", "RUNNING"] } } });
+          await Promise.all(runs.map((r) => processScoringRun(r.id)));
+        });
+      }
+    } else if (type.startsWith("scoring.")) {
       result = await scoringAction(type, b, await requireStaff());
       if (type === "scoring.launch") {
         const runId = (result as { id: string }).id;

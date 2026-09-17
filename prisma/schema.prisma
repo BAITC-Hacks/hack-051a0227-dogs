@@ -22,6 +22,7 @@ model User {
   assessments Assessment[]
   decisions Decision[]
   scoringReviews ScoringReview[]
+  twinReviews TwinReview[]
 }
 model Session {
   tokenHash String @id
@@ -109,6 +110,7 @@ model Application {
   feedback FeedbackPublication[]
   scoringRuns ScoringRun[]
   scoringFixtures ScoringFixture[]
+  twinAudits TwinAudit[]
 }
 model ApplicationVersion {
   id String @id @default(cuid())
@@ -394,6 +396,10 @@ model ScoringRun {
   id String @id @default(cuid())
   applicationId String
   application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  context String @default("OFFICIAL")
+  auditId String?
+  audit TwinAudit? @relation(fields:[auditId], references:[id], onDelete:Cascade)
+  variant String?
   identity String @unique
   inputHash String
   materialVersion String
@@ -412,6 +418,38 @@ model ScoringRun {
   completedAt DateTime?
   reviews ScoringReview[]
   @@index([applicationId, createdAt])
+  @@unique([auditId, variant])
+}
+
+model TwinAudit {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  caseKey String
+  caseVersion String
+  baseInputHash String
+  definition Json
+  definitionHash String
+  comparison Json?
+  comparisonVersion String
+  requestKey String @unique
+  requestedBy String
+  createdAt DateTime @default(now())
+  runs ScoringRun[]
+  reviews TwinReview[]
+  @@index([applicationId, createdAt])
+}
+model TwinReview {
+  id String @id @default(cuid())
+  auditId String
+  audit TwinAudit @relation(fields:[auditId], references:[id], onDelete:Cascade)
+  authorId String
+  author User @relation(fields:[authorId], references:[id])
+  verdict String
+  note String
+  viewedVersions Json
+  requestKey String @unique
+  createdAt DateTime @default(now())
 }
 
 model ScoringReview {

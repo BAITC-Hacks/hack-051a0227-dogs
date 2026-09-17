@@ -21,6 +21,17 @@ export const digest = (v: unknown) =>
   createHash("sha256")
     .update(JSON.stringify(canonical(v)))
     .digest("hex");
+/** Allowlist shared by production collection and controlled background-isolation checks. */
+export function assessmentFacts(fields: Record<string, unknown>, program: string) {
+  const value = (key: string) =>
+    typeof fields[key] === "string" ? (fields[key] as string) : "";
+  return {
+    program,
+    motivation: value("motivation"),
+    experience: value("experience"),
+    personalRole: value("personalRole"),
+  };
+}
 const rubricSchema = z.object({
   version: z.number().int().positive(),
   guidance: z.string().min(20),
@@ -122,8 +133,6 @@ export async function scoringInput(
   const criteria = await scoringCriteria(tx);
   const fields =
     (submitted.snapshot as { fields?: Record<string, unknown> }).fields ?? {};
-  const value = (key: string) =>
-    typeof fields[key] === "string" ? (fields[key] as string) : "";
   // Private milestones, activity, test mappings, bytes and contact data never enter the provider contract.
   const sources = app.sources
     .filter((s) => s.title !== "Выбор утверждений")
@@ -187,12 +196,7 @@ export async function scoringInput(
     applicationId,
     applicationVersion: { id: submitted.id, revision: submitted.revision },
     materialVersion: (await materialContext(tx, applicationId)).version,
-    facts: {
-      program: app.program.title,
-      motivation: value("motivation"),
-      experience: value("experience"),
-      personalRole: value("personalRole"),
-    },
+    facts: assessmentFacts(fields, app.program.title),
     sources,
     language: app.language
       ? {

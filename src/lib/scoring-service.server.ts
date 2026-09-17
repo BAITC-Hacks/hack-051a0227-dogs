@@ -47,7 +47,7 @@ export async function requireCurrentScoring(
   runId: string,
 ) {
   const run = await tx.scoringRun.findFirst({
-    where: { id: runId, applicationId },
+    where: { id: runId, applicationId, context: "OFFICIAL" },
     include: {
       application: { select: { origin: true } },
       reviews: { orderBy: { createdAt: "desc" } },
@@ -66,7 +66,7 @@ export async function requireCurrentScoring(
 }
 export async function scoringView(applicationId: string): Promise<ScoringView> {
   const runs = await db.scoringRun.findMany({
-    where: { applicationId },
+    where: { applicationId, context: "OFFICIAL" },
     orderBy: { createdAt: "desc" },
     include: {
       reviews: {
@@ -139,7 +139,7 @@ export async function processScoringRun(runId: string) {
   if (!claimed.count) return;
   const run = await db.scoringRun.findUniqueOrThrow({
     where: { id: runId },
-    include: { application: { select: { origin: true } } },
+    include: { application: { select: { origin: true } }, audit: true },
   });
   try {
     if (configuredAssessmentProvider() !== run.provider)
@@ -147,8 +147,8 @@ export async function processScoringRun(runId: string) {
     const input = run.input as unknown as ScoringInput;
     if (digest(input) !== run.inputHash) throw new Error("INPUT_HASH_MISMATCH");
     scope(run.application.origin, run.scenarioVersion, run.provider);
-    const prepared =
-      run.provider !== "local" || run.scenarioVersion === "structured-fields-v1"
+    let prepared: { inputHash: string; scenarioVersion: string; result: unknown } | null =
+      run.context === "AUDIT" || run.provider !== "local" || run.scenarioVersion === "structured-fields-v1"
         ? null
         : await db.scoringFixture.findUnique({
             where: {
@@ -158,6 +158,10 @@ export async function processScoringRun(runId: string) {
               },
             },
           });
+    if (run.context === "AUDIT") {
+      const { preparedTwinResponse } = await import("./twin-service.server");
+      prepared = preparedTwinResponse(run);
+    } else if (run.auditId || run.variant) throw new Error("INVALID_RUN_CONTEXT");
     if (
       run.provider === "local" &&
       run.scenarioVersion !== "structured-fields-v1" &&
@@ -195,6 +199,10 @@ export async function processScoringRun(runId: string) {
         completedAt: new Date(),
       },
     });
+  }
+  if (run.auditId) {
+    const { finalizeTwin } = await import("./twin-service.server");
+    await finalizeTwin(run.auditId);
   }
 }
 export async function scoringAction(
