@@ -1,3 +1,5 @@
+import { readMission } from "@/lib/missions";
+import { MissionArtifact } from "./mission-visual";
 import { screenNames, fragments, modules, testimonies } from "@/lib/projects";
 import { equipmentNames, equipmentSchema } from "@/lib/equipment";
 import type { ProjectState } from "@/lib/types";
@@ -12,6 +14,8 @@ export function WorkPreview({
   context?: string;
   compact?: boolean;
 }) {
+  const m=readMission(state);
+  if(m)return <MissionArtifact mission={m} compact={compact}/>;
   const s = state as ProjectState;
   if (context === "EQUIPMENT") {
     const b = equipmentSchema.parse(state);

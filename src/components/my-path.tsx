@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, Circle } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 import type { myData } from "@/lib/data";
 import { programFor, stageLabels } from "@/lib/catalog";
+import { unansweredQuestions } from "@/lib/message-state";
 import { dateLabel } from "@/lib/client";
 import { workHref, workTitle, versionCompleted } from "@/lib/journey";
 import { applicationRequirements } from "@/lib/validation";
@@ -20,18 +21,17 @@ import { InteractiveProfile } from "./interactive-profile";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
 export function MyPath({ data }: { data: Data }) {
   const { user, attempts, application: app } = data;
-  const latestStaff = app?.messages
-    .filter((m) => m.author.role === "STAFF")
-    .at(-1);
-  const replied =
-    !!latestStaff &&
-    app!.messages.some(
-      (m) =>
-        m.authorId === user.id &&
-        new Date(m.createdAt) > new Date(latestStaff.createdAt),
-    );
-  const needsAnswer =
-    !!app?.submittedAt && app.stage === "CLARIFICATION" && !replied;
+  const pendingQuestions = unansweredQuestions(app?.messages ?? []);
+  const latestStaff =
+    pendingQuestions.at(-1) ??
+    app?.messages
+      .filter(
+        (m) =>
+          m.author.role === "STAFF" && ["QUESTION", "MESSAGE"].includes(m.kind),
+      )
+      .at(-1);
+  const replied = !!latestStaff && pendingQuestions.length === 0;
+  const needsAnswer = !!app?.submittedAt && pendingQuestions.length > 0;
   const invitation = app?.stage === "INTERVIEW";
   const unfinished = attempts.find((a) => !versionCompleted(a, a.versions[0]));
   const chosen = attempts.find((a) => a.interest === "MORE");
@@ -95,8 +95,8 @@ export function MyPath({ data }: { data: Data }) {
         }
       : offerContext
         ? {
-            title: "Тот же принцип — другая задача",
-            body: "Маршрут мастерской сохранён. Попробуй бронирование: здесь нужно учитывать занятое время и подтверждение выдачи.",
+            title: "Примени принцип в другой задаче",
+            body: "Твой маршрут сохранён. Попробуй бронирование: здесь нужно учитывать занятое время и подтверждение выдачи.",
             href: "",
             label: "",
           }
@@ -108,10 +108,10 @@ export function MyPath({ data }: { data: Data }) {
               label: "Выбрать следующую пробу",
             }
           : {
-              title: "Начни с небольшого действия",
-              body: "Переставь экраны сервиса и проверь, сможет ли человек без телефона записаться на мастерскую.",
-              href: "/projects/digital-products",
-              label: "Проверить маршрут сервиса",
+              title: "Выбери задачу для первой пробы",
+              body: "Обмен учебниками, робот, репортаж, исследование клуба или план центра. В каждой задаче можно проверить своё решение.",
+              href: "#workshop-choices",
+              label: "Выбрать задачу",
             };
   const directions = new Set(
     completed.filter((a) => a.context === "WORKSHOP").map((a) => a.slug),
@@ -135,8 +135,8 @@ export function MyPath({ data }: { data: Data }) {
             : `${user.name.split(" ")[0]}, это твой путь`}
         </h1>
         <p>
-          Создавай, проверяй и сохраняй свои решения. Поступление —
-          самостоятельный путь.
+          Создавай, проверяй и сохраняй свои решения. Поступление остаётся
+          самостоятельным путём.
         </p>
       </header>
       <section className={`journey-next ${app ? "application-priority" : ""}`}>
@@ -154,12 +154,11 @@ export function MyPath({ data }: { data: Data }) {
           ) : (
             <Link className="button dark" href={primary.href}>
               {primary.label}
-              <ArrowUpRight size={18} />
             </Link>
           )}
           {!app && (
             <Link className="text-link" href="/apply">
-              Сразу подать заявку <ArrowRight size={16} />
+              Сразу подать заявку
             </Link>
           )}
         </div>
@@ -170,7 +169,7 @@ export function MyPath({ data }: { data: Data }) {
           <Link className="text-link" href="/login?mode=register&next=/my">
             Сохранить доступ в аккаунте
           </Link>{" "}
-          — без повторного прохождения.
+          без повторного прохождения.
         </p>
       )}
       {app && (
@@ -189,7 +188,7 @@ export function MyPath({ data }: { data: Data }) {
                 <li key={r.title}>
                   {r.complete ? <Check size={17} /> : <Circle size={17} />}
                   <span>
-                    {r.title} — {r.complete ? "заполнено" : "нужно заполнить"}
+                    {r.title}: {r.complete ? "заполнено" : "нужно заполнить"}
                   </span>
                 </li>
               ))}
@@ -210,7 +209,7 @@ export function MyPath({ data }: { data: Data }) {
                 open={needsAnswer || replied}
               >
                 <summary>
-                  Переписка по заявке{needsAnswer ? " · нужен ответ" : ""}
+                  Сообщения университета{needsAnswer ? " · нужен ответ" : ""}
                 </summary>
                 <Messages
                   applicationId={app.id}
@@ -218,13 +217,15 @@ export function MyPath({ data }: { data: Data }) {
                 />
               </details>
               <Link className="text-link" href="/apply/status">
-                Вся история заявки и исправление факта <ArrowRight size={16} />
+                Вся история заявки и исправление факта
               </Link>
             </>
           )}
         </section>
       )}
-      {(attempts.length > 0 || app) && <InteractiveProfile title="AI-профиль · мои работы и личный план"/>}
+      {(attempts.length > 0 || app) && (
+        <InteractiveProfile title="AI-профиль · мои работы и личный план" />
+      )}
       {attempts.length > 0 && (
         <>
           <section className="work-route" aria-label="Маршрут знакомства">
@@ -256,13 +257,12 @@ export function MyPath({ data }: { data: Data }) {
                     {versionCompleted(a, a.versions[0])
                       ? "Открыть работу"
                       : "Продолжить"}
-                    <ArrowUpRight size={17} />
                   </Link>
                 </li>
               ))}
             </ol>
             <Link className="text-link" href="#my-projects">
-              Все работы и версии <ArrowRight size={16} />
+              Все работы и версии
             </Link>
           </section>
           {data.milestones.length > 0 && (

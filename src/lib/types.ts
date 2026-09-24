@@ -1,4 +1,5 @@
 export type ProjectState = {
+  mission?: import("./missions").Mission;
   screens: string[];
   requiredPhone: boolean;
   headline: string;

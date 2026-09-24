@@ -280,7 +280,7 @@ export function InteractiveProfile({
                         {claim.text.length > 1800 ? (
                           <details>
                             <summary>
-                              {claim.text.split("\n")[0].slice(0, 220)} —
+                              {claim.text.split("\n")[0].slice(0, 220)}.
                               подробнее
                             </summary>
                             <p className="profile-text">{claim.text}</p>
@@ -473,11 +473,11 @@ function DevelopmentArea({
             <strong>
               {letter} · {d.name}
             </strong>{" "}
-            — {d.title}
+            {d.title}
           </p>
         ))}
         <p>
-          Связь упражнений с рамкой — конфигурация приложения, а не официальная
+          Связь упражнений с рамкой задана конфигурацией приложения. Это не официальная
           формула университета. Баллы по буквам не рассчитываются.
         </p>
         <a

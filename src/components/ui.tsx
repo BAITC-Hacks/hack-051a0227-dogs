@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { AlertCircle, Check, LoaderCircle, ArrowUpRight } from "lucide-react";
+import { AlertCircle, Check, LoaderCircle, } from "lucide-react";
 export function useTask() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -84,7 +84,7 @@ export function External({
   return (
     <a href={href} target="_blank" rel="noreferrer" className="text-link">
       {children}
-      <ArrowUpRight size={16} />
+
     </a>
   );
 }

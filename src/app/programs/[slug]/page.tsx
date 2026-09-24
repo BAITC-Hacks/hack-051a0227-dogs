@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { programFor, SOURCE_URL } from "@/lib/catalog";
+import { missions } from "@/lib/missions";
 import { actor } from "@/lib/security";
 import { ProgramInterest } from "@/components/program-interest";
 import { External } from "@/components/ui";
@@ -18,7 +18,7 @@ export default async function Program({
     <div className="page wrap">
       <div className="breadcrumbs">
         <Link href="/">Проекты</Link>
-        <ArrowRight size={12} />
+
         <span>Направление</span>
       </div>
       <div className="page-title">
@@ -33,10 +33,10 @@ export default async function Program({
             <h2>{p.action}</h2>
             <p>
               Попробуй связанную учебную деятельность и создай работу:{" "}
-              {p.artifact.toLowerCase()}.
+              {missions[slug].result.toLowerCase()}.
             </p>
             <Link href={"/projects/" + slug} className="button dark">
-              Начать проект <ArrowUpRight size={18} />
+              Начать проект
             </Link>
           </div>
           <h2>Что можно изучать глубже</h2>
@@ -69,9 +69,8 @@ export default async function Program({
               authenticated={!!u && u.role !== "GUEST"}
             />
           </div>
-          <hr className="divider" />
           <Link href={"/apply?program=" + slug} className="text-link">
-            Перейти к заявке <ArrowRight size={17} />
+            Перейти к заявке
           </Link>
         </aside>
       </div>

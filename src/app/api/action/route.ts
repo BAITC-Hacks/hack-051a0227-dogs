@@ -49,18 +49,35 @@ export async function POST(req: Request) {
     let result: unknown = {};
     if (type.startsWith("workflow.")) {
       result = await workflowAction(type, b, await requireStaff());
-      return NextResponse.json({ ok: true, data: result }, { headers: { "Cache-Control": "private, no-store" } });
+      return NextResponse.json(
+        { ok: true, data: result },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
     } else if (type.startsWith("profile.")) {
       const user = await actor();
-      if (!user) throw new AppError("Сначала сохраните работу или войдите в аккаунт.", 401);
+      if (!user)
+        throw new AppError(
+          "Сначала сохраните работу или войдите в аккаунт.",
+          401,
+        );
       result = await profileAction(type, b, user);
-      return NextResponse.json({ ok: true, data: result }, { headers: { "Cache-Control": "private, no-store" } });
+      return NextResponse.json(
+        { ok: true, data: result },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
     } else if (type.startsWith("twin.")) {
       result = await twinAction(type, b, await requireStaff());
       if (type === "twin.launch" || type === "twin.status") {
         const auditId = (result as { id: string }).id;
         after(async () => {
-          const runs = await db.scoringRun.findMany({ where: { auditId, applicationId: String(b.applicationId), context: "AUDIT", status: { in: ["QUEUED", "RUNNING"] } } });
+          const runs = await db.scoringRun.findMany({
+            where: {
+              auditId,
+              applicationId: String(b.applicationId),
+              context: "AUDIT",
+              status: { in: ["QUEUED", "RUNNING"] },
+            },
+          });
           await Promise.all(runs.map((r) => processScoringRun(r.id)));
         });
       }
@@ -84,7 +101,7 @@ export async function POST(req: Request) {
           email: z.email().max(160),
           password: z
             .string()
-            .min(10, "Пароль — не меньше 10 символов.")
+            .min(10, "В пароле должно быть не меньше 10 символов.")
             .max(128),
           name: z.string().min(2).max(160).optional(),
         })
@@ -125,8 +142,14 @@ export async function POST(req: Request) {
               where: { userId: old.id },
               data: { userId: existing.id },
             });
-            await tx.profileAnswer.updateMany({ where: { userId: old.id, audience: "CANDIDATE" }, data: { userId: existing.id } });
-            await tx.developmentStep.updateMany({ where: { userId: old.id }, data: { userId: existing.id } });
+            await tx.profileAnswer.updateMany({
+              where: { userId: old.id, audience: "CANDIDATE" },
+              data: { userId: existing.id },
+            });
+            await tx.developmentStep.updateMany({
+              where: { userId: old.id },
+              data: { userId: existing.id },
+            });
             const owners = await tx.user.findMany({
               where: { id: { in: [old.id, existing.id] } },
             });
@@ -185,21 +208,35 @@ export async function POST(req: Request) {
       });
     } else if (type === "material.delete") {
       const u = await requireUser();
-      if (u.role !== "CANDIDATE") throw new AppError("Материалами управляет кандидат.", 403);
+      if (u.role !== "CANDIDATE")
+        throw new AppError("Материалами управляет кандидат.", 403);
       const materialId = id.parse(b.id);
-      const material = await db.material.findFirst({ where: { id: materialId, userId: u.id } });
+      const material = await db.material.findFirst({
+        where: { id: materialId, userId: u.id },
+      });
       if (!material?.applicationId) throw new AppError("Файл недоступен.", 404);
       if (!["document", "video"].includes(material.kind))
         throw new AppError("Устный ответ изменяется в языковой проверке.", 409);
       await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${material.applicationId} FOR UPDATE`;
-        const app = await tx.application.findUniqueOrThrow({ where: { id: material.applicationId! } });
+        const app = await tx.application.findUniqueOrThrow({
+          where: { id: material.applicationId! },
+        });
         if (app.userId !== u.id) throw new AppError("Файл недоступен.", 404);
-        if (app.submittedAt) throw new AppError("Материалы отправленной заявки зафиксированы. Для исправления используйте запрос комиссии.", 409);
+        if (app.submittedAt)
+          throw new AppError(
+            "Материалы отправленной заявки зафиксированы. Для исправления используйте запрос комиссии.",
+            409,
+          );
         // Only a draft's original upload is removable. Published sources are never rewritten.
         if (await tx.source.count({ where: { materialId } }))
-          throw new AppError("Материал уже связан с источником рассмотрения.", 409);
-        await tx.material.deleteMany({ where: { id: materialId, userId: u.id } });
+          throw new AppError(
+            "Материал уже связан с источником рассмотрения.",
+            409,
+          );
+        await tx.material.deleteMany({
+          where: { id: materialId, userId: u.id },
+        });
       });
       result = { removed: true };
     } else if (type === "application.save") {
@@ -442,8 +479,27 @@ export async function POST(req: Request) {
       const body = z.string().trim().min(3).max(5000).parse(b.body);
       result = await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${app.id} FOR UPDATE`;
+        const replyToId = b.replyToId ? id.parse(b.replyToId) : null;
+        if (replyToId) {
+          const question = await tx.message.findFirst({
+            where: {
+              id: replyToId,
+              applicationId: app.id,
+              kind: { in: ["QUESTION", "MESSAGE"] },
+              author: { role: "STAFF" },
+            },
+          });
+          if (!question || u.role !== "CANDIDATE")
+            throw new AppError("Вопрос недоступен для ответа.", 404);
+        }
         const message = await tx.message.create({
-          data: { applicationId: app.id, authorId: u.id, body },
+          data: {
+            applicationId: app.id,
+            authorId: u.id,
+            body,
+            replyToId,
+            kind: u.role === "STAFF" ? "QUESTION" : "MESSAGE",
+          },
         });
         if (u.role === "CANDIDATE")
           await tx.source.create({

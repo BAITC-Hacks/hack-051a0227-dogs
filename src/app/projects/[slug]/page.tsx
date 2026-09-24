@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { programFor } from "@/lib/catalog";
 import { actor } from "@/lib/security";
 import { db } from "@/lib/db";
+import { MissionEditor } from "@/components/mission-editor";
+import { readMission } from "@/lib/missions";
 import { ProjectEditor } from "@/components/project-editor";
 import { projectMilestones } from "@/lib/journey";
 export default async function Project({
@@ -24,7 +26,7 @@ export default async function Project({
     : [];
   const attempt = query.attempt
     ? owned.find((a) => a.id === query.attempt && a.slug === slug)
-    : owned.find((a) => a.slug === slug && a.context === "WORKSHOP");
+    : owned.find((a) => a.slug === slug && a.context === "WORKSHOP" && readMission(a.state));
   if (query.attempt && !attempt) notFound();
   for (const requested of [query.version, query.from])
     if (
@@ -38,8 +40,9 @@ export default async function Project({
         .flatMap((a) => a.versions.map((v) => ({ attempt: a, version: v })))
         .find((p) => p.version.id === attempt.parentVersionId)
     : undefined;
+  const Editor = !attempt || readMission(attempt.state) ? MissionEditor : ProjectEditor;
   return (
-    <ProjectEditor
+    <Editor
       key={`${attempt?.id ?? slug}-${query.from ?? "current"}-${query.version ?? "latest"}`}
       slug={slug}
       attempt={attempt ?? null}

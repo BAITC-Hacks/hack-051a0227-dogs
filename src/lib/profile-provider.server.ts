@@ -138,11 +138,11 @@ export class LocalProfileProvider implements ProfileProvider {
             ],
           });
           if (before)
-            claim(before, `До:\n${before.text.split("\nУсловия:")[0]}`);
+            claim(before, `Было:\n${before.text.split("\nУсловия:")[0]}`);
         }
         claim(
           workSource,
-          `${topic === "changes" ? "После:\n" : ""}${workSource.text.split("\nУсловия:")[0]}\n\n${work.feedback.summary}`,
+          `${topic === "changes" ? "Сейчас:\n" : ""}${workSource.text.split("\nУсловия:")[0]}\n\n${work.feedback.summary}`,
         );
         link(work.href, "Открыть эту версию работы");
       } else
@@ -284,7 +284,7 @@ export class LocalProfileProvider implements ProfileProvider {
           "Нет актуальной интерпретации по этим материалам. Открой карту проверки или обнови анализ в карточке.";
     } else if (topic === "interview") {
       answer.text =
-        "План и состоявшаяся встреча — разные записи. Подготовительные вопросы не являются наблюдениями.";
+        "План и состоявшаяся встреча хранятся отдельно. Подготовительные вопросы не являются наблюдениями.";
       group("plan", "interview").forEach((s) => {
         claim(s);
         if (s.href) link(s.href, "Открыть ATOLA");

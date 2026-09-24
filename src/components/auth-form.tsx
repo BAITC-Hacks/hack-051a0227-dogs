@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ShieldCheck, BookmarkCheck } from "lucide-react";
+import {  ShieldCheck, BookmarkCheck } from "lucide-react";
 import { action } from "@/lib/client";
 import { Feedback, useTask } from "./ui";
 export function AuthForm({
@@ -130,7 +130,7 @@ export function AuthForm({
           </label>
           <button className="button primary" disabled={task.busy}>
             {mode === "register" ? "Создать аккаунт" : "Войти"}
-            <ArrowUpRight size={19} />
+
           </button>
         </form>
         <Feedback task={task} />

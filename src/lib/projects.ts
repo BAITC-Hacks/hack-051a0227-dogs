@@ -1,3 +1,4 @@
+import { missionSchema } from "./missions";
 import type { ProjectState, Feedback } from "./types";
 import { z } from "zod";
 export const scenarioVersion = 1;
@@ -69,6 +70,7 @@ export const testimonies = [
   },
 ];
 export const projectSchema = z.object({
+  mission: missionSchema.optional(),
   screens: z
     .array(z.enum(["profile", "event", "confirm"]))
     .length(3)

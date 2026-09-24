@@ -6,9 +6,9 @@ export function humanComparisonIssue(
 ) {
   if (!score) return null;
   if (!score.materialVersion)
-    return "Версия материалов не зафиксирована — оценка вне сравнения";
+    return "Версия материалов не зафиксирована. Оценка вне сравнения";
   if (score.materialVersion !== currentMaterial)
-    return "Прежние материалы — нужна новая проверка";
+    return "Прежние материалы. Нужна новая проверка";
   if (
     new Set(
       [score, ...peers]
@@ -16,6 +16,6 @@ export function humanComparisonIssue(
         .map((s) => s.rubricVersion),
     ).size > 1
   )
-    return "Критерии различаются — оценки несопоставимы";
+    return "Критерии различаются. Оценки несопоставимы";
   return null;
 }

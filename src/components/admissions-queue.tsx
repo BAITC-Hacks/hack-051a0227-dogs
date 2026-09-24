@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowUpRight,
+
   Search,
   SlidersHorizontal,
   Settings2,
@@ -70,7 +70,7 @@ export function AdmissionsQueue({
       <div className="page-title">
         <div>
           <h1>Кандидаты</h1>
-          <p>Сначала — контекст. Затем — следующий осмысленный шаг.</p>
+          <p>Откройте материалы кандидата и выберите следующий шаг рассмотрения.</p>
         </div>
         <Link className="text-link" href="/admissions/workflow">
           Проверка рабочего процесса
@@ -308,7 +308,7 @@ export function AdmissionsQueue({
                   href={candidateHref(a.id)}
                   style={{ marginTop: 18 }}
                 >
-                  К источникам <ArrowUpRight size={14} />
+                  К источникам
                 </Link>
               </div>
             ))}
@@ -391,7 +391,7 @@ export function AdmissionsQueue({
                       · Источники: {a._count.sources}
                     </span>
                     <Link className="text-link" href={candidateHref(a.id)}>
-                      {nextAction[a.stage]} <ArrowUpRight size={14} />
+                      {nextAction[a.stage]}
                     </Link>
                   </div>
                 </td>
@@ -441,7 +441,7 @@ export function AdmissionsQueue({
                     href={candidateHref(a.id)}
                   >
                     {nextAction[a.stage]}
-                    <ArrowUpRight size={14} />
+
                   </Link>
                 </td>
               </tr>

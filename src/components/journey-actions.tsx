@@ -2,23 +2,14 @@
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ArrowRight, X } from "lucide-react";
+import {   X } from "lucide-react";
 import { programs } from "@/lib/catalog";
-import { initialState } from "@/lib/projects";
+import { missions } from "@/lib/missions";
+import { MissionVisual } from "./mission-visual";
 import { workHref, type Milestone } from "@/lib/journey";
 import { action } from "@/lib/client";
-import { WorkPreview } from "./work-preview";
+
 import { Feedback, useTask } from "./ui";
-const descriptions: Record<string, string> = {
-  "digital-products":
-    "Переставь экраны и проверь, пройдёт ли посетитель без телефона.",
-  "digital-media": "Собери фрагменты истории, исправь время и напиши подпись.",
-  "creative-engineering": "Размести модули: сохрани проход и уложись в ресурс.",
-  sociology:
-    "Отдели наблюдения от предположений и сформулируй следующий вопрос.",
-  "public-policy":
-    "Распредели 12 единиц между тремя потребностями и объясни компромисс.",
-};
 export function WorkshopChoices({ tried = [] }: { tried?: string[] }) {
   return (
     <section className="workshop-choices" id="workshop-choices">
@@ -34,18 +25,18 @@ export function WorkshopChoices({ tried = [] }: { tried?: string[] }) {
           <article className={`workshop-choice ${p.color}`} key={p.slug}>
             <div className="choice-copy">
               <p className="eyebrow">
-                {p.shortTitle}
+                {p.title}
                 {tried.includes(p.slug) ? " · уже есть работа" : ""}
               </p>
               <h3>{p.action}</h3>
-              <p>{descriptions[p.slug]}</p>
+              <p>{missions[p.slug].goal}</p>
               <Link className="text-link" href={`/projects/${p.slug}`}>
-                {tried.includes(p.slug) ? "Открыть мастерскую" : "Попробовать"}
-                <ArrowUpRight size={18} />
+                {tried.includes(p.slug) ? "Открыть мастерскую" : "Начать"}
+
               </Link>
             </div>
             <div className="choice-preview" aria-label="Материал для пробы">
-              <WorkPreview slug={p.slug} state={initialState} compact />
+              <MissionVisual slug={p.slug}/>
             </div>
           </article>
         ))}
@@ -77,7 +68,7 @@ export function ContextStart({
           })
         }
       >
-        Попробовать бронирование <ArrowRight size={17} />
+        Попробовать бронирование
       </button>
       <Feedback task={task} />
     </div>

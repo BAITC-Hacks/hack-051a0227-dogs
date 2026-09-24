@@ -324,10 +324,33 @@ test(
         "новое уточнение меняет контекст, сохраняет snapshot и блокирует старый вывод",
         async () => {
           const before = materialVersion;
-          await candidate.call("message", {
+          const question = await staff.call("message", {
             applicationId: appId,
+            body: "Что именно вы лично сделали для подготовки встречи?",
+          });
+          const answer = await candidate.call("message", {
+            applicationId: appId,
+            replyToId: question.id,
             body: "Я лично составил список вопросов и согласовал время с библиотекарем.",
           });
+          assert.equal(answer.replyToId, question.id);
+          assert.equal(
+            (
+              await db.source.findUniqueOrThrow({
+                where: { messageId: answer.id },
+              })
+            ).content,
+            answer.body,
+          );
+          await stranger.call(
+            "message",
+            {
+              applicationId: appId,
+              replyToId: question.id,
+              body: "Чужой ответ",
+            },
+            404,
+          );
           await candidate.call("correction", {
             sourceId,
             explanation:
@@ -389,6 +412,25 @@ test(
             where: { applicationId: appId },
           });
           interviewId = interview.id;
+          const current = await db.application.findUniqueOrThrow({
+            where: { id: appId },
+          });
+          await staff.call(
+            "decision",
+            {
+              ...base(),
+              revision: current.revision,
+              action: "INTERVIEW",
+              reason:
+                "Проверка защиты от повторного приглашения на ту же встречу.",
+              scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+            },
+            409,
+          );
+          assert.equal(
+            await db.interview.count({ where: { applicationId: appId } }),
+            1,
+          );
           const review = await db.domainReview.findFirstOrThrow({
             where: { applicationId: appId },
           });

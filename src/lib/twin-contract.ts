@@ -7,7 +7,7 @@ import {
 export const twinRulesVersion = "controlled-pairs-v1";
 export const twinStates = {
   MATCH: "Совпадает по проверяемым показателям",
-  DIFFERENT: "Есть различия — нужен разбор",
+  DIFFERENT: "Показатели различаются",
   INCOMPARABLE: "Нельзя сопоставить",
   INCOMPLETE: "Проверка не завершена",
 } as const;
@@ -266,7 +266,7 @@ export function compareTwin(
       )
         changes.push("Пробелы и вопросы");
       if (!same(left.explanations, right.explanations)) {
-        changes.push("Текст интерпретации или вопроса — нужен просмотр");
+        changes.push("Текст интерпретации или вопроса требует просмотра");
         out.textsChanged = true;
       }
       out.domains.push({
@@ -348,3 +348,57 @@ export type TwinList = {
   reason: string;
   history: { id: string; title: string; createdAt: string }[];
 };
+
+/** Display changes by their measured type; a fragment count is never a rating. */
+export function twinSummary(
+  comparison: TwinComparison,
+  pair?: TwinDefinition,
+): string {
+  if (comparison.state === "INCOMPLETE") return "Сравнение не завершено";
+  if (comparison.state === "INCOMPARABLE") {
+    if (
+      pair &&
+      !same(pair.variants.A.input.criteria, pair.variants.B.input.criteria)
+    )
+      return "Использованы разные критерии";
+    if (
+      pair &&
+      pair.preserved.some((id) => {
+        const before = pair.variants.A.facts.find((f) => f.id === id),
+          after = pair.variants.B.facts.find((f) => f.id === id);
+        return !before || !after || before.value !== after.value;
+      })
+    )
+      return "В материалах потерян или изменён сохраняемый факт";
+    if (
+      comparison.reasons.includes(
+        "Основания или цитаты не прошли проверку собственного источника.",
+      )
+    )
+      return "Источник или цитата не подтверждены";
+    return "Материалы нельзя сопоставить";
+  }
+  if (comparison.domains.some((d) => d.changes.includes("Оценка области")))
+    return "Изменились оценки областей";
+  if (
+    comparison.domains.some((d) =>
+      d.changes.some((c) =>
+        [
+          "Использованные основания",
+          "Разные жизненные эпизоды",
+          "Достаточность оснований",
+        ].includes(c),
+      ),
+    )
+  )
+    return "Изменились основания. Оценки сохранились";
+  if (comparison.domains.some((d) => d.changes.includes("Противоречия")))
+    return "Изменились отмеченные противоречия";
+  if (comparison.actionChanged)
+    return "Изменилась рекомендация или её основания";
+  if (comparison.domains.some((d) => d.changes.includes("Пробелы и вопросы")))
+    return "Изменились вопросы для уточнения";
+  if (comparison.textsChanged)
+    return "Изменились объяснения. Оценки сохранились";
+  return "Оценки и проверяемые основания совпали";
+}

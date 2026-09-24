@@ -1,3 +1,9 @@
+import {
+  readMission,
+  missionFeedback,
+  missionDifferences,
+  missions,
+} from "./missions";
 import type { ProjectAttempt, AttemptVersion } from "@prisma/client";
 import {
   checkProject,
@@ -32,6 +38,14 @@ export function substantive(
   context = "WORKSHOP",
 ) {
   if (context === "EQUIPMENT") return equipmentSchema.parse(state);
+  const m = readMission(state);
+  if (m)
+    return {
+      ...m.plan,
+      headline: undefined,
+      explanation: normalize(m.plan.explanation),
+      verification: normalize(m.plan.verification),
+    };
   const s = projectSchema.parse(state);
   if (slug === "digital-products")
     return { screens: s.screens, requiredPhone: s.requiredPhone };
@@ -53,9 +67,9 @@ export function meaningfullyChanged(
   b: unknown,
   context = "WORKSHOP",
 ) {
-  return (
-    JSON.stringify(substantive(slug, a, context)) !==
-    JSON.stringify(substantive(slug, b, context))
+  return !sameWorkState(
+    substantive(slug, a, context),
+    substantive(slug, b, context),
   );
 }
 export function workFeedback(
@@ -63,6 +77,8 @@ export function workFeedback(
   state: unknown,
   context = "WORKSHOP",
 ): Feedback {
+  const m = readMission(state);
+  if (m) return missionFeedback(m);
   return context === "EQUIPMENT"
     ? checkEquipment(equipmentSchema.parse(state))
     : checkProject(slug, projectSchema.parse(state));
@@ -73,6 +89,7 @@ export function workCompleted(
   context = "WORKSHOP",
 ) {
   const f = workFeedback(slug, state, context);
+  if (readMission(state)) return f.checks.every((c) => c.passed);
   return (
     f.checks.length > 0 &&
     f.checks.every((c) => c.passed) &&
@@ -103,6 +120,9 @@ export function workChanges(
   after: unknown,
   context = "WORKSHOP",
 ): string[] {
+  const ma = readMission(before),
+    mb = readMission(after);
+  if (ma && mb) return missionDifferences(ma, mb);
   if (context !== "EQUIPMENT")
     return changesBetween(slug, before as ProjectState, after as ProjectState);
   const a = equipmentSchema.parse(before),
@@ -121,11 +141,26 @@ export function workChanges(
 export function workHref(a: Pick<Work, "slug" | "id">, revision?: number) {
   return `/projects/${a.slug}?attempt=${a.id}${revision === undefined ? "" : `&version=${revision}#result`}`;
 }
-export function workTitle(a: Pick<Work, "slug" | "context">, fallback: string) {
+export function workTitle(
+  a: Pick<Work, "slug" | "context"> & {
+    state?: unknown;
+    configVersion?: number;
+  },
+  fallback: string,
+) {
   return a.context === "EQUIPMENT"
     ? "Забронировать оборудование без лишних шагов"
-    : fallback;
+    : a.configVersion === 3 || readMission(a.state)
+      ? (missions[a.slug]?.title ?? fallback)
+      : (legacyWorkTitles[a.slug] ?? fallback);
 }
+const legacyWorkTitles: Record<string, string> = {
+  "digital-products": "Сделать регистрацию проще",
+  "digital-media": "Рассказать историю перемен",
+  "creative-engineering": "Собрать площадку из модулей",
+  sociology: "Понять, кого мы не услышали",
+  "public-policy": "Распределить общий ресурс",
+};
 /** The caller supplies only the owner's attempts. No application or staff data is an input. */
 export function projectMilestones(attempts: Work[]): Milestone[] {
   const earned: Milestone[] = [];
@@ -152,7 +187,7 @@ export function projectMilestones(attempts: Work[]): Milestone[] {
         slug: a.slug,
         revision: v.revision,
         earnedAt: v.createdAt,
-        ruleVersion: journeyRuleVersion,
+        ruleVersion: v.ruleVersion === 3 ? 3 : journeyRuleVersion,
       });
   };
   const directions = new Set<string>();

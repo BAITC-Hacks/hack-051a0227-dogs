@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight } from "lucide-react";
 import { actor } from "@/lib/security";
 import { db } from "@/lib/db";
 import { dateLabel } from "@/lib/client";
@@ -65,7 +64,7 @@ export default async function Interviews() {
                     className="text-link"
                     href={"/admissions/interviews/" + i.id}
                   >
-                    Открыть интервью <ArrowUpRight size={15} />
+                    Открыть интервью
                   </Link>
                 </td>
               </tr>

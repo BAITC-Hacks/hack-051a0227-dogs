@@ -18,7 +18,7 @@ async function responseData(res: Response) {
     return payload;
   } catch {
     throw new ActionError(
-      "Не удалось подтвердить сохранение. Введённое осталось на странице — повторите попытку.",
+      "Не удалось подтвердить сохранение. Введённое осталось на странице. Повторите попытку.",
       res.status,
     );
   }
@@ -36,7 +36,7 @@ export async function action<T = Record<string, unknown>>(
     });
   } catch {
     throw new Error(
-      "Соединение прервалось. Ваш текст остался на странице — повторите сохранение.",
+      "Соединение прервалось. Ваш текст остался на странице. Повторите сохранение.",
     );
   }
   const payload = await responseData(res);
@@ -56,7 +56,7 @@ export async function upload(file: File, kind: string) {
     res = await fetch("/api/files", { method: "POST", body });
   } catch {
     throw new Error(
-      "Загрузка прервалась. Файл не подтверждён — повторите загрузку.",
+      "Загрузка прервалась. Файл не подтверждён. Повторите загрузку.",
     );
   }
   const data = await responseData(res);

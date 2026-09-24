@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reviewActions } from "@/lib/review-contract";
 import { action, dateLabel } from "@/lib/client";
@@ -17,10 +18,14 @@ export function ReviewDecision({
   const router = useRouter(),
     decisionTask = useTask(),
     publishTask = useTask();
+  const activeInterview = a.interviews.find((i) => i.status !== "COMPLETED");
   const [decision, setDecision] = useState(
     a.stage === "DECIDED"
       ? "REOPEN"
-      : (scoringDraft?.result.recommendation.action ?? "CONTINUE"),
+      : scoringDraft?.result.recommendation.action === "INTERVIEW" &&
+          activeInterview
+        ? "CONTINUE"
+        : (scoringDraft?.result.recommendation.action ?? "CONTINUE"),
   );
   const [reason, setReason] = useState(
       scoringDraft?.result.recommendation.reason ?? "",
@@ -72,6 +77,17 @@ export function ReviewDecision({
         Внутреннее основание и сообщение кандидату сохраняются отдельно.
         Кандидат увидит только опубликованный текст.
       </p>
+      {activeInterview && (
+        <p className="notice info">
+          Интервью назначено на {dateLabel(activeInterview.scheduledAt)}.{" "}
+          <Link
+            className="text-link"
+            href={`/admissions/interviews/${activeInterview.id}`}
+          >
+            Открыть встречу и подготовку
+          </Link>
+        </p>
+      )}
       <form
         className="panel"
         onSubmit={(e) => {
@@ -103,8 +119,12 @@ export function ReviewDecision({
             onChange={(e) => setDecision(e.target.value)}
           >
             {Object.entries(reviewActions)
-              .filter(([key]) =>
-                a.stage === "DECIDED" ? key === "REOPEN" : key !== "REOPEN",
+              .filter(
+                ([key]) =>
+                  (a.stage === "DECIDED"
+                    ? key === "REOPEN"
+                    : key !== "REOPEN") &&
+                  !(activeInterview && key === "INTERVIEW"),
               )
               .map(([v, l]) => (
                 <option key={v} value={v}>

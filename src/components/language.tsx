@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mic, Check, ArrowLeft, ArrowRight, Save } from "lucide-react";
+import { Mic, Check, ArrowLeft,  Save } from "lucide-react";
 import type { LanguageCheck } from "@prisma/client";
 import type { LanguageState } from "@/lib/types";
 import { action } from "@/lib/client";
@@ -98,7 +98,7 @@ export function LanguageWorkspace({
       <div className="language-layout">
         <div>
           <section className="panel">
-            <h2>Проба записи — по желанию</h2>
+            <h2>Проба записи по желанию</h2>
             <p className="subtle">
               Можно записать ответы здесь или загрузить готовые аудиофайлы в
               заданиях ниже. Пробная фраза помогает проверить микрофон и не
@@ -284,7 +284,7 @@ export function LanguageWorkspace({
                 )
               }
             >
-              Передать на проверку <ArrowRight size={17} />
+              Передать на проверку
             </button>
           </div>
           <Feedback task={task} />
@@ -298,7 +298,7 @@ export function LanguageWorkspace({
                 Результат относится только к языковой готовности.
               </p>
               <Link className="button dark" href="/apply">
-                Вернуться к заявке <ArrowRight size={17} />
+                Вернуться к заявке
               </Link>
             </div>
           )}

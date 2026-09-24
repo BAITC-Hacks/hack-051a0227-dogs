@@ -1,17 +1,10 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  ArrowRight,
-  FileText,
-  Quote,
-  History,
-  CalendarDays,
-} from "lucide-react";
+import { ArrowLeft, FileText, Quote, CalendarDays } from "lucide-react";
 import type { loadCandidate } from "@/lib/data";
+import { unansweredQuestions } from "@/lib/message-state";
 import { action, dateLabel } from "@/lib/client";
 import { applicationSnapshotText, languageSnapshot } from "@/lib/presentation";
 import { stageLabels, domains, actionLabels } from "@/lib/catalog";
@@ -29,6 +22,20 @@ import { ScoringPanel } from "./scoring-panel";
 import type { ScoringResult } from "@/lib/scoring-contract";
 import { InteractiveProfile } from "./interactive-profile";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
+const subscribeHash = (listener: () => void) => {
+  window.addEventListener("hashchange", listener);
+  return () => window.removeEventListener("hashchange", listener);
+};
+const legacySections: Record<string, string> = {
+  "#scoring": "profile",
+  "#overview": "overview",
+  "#check": "check",
+  "#sources": "sources",
+  "#candidate-messages": "messages",
+  "#history": "history",
+  "#decision": "decision",
+  "#decision-publication": "decision",
+};
 export function CandidateReview({
   application: a,
   guidance,
@@ -40,12 +47,26 @@ export function CandidateReview({
   audio: AudioState;
   returnHref?: string;
 }) {
-  const [sourceId, setSourceId] = useState(
-    a.sources.find((s) => s.title === "Опыт и личная роль")?.id ??
-      a.sources[0]?.id ??
-      "",
+  const [sourceId, setSourceId] = useState("");
+  const [tab, setTab] = useState("profile");
+  const hash = useSyncExternalStore(
+    subscribeHash,
+    () => window.location.hash,
+    () => "",
   );
-  const [tab, setTab] = useState("scoring");
+  const [seenHash, setSeenHash] = useState(hash);
+  if (seenHash !== hash) {
+    setSeenHash(hash);
+    if (legacySections[hash]) setTab(legacySections[hash]);
+  }
+  const mainTab = ["scoring", "overview", "check"].includes(tab)
+    ? "profile"
+    : tab === "history"
+      ? "decision"
+      : tab;
+  const activeInterview = a.interviews.find((i) => i.status !== "COMPLETED");
+  const waiting = unansweredQuestions(a.messages).length > 0;
+  const newAnswer = a.sources.some((s) => s.messageId && !s.views.length);
   const [scoringDraft, setScoringDraft] = useState<{
     result: ScoringResult;
     runId: string;
@@ -66,10 +87,31 @@ export function CandidateReview({
   function openSource(id: string) {
     returnFocus.current = document.activeElement as HTMLElement;
     setSourceId(id);
-    if (window.innerWidth < 1000)
+  }
+  useEffect(() => {
+    if (sourceId) {
+      const panel = document.getElementById("source-panel");
+      panel?.focus({ preventScroll: true });
+      if (window.innerWidth < 1000) panel?.scrollIntoView({ block: "start" });
+    }
+  }, [sourceId]);
+  useEffect(() => {
+    if (legacySections[hash])
       document
-        .getElementById("source-panel")
+        .getElementById(hash.slice(1))
         ?.scrollIntoView({ block: "start" });
+  }, [hash, tab]);
+  function closeSource() {
+    setSourceId("");
+    requestAnimationFrame(() => {
+      const target = returnFocus.current?.isConnected
+        ? returnFocus.current
+        : document.querySelector<HTMLElement>(
+            '[role="tab"][aria-selected="true"]',
+          );
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "nearest" });
+    });
   }
   return (
     <div className="staff-page">
@@ -85,51 +127,79 @@ export function CandidateReview({
               {stageLabels[a.stage]}
             </Tag>
           </div>
-          <p style={{ fontSize: 13 }}>
+          <p className="candidate-meta">
             {a.program.title} · {fields.city} · Подана{" "}
             {a.submittedAt ? dateLabel(a.submittedAt) : ""}
           </p>
         </div>
-        <span className="subtle">{a.user.email}</span>
+        <details className="candidate-contact">
+          <summary>Контакт</summary>
+          <p>{a.user.email}</p>
+        </details>
       </div>
       <div className="tabs" role="tablist" aria-label="Рассмотрение кандидата">
         {[
-          ["scoring", "AI-скоринг"],
-          ["overview", "Обзор"],
-          ["check", "Карта проверки"],
-          ["decision", "Решение и публикация"],
-          ["sources", "Все источники"],
-          ["messages", "Переписка"],
-          ["history", "История решений"],
+          ["profile", "Профиль"],
+          ["sources", "Материалы"],
+          ["messages", "Вопросы кандидату"],
+          ["decision", "Решение"],
         ].map(([value, label]) => (
           <button
             key={value}
             className="tab"
             role="tab"
-            aria-selected={tab === value}
+            aria-selected={mainTab === value}
             onClick={() => setTab(value)}
           >
             {label}
-            {value === "messages" ? " · " + a.messages.length : ""}
+            {value === "messages"
+              ? newAnswer
+                ? " · получен ответ"
+                : waiting
+                  ? " · ожидается ответ"
+                  : ""
+              : ""}
           </button>
         ))}
       </div>
-      <div className="review-layout">
+      {activeInterview && (
+        <div className="current-interview">
+          <span>
+            Встреча назначена: {dateLabel(activeInterview.scheduledAt)} · Алматы
+          </span>
+          <Link
+            className="button secondary"
+            href={`/admissions/interviews/${activeInterview.id}`}
+          >
+            Открыть подготовку интервью
+          </Link>
+        </div>
+      )}
+      <div
+        className={`review-layout ${source ? "has-source" : "source-closed"}`}
+      >
         <div className="review-main">
-          <InteractiveProfile
-            scope={{ applicationId: a.id }}
-            title="AI-профиль · объяснить оценку и изменения"
-            initialTopic="assessment"
-            onFeedback={(runId, result) => {
-              setScoringDraft({ result, runId });
-              setTab("decision");
-            }}
-          />{" "}
-          {tab === "scoring" && (
+          {mainTab === "profile" && (
+            <InteractiveProfile
+              scope={{ applicationId: a.id }}
+              title="AI-профиль · объяснить оценку и изменения"
+              initialTopic="assessment"
+              onFeedback={(runId, result) => {
+                setScoringDraft({ result, runId });
+                setTab("decision");
+              }}
+            />
+          )}
+          {mainTab === "profile" && (
             <ScoringPanel
               applicationId={a.id}
               data={a.scoring}
-              language={a.language?.result ?? "Ответ не сохранён"}
+              language={
+                a.language?.result ??
+                (a.language
+                  ? "Ответ ожидает проверки"
+                  : "Языковая попытка не начата")
+              }
               onReadiness={() => setTab("overview")}
               onSource={openSource}
               interviewId={
@@ -141,8 +211,13 @@ export function CandidateReview({
               }}
             />
           )}
-          {tab === "overview" && (
-            <>
+          {mainTab === "profile" && (
+            <details
+              className="review-detail"
+              id="overview"
+              open={tab === "overview"}
+            >
+              <summary>Готовность, мотивация и опыт</summary>
               <section
                 className="review-section"
                 style={{ borderTop: 0, paddingTop: 0 }}
@@ -180,9 +255,7 @@ export function CandidateReview({
                           : "Ожидает ответа"}
                     </Tag>
                   </div>
-                  <p>
-                    {a.language?.result ?? "Языковой ответ пока не сохранён."}
-                  </p>
+                  <p>{a.language?.result ?? "Языковая попытка не начата."}</p>
                   {language?.writtenNote && (
                     <p className="notice info" style={{ marginTop: 12 }}>
                       Условия: {language.writtenNote}
@@ -239,7 +312,6 @@ export function CandidateReview({
                       >
                         <FileText size={15} />
                         <span>{m.name}</span>
-                        <ArrowUpRight size={15} />
                       </a>
                     ))}
                   {fields.videoUrl && (
@@ -250,7 +322,7 @@ export function CandidateReview({
                       rel="noreferrer"
                       style={{ marginTop: 12 }}
                     >
-                      Видеопрезентация <ArrowUpRight size={15} />
+                      Видеопрезентация
                     </a>
                   )}
                   <a
@@ -260,7 +332,7 @@ export function CandidateReview({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Сверить с требованиями программы <ArrowUpRight size={13} />
+                    Сверить с требованиями программы
                   </a>
                 </div>
               </section>
@@ -389,7 +461,7 @@ export function CandidateReview({
                 <h2>Области рассмотрения</h2>
                 <p>
                   Девять областей, просмотренные основания, вопросы и
-                  человеческие оценки — в карте проверки.
+                  человеческие оценки доступны в карте проверки.
                 </p>
                 <button
                   className="button secondary"
@@ -422,16 +494,21 @@ export function CandidateReview({
                         style={{ marginTop: 12 }}
                         href={"/admissions/interviews/" + i.id}
                       >
-                        Открыть рабочее пространство <ArrowUpRight size={16} />
+                        Открыть рабочее пространство
                       </Link>
                     </div>
                   ))}
                 </section>
               )}
-            </>
+            </details>
           )}
-          {tab === "check" && (
-            <>
+          {mainTab === "profile" && (
+            <details
+              className="review-detail"
+              id="check"
+              open={tab === "check"}
+            >
+              <summary>Карта проверки и оценка сотрудника</summary>
               <ReviewMap application={a} onSource={openSource} />
               <section className="review-section">
                 <h2>Оценка сотрудника</h2>{" "}
@@ -514,7 +591,7 @@ export function CandidateReview({
                               )
                             }
                           />
-                          {s.title}
+                          {s.messageId ? "Ответ кандидата" : s.title}
                         </label>
                       ))}
                     </fieldset>
@@ -538,21 +615,22 @@ export function CandidateReview({
                 </details>
                 <Feedback task={reviewTask} />
               </section>
-            </>
+            </details>
           )}
-          {tab === "decision" && (
+          {mainTab === "decision" && (
             <ReviewDecision application={a} scoringDraft={scoringDraft} />
           )}
           {tab === "sources" && (
             <section>
               <h2>Источники и материалы</h2>
               <p className="subtle" style={{ margin: "12px 0 22px" }}>
-                Выбери источник — он откроется рядом с контекстом заявки.
+                Выберите материал. Он откроется рядом; после закрытия вы
+                вернётесь к этому месту.
               </p>
               {a.sources.map((s) => (
                 <div className="evidence-row" key={s.id}>
                   <div className="evidence-top">
-                    <h3>{s.title}</h3>
+                    <h3>{s.messageId ? "Ответ кандидата" : s.title}</h3>
                     <Tag>{s.kind}</Tag>
                   </div>
                   <p>
@@ -576,14 +654,26 @@ export function CandidateReview({
           )}
           {tab === "messages" && (
             <section>
-              <h2>Переписка по заявке</h2>
+              <h2>Вопросы кандидату</h2>
               <div id="candidate-messages" />
-              <Messages applicationId={a.id} messages={a.messages} />
+              <Messages
+                applicationId={a.id}
+                messages={a.messages}
+                staff
+                onSource={(messageId) => {
+                  const s = a.sources.find((s) => s.messageId === messageId);
+                  if (s) openSource(s.id);
+                }}
+              />
             </section>
           )}
-          {tab === "history" && (
-            <section>
-              <h2>История решений и оценок</h2>
+          {mainTab === "decision" && (
+            <details
+              className="review-detail"
+              id="history"
+              open={tab === "history"}
+            >
+              <summary>История решений и оценок</summary>
               <div className="timeline">
                 {a.decisions.map((d) => (
                   <div className="timeline-item" key={d.id}>
@@ -598,7 +688,8 @@ export function CandidateReview({
                         : "Требует сверки с текущими материалами"}
                     </p>
                     <p className="subtle">
-                      {stageLabels[d.fromStage]} → {stageLabels[d.toStage]}
+                      Было: {stageLabels[d.fromStage]}. Сейчас:{" "}
+                      {stageLabels[d.toStage]}.
                     </p>
                   </div>
                 ))}
@@ -630,7 +721,7 @@ export function CandidateReview({
                         key={id}
                         onClick={() => openSource(id)}
                       >
-                        Источник <ArrowUpRight size={12} />
+                        Источник
                       </button>
                     ))}
                   </div>
@@ -676,119 +767,84 @@ export function CandidateReview({
                   ))}
                 </details>
               )}
-            </section>
+            </details>
           )}
         </div>
-        <aside className="review-aside">
-          <section
-            className="source-panel"
-            id="source-panel"
-            aria-label="Открытый источник"
-          >
-            <div className="row between">
-              <span className="inline subtle">
-                <Quote size={16} />
-                Источник рядом
-              </span>
-              {source && <Tag>{source.kind}</Tag>}
-            </div>
-            <label className="field" style={{ marginTop: 16 }}>
-              Выбрать источник
-              <select
-                value={sourceId}
-                onChange={(e) => setSourceId(e.target.value)}
-              >
-                {a.sources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {source ? (
-              <>
-                <button
-                  className="text-link source-return"
-                  onClick={() => {
-                    returnFocus.current?.scrollIntoView({ block: "center" });
-                    returnFocus.current?.focus({ preventScroll: true });
-                  }}
-                >
-                  Вернуться к выводу
+        {source && (
+          <aside className="review-aside">
+            <section
+              className="source-panel"
+              id="source-panel"
+              tabIndex={-1}
+              aria-label="Открытый источник"
+            >
+              <div className="row between">
+                <span className="inline subtle">
+                  <Quote size={16} />
+                  Открытый материал
+                </span>
+                <button className="button quiet" onClick={closeSource}>
+                  Закрыть источник
                 </button>
-                <SourceContent source={source} />
-                <button
-                  className="button secondary small"
-                  disabled={sourceTask.busy}
-                  onClick={() =>
-                    sourceTask.run(async () => {
-                      await action("review.source", {
-                        applicationId: a.id,
-                        materialVersion: a.materialVersion,
-                        sourceId: source.id,
-                      });
-                      router.refresh();
-                    }, "Просмотр этой версии источника отмечен. Это не подтверждение истинности.")
-                  }
+              </div>
+              <label className="field" style={{ marginTop: 16 }}>
+                Выбрать источник
+                <select
+                  value={sourceId}
+                  onChange={(e) => setSourceId(e.target.value)}
                 >
-                  Отметить просмотр источника
-                </button>
-                {source.views[0] && (
-                  <p className="meta">
-                    Просмотр отмечен {dateLabel(source.views[0].createdAt)}
-                  </p>
-                )}
-                <Feedback task={sourceTask} />
-                <EpisodeNotes
-                  key={source.id}
-                  application={a}
-                  sourceId={source.id}
-                />
-              </>
-            ) : (
-              <p>Источники появятся после передачи материалов.</p>
-            )}
-          </section>
-          <section className="staff-action">
-            <h3>Следующий шаг рассмотрения</h3>
-            <p>
-              {a.decisions[0]
-                ? actionLabels[a.decisions[0].action]
-                : "Отметьте просмотренные источники и существенный вопрос в карте проверки."}
-            </p>
-            <button
-              className="button primary"
-              onClick={() => {
-                setTab("decision");
-                document
-                  .querySelector(".tabs")
-                  ?.scrollIntoView({ block: "start" });
-              }}
-            >
-              Решение и публикация
-            </button>
-            <p className="subtle">
-              Внутренние заметки кандидату не показываются.
-            </p>
-          </section>
-          <div className="row" style={{ marginTop: 18 }}>
-            <button
-              className="text-link"
-              style={{ fontSize: 12 }}
-              onClick={() => setTab("history")}
-            >
-              <History size={14} />
-              Открыть историю
-            </button>
-            <Link
-              href={returnHref}
-              className="text-link"
-              style={{ fontSize: 12 }}
-            >
-              К очереди <ArrowRight size={14} />
-            </Link>
-          </div>
-        </aside>
+                  {a.sources.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.messageId ? "Ответ кандидата" : s.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {source ? (
+                <>
+                  <button
+                    className="text-link source-return"
+                    onClick={() => {
+                      closeSource();
+                    }}
+                  >
+                    Вернуться к выводу
+                  </button>
+                  <SourceContent source={source} />
+                  <button
+                    className="button secondary small"
+                    disabled={sourceTask.busy}
+                    onClick={() =>
+                      sourceTask.run(async () => {
+                        await action("review.source", {
+                          applicationId: a.id,
+                          materialVersion: a.materialVersion,
+                          sourceId: source.id,
+                        });
+                        router.refresh();
+                      }, "Просмотр этой версии источника отмечен. Это не подтверждение истинности.")
+                    }
+                  >
+                    Отметить просмотр источника
+                  </button>
+                  {source.views[0] && (
+                    <p className="meta">
+                      Просмотр отмечен {dateLabel(source.views[0].createdAt)}
+                    </p>
+                  )}
+                  <Feedback task={sourceTask} />
+                  <EpisodeNotes
+                    key={source.id}
+                    application={a}
+                    sourceId={source.id}
+                  />
+                </>
+              ) : (
+                <p>Источники появятся после передачи материалов.</p>
+              )}
+            </section>
+          </aside>
+        )}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { action, dateLabel } from "@/lib/client";
 import { scoringActions, type ScoringResult } from "@/lib/scoring-contract";
 import {
-  twinStates,
+  twinSummary,
   twinVerdicts,
   twinSuitability,
   type TwinList,
@@ -84,7 +84,7 @@ export function TwinWorkspace({
         className="breadcrumbs"
         href={`/admissions/candidates/${applicationId}`}
       >
-        ← Вернуться в официальный профиль
+        Вернуться в официальный профиль
       </Link>
       <div className="page-title">
         <div>
@@ -221,14 +221,14 @@ export function TwinWorkspace({
               aria-pressed={side === "A"}
               onClick={() => setSide("A")}
             >
-              Исходный вариант
+              Было
             </button>
             <button
               className={`button ${side === "B" ? "primary" : "secondary"}`}
               aria-pressed={side === "B"}
               onClick={() => setSide("B")}
             >
-              Изменённый вариант
+              Сейчас
             </button>
           </div>
           <section
@@ -239,7 +239,7 @@ export function TwinWorkspace({
           >
             {(["A", "B"] as const).map((s) => (
               <article key={s} className={`twin-material twin-side-${s}`}>
-                <h3>{s === "A" ? "Исходный вариант" : "Изменённый вариант"}</h3>
+                <h3>{s === "A" ? "Было" : "Сейчас"}</h3>
                 <VariantMaterial variant={definition.variants[s]} />
               </article>
             ))}
@@ -288,7 +288,7 @@ export function TwinWorkspace({
                 className="twin-result"
                 aria-label="Результат сравнения"
               >
-                <h2>{twinStates[audit.comparison.state]}</h2>
+                <h2>{twinSummary(audit.comparison, definition)}</h2>
                 <p>
                   {audit.runs
                     .map(
@@ -302,7 +302,9 @@ export function TwinWorkspace({
                 ))}
                 {audit.comparison.actionChanged && (
                   <p>
-                    <strong>Изменилось рекомендуемое действие.</strong>
+                    <strong>
+                      Изменилась рекомендация или связанные с ней основания.
+                    </strong>
                   </p>
                 )}
                 {audit.comparison.textsChanged && (
@@ -312,24 +314,34 @@ export function TwinWorkspace({
                     его смысле.
                   </p>
                 )}
-                {audit.comparison.domains.map((d) => (
-                  <div className="twin-difference" key={d.domain}>
-                    <strong>{d.domain}</strong>
-                    <span>
-                      {d.changes.length
-                        ? d.changes.join("; ")
-                        : "Проверяемые показатели совпадают"}
-                    </span>
-                    <span>
-                      Эпизоды: {d.episodes[0]} → {d.episodes[1]} · Фрагменты:{" "}
-                      {d.grounds[0]} → {d.grounds[1]}
-                    </span>
-                  </div>
-                ))}
+                {audit.comparison.domains
+                  .filter((d) => d.changes.length > 0)
+                  .map((d) => (
+                    <div className="twin-difference" key={d.domain}>
+                      <strong>{d.domain}</strong>
+                      <span>
+                        {d.changes.length
+                          ? d.changes.join("; ")
+                          : "Проверяемые показатели совпадают"}
+                      </span>
+                      <details>
+                        <summary>Количество материалов</summary>
+                        <p>
+                          Было: эпизодов {d.episodes[0]}, фрагментов{" "}
+                          {d.grounds[0]}.
+                        </p>
+                        <p>
+                          Сейчас: эпизодов {d.episodes[1]}, фрагментов{" "}
+                          {d.grounds[1]}.
+                        </p>
+                        <p>Количество фрагментов не является оценкой.</p>
+                      </details>
+                    </div>
+                  ))}
                 {audit.runs.some((r) => r.result) && (
                   <p>
                     <a className="text-link" href="#twin-grounds">
-                      Открыть основания и вопросы ↓
+                      Открыть основания и вопросы
                     </a>
                   </p>
                 )}
@@ -369,24 +381,20 @@ export function TwinWorkspace({
                     aria-pressed={side === "A"}
                     onClick={() => setSide("A")}
                   >
-                    Исходный результат
+                    Было
                   </button>
                   <button
                     className={`button ${side === "B" ? "primary" : "secondary"}`}
                     aria-pressed={side === "B"}
                     onClick={() => setSide("B")}
                   >
-                    Изменённый результат
+                    Сейчас
                   </button>
                 </div>
                 <div className="twin-columns" data-side={side}>
                   {(["A", "B"] as const).map((s) => (
                     <article className={`twin-side-${s}`} key={s}>
-                      <h3>
-                        {s === "A"
-                          ? "Исходный результат"
-                          : "Изменённый результат"}
-                      </h3>
+                      <h3>{s === "A" ? "Было" : "Сейчас"}</h3>
                       <VariantResult
                         result={
                           audit.runs.find((r) => r.variant === s)?.result ??
@@ -479,7 +487,7 @@ export function TwinWorkspace({
           className="text-link"
           href={`/admissions/candidates/${applicationId}`}
         >
-          Вернуться в официальный профиль →
+          Вернуться в официальный профиль
         </Link>
       </p>
     </div>

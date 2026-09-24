@@ -304,6 +304,16 @@ export async function reviewAction(
         FINAL_REVIEW: "FINAL_REVIEW",
         REOPEN: "REVIEW",
       }[action];
+      if (
+        action === "INTERVIEW" &&
+        (await tx.interview.findFirst({
+          where: { applicationId, status: { not: "COMPLETED" } },
+        }))
+      )
+        throw new AppError(
+          "Интервью уже назначено. Откройте актуальную встречу и подготовку.",
+          409,
+        );
       const scheduledAt =
         action === "INTERVIEW" ? z.coerce.date().parse(b.scheduledAt) : null;
       if (scheduledAt && scheduledAt.getTime() < Date.now() - 60000)

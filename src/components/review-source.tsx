@@ -1,5 +1,4 @@
 "use client";
-import { ArrowUpRight } from "lucide-react";
 import { dateLabel } from "@/lib/client";
 export type ReviewSource = {
   id: string;
@@ -7,12 +6,40 @@ export type ReviewSource = {
   kind: string;
   content: string;
   material?: { id: string; mime: string; name: string } | null;
+  messageContext?: {
+    author: string;
+    createdAt: Date;
+    question: { body: string; author: string; createdAt: Date } | null;
+  };
   corrections?: { id: string; explanation: string; createdAt: Date }[];
 };
 export function SourceContent({ source }: { source: ReviewSource }) {
   return (
     <>
-      <h3>{source.title}</h3>
+      <h3>{source.messageContext ? "Ответ кандидата" : source.title}</h3>
+      {source.messageContext && (
+        <div className="source-question">
+          {source.messageContext.question ? (
+            <>
+              <strong>Вопрос комиссии</strong>
+              <p>{source.messageContext.question.body}</p>
+              <p className="subtle">
+                {source.messageContext.question.author} ·{" "}
+                {dateLabel(source.messageContext.question.createdAt)}
+              </p>
+            </>
+          ) : (
+            <p className="subtle">
+              В этой записи вопрос не был привязан. Переписка сохранена в
+              «Вопросах кандидату».
+            </p>
+          )}
+          <p>
+            <strong>{source.messageContext.author}</strong> ·{" "}
+            {dateLabel(source.messageContext.createdAt)}
+          </p>
+        </div>
+      )}
       {source.kind === "Видео (ссылка)" &&
       source.content.startsWith("https://") ? (
         <a
@@ -21,7 +48,7 @@ export function SourceContent({ source }: { source: ReviewSource }) {
           target="_blank"
           rel="noreferrer"
         >
-          Открыть видео <ArrowUpRight size={15} />
+          Открыть видео
         </a>
       ) : (
         <blockquote>{source.content}</blockquote>
@@ -53,7 +80,7 @@ export function SourceContent({ source }: { source: ReviewSource }) {
               target="_blank"
               rel="noreferrer"
             >
-              Открыть документ <ArrowUpRight size={15} />
+              Открыть документ
             </a>
           </>
         ))}

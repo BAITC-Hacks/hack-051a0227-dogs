@@ -257,6 +257,9 @@ model Decision {
   createdAt DateTime @default(now())
 }
 model Message {
+  replyToId String?
+  replyTo Message? @relation("QuestionReplies", fields:[replyToId], references:[id], onDelete:SetNull)
+  replies Message[] @relation("QuestionReplies")
   id String @id @default(cuid())
   applicationId String
   application Application @relation(fields:[applicationId],references:[id])

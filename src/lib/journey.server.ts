@@ -1,5 +1,7 @@
 import "server-only";
 import { isDeepStrictEqual } from "node:util";
+import { applyMission } from "./missions.server";
+import { initialMission, missionRuleVersion, readMission } from "./missions";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
@@ -111,10 +113,31 @@ export async function journeyAction(type: string, b: Record<string, unknown>) {
     const context = attempt?.context ?? "WORKSHOP";
     if (!attempt && b.context && b.context !== "WORKSHOP")
       throw new AppError("Новую задачу открой из результата исходной работы.");
-    const state =
+    let state: unknown =
       context === "EQUIPMENT"
         ? equipmentSchema.parse(b.state)
         : projectSchema.parse(b.state);
+    const isMission = !!readMission(state);
+    if (attempt && !!readMission(attempt.state) !== isMission)
+      throw new AppError(
+        "У сохранённой работы другая версия задания. Открой её исходные условия.",
+        409,
+      );
+    const ruleVersion = isMission ? missionRuleVersion : journeyRuleVersion;
+    const originalState = isMission
+      ? { ...initialState, mission: initialMission(slug) }
+      : initialState;
+    // Retries are evaluated against their original revision, never against a newer state.
+    const base =
+      attempt?.versions.find((v) => v.revision === b.revision)?.state ??
+      originalState;
+    if (isMission)
+      state = {
+        ...initialState,
+        mission: await applyMission(slug, state, base, b.missionCommand),
+      };
+    else if (b.missionCommand !== undefined)
+      throw new AppError("Это действие недоступно для исходного задания.");
     const feedback = workFeedback(slug, state, context);
     const saveKey =
       b.requestKey === undefined
@@ -174,7 +197,7 @@ export async function journeyAction(type: string, b: Record<string, unknown>) {
           revision: rev + 1,
           state: json(state),
           feedback: json(feedback),
-          ruleVersion: journeyRuleVersion,
+          ruleVersion,
           completed: workCompleted(slug, state, context),
           hintsUsed: attempt.hintsUsed,
           saveKey,
@@ -188,22 +211,25 @@ export async function journeyAction(type: string, b: Record<string, unknown>) {
           slug,
           state: json(state),
           revision: 1,
-          configVersion: journeyRuleVersion,
+          configVersion: ruleVersion,
+          conditions: isMission
+            ? "Учебная миссия, сценарий 2. Ответы виртуальной команды и учебная модель проверки сохранены в версии работы."
+            : undefined,
           startKey: saveKey,
           versions: {
             create: [
               {
                 revision: 0,
-                state: json(initialState),
-                feedback: json(workFeedback(slug, initialState)),
-                ruleVersion: journeyRuleVersion,
+                state: json(originalState),
+                feedback: json(workFeedback(slug, originalState)),
+                ruleVersion,
               },
               {
                 revision: 1,
                 state: json(state),
                 feedback: json(feedback),
                 completed: workCompleted(slug, state),
-                ruleVersion: journeyRuleVersion,
+                ruleVersion,
                 saveKey,
                 basedOnRevision: 0,
               },

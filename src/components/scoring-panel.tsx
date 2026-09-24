@@ -112,7 +112,10 @@ export function ScoringPanel({
       </div>
       <Feedback task={task} />
       <p className="scoring-language">
-        <Link className="text-link" href={`/admissions/candidates/${applicationId}/stability`}>
+        <Link
+          className="text-link"
+          href={`/admissions/candidates/${applicationId}/stability`}
+        >
           Проверить устойчивость
         </Link>
         {" · Контролируемая пара без изменения официального профиля"}
@@ -136,31 +139,34 @@ export function ScoringPanel({
               {run.status === "UNAVAILABLE"
                 ? "Требует проверки"
                 : !run.current
-                ? "Материалы изменились"
-                : run.status === "COMPLETED"
-                  ? "Результат сохранён"
-                  : run.status === "FAILED"
-                    ? "Обработка прервалась"
-                    : run.status === "UNAVAILABLE"
-                      ? "Требует проверки"
-                      : "Обработка материалов"}
+                  ? "Материалы изменились"
+                  : run.status === "COMPLETED"
+                    ? "Результат сохранён"
+                    : run.status === "FAILED"
+                      ? "Обработка прервалась"
+                      : run.status === "UNAVAILABLE"
+                        ? "Требует проверки"
+                        : "Обработка материалов"}
             </Tag>
-            <label className="field">
-              История анализа
-              <select
-                value={run.id}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                {view.runs.map((r, i) => (
-                  <option value={r.id} key={r.id}>
-                    {dateLabel(r.createdAt)} · {view.runs.length - i}
-                    {r.current
-                      ? " · текущие материалы"
-                      : " · прежние материалы"}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <details className="scoring-history">
+              <summary>История анализов</summary>
+              <label className="field">
+                Выбрать сохранённый анализ
+                <select
+                  value={run.id}
+                  onChange={(e) => setSelected(e.target.value)}
+                >
+                  {view.runs.map((r, i) => (
+                    <option value={r.id} key={r.id}>
+                      {dateLabel(r.createdAt)} · {view.runs.length - i}
+                      {r.current
+                        ? " · текущие материалы"
+                        : " · прежние материалы"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </details>
           </div>
           {run.status === "FAILED" && (
             <p role="alert" className="notice error">
@@ -168,7 +174,13 @@ export function ScoringPanel({
               проверьте настройки обработки. Предыдущие результаты сохранены.
             </p>
           )}
-          {run.status === "UNAVAILABLE" && <p role="alert" className="notice warning">Основания анализа не прошли проверку источников, версий или разрешений. Результат недоступен для использования; откройте исходные материалы.</p>}
+          {run.status === "UNAVAILABLE" && (
+            <p role="alert" className="notice warning">
+              Основания анализа не прошли проверку источников, версий или
+              разрешений. Результат недоступен для использования; откройте
+              исходные материалы.
+            </p>
+          )}
           {!run.current && run.status !== "UNAVAILABLE" && (
             <p className="notice warning">
               Этот анализ относится к прежним материалам или критериям. Его
@@ -251,6 +263,11 @@ function ScoringResultPanel({
             ? "Требует проверки"
             : "Предварительная оценка"}
         </Tag>
+        <p className="interpretation-author">
+          {human
+            ? `Интерпретация сотрудника: ${human.author} · ${dateLabel(human.createdAt)}`
+            : "Предложение AI по материалам заявки"}
+        </p>
         <p>{shown.summary}</p>
         <strong>
           Рекомендация: {scoringActions[shown.recommendation.action]}
@@ -312,7 +329,12 @@ function ScoringResultPanel({
                 </small>
               </span>
             </summary>
-            <p>{d.interpretation}</p>
+            <p>
+              <strong>
+                {human ? "Комментарий сотрудника: " : "AI-обоснование: "}
+              </strong>
+              {d.interpretation}
+            </p>
             {editing && (
               <>
                 <label className="field">

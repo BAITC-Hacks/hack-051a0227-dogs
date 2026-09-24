@@ -26,20 +26,28 @@ export async function groundedAnswer(
     sources.reduce((n, s) => n + s.text.length, 0) > 12000
   )
     throw new AppError("Сократите запрос или число источников.");
-  const output = await Promise.race([
-    provider.answer({
-      question,
-      sources,
-      maxOutputTokens: 600,
-      signal: AbortSignal.timeout(8000),
-    }),
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new AppError("Ответ не получен. Повторите запрос.", 504)),
-        8000,
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let output: unknown;
+  try {
+    output = await Promise.race([
+      provider.answer({
+        question,
+        sources,
+        maxOutputTokens: 600,
+        signal: AbortSignal.timeout(8000),
+      }),
+      new Promise(
+        (_, reject) =>
+          (timer = setTimeout(
+            () =>
+              reject(new AppError("Ответ не получен. Повторите запрос.", 504)),
+            8000,
+          )),
       ),
-    ),
-  ]);
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
   const result = sourceAnswer.parse(output);
   if (result.sourceIds.some((id) => !sources.some((s) => s.id === id)))
     throw new AppError("Не удалось подтвердить источники ответа.", 502);

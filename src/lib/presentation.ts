@@ -1,3 +1,4 @@
+import { readMission, describeMission } from "./missions";
 import { equipmentSchema, equipmentNames } from "./equipment";
 import type { ApplicationFields, ProjectState, LanguageState } from "./types";
 import { screenNames, fragments, modules, testimonies } from "./projects";
@@ -7,6 +8,8 @@ export function describeWork(
   s: ProjectState,
   context = "WORKSHOP",
 ): string {
+  const mission=readMission(s);
+  if(mission) return describeMission(mission);
   if (context === "EQUIPMENT") {
     const b = equipmentSchema.parse(s);
     return `Бронирование оборудования: ${b.screens.map((k) => equipmentNames[k]).join(" → ")}\nТелефон: ${b.requiredPhone ? "обязателен" : "по желанию"}\nЗанятое время: ${b.unavailable === "alternatives" ? "предложить свободное" : "подтвердить без проверки"}\nНазвание и время в подтверждении: ${b.reservationDetails ? "да" : "нет"}`;

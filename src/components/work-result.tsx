@@ -78,7 +78,7 @@ export function WorkResult({
             aria-pressed={side === "before"}
             onClick={() => setSide("before")}
           >
-            До ·{" "}
+            Было ·{" "}
             {before.revision === 0
               ? "исходное задание"
               : `версия ${before.revision}`}
@@ -88,7 +88,7 @@ export function WorkResult({
             aria-pressed={side === "saved"}
             onClick={() => setSide("saved")}
           >
-            После · версия {v.revision}
+            Сейчас · версия {v.revision}
           </button>
         </div>
       )}

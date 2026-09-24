@@ -3,13 +3,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
+
   ArrowLeft,
   FileText,
   Check,
   Paperclip,
   Save,
-  ArrowUpRight,
+
 } from "lucide-react";
 import type { myData } from "@/lib/data";
 import { programs, forcedStatements, programFor } from "@/lib/catalog";
@@ -174,7 +174,7 @@ export function ApplicationWizard({
             )}
             {step === 1 && (
               <>
-                <h2>Опыт — своими словами</h2>
+                <h2>Опиши опыт своими словами</h2>
                 <p>
                   Выбери один конкретный эпизод из учёбы, работы, кружка или
                   инициативы. Масштаб проекта не важнее твоего действия.
@@ -234,7 +234,7 @@ export function ApplicationWizard({
                   className="text-link"
                   style={{ marginTop: 20 }}
                 >
-                  Вернуться к описанию программы <ArrowUpRight size={16} />
+                  Вернуться к описанию программы
                 </Link>
               </>
             )}
@@ -321,7 +321,7 @@ export function ApplicationWizard({
                           ? `${Math.max(1, Math.ceil(m.size / 1024))} КБ`
                           : `${(m.size / 1024 / 1024).toFixed(1)} МБ`}
                         </span>
-                        <ArrowUpRight size={16} />
+
                       </a>
                       {["document", "video"].includes(m.kind) &&
                         (removing === m.id ? (
@@ -395,7 +395,7 @@ export function ApplicationWizard({
                       })
                     }
                   >
-                    Перейти к языковой проверке <ArrowRight size={17} />
+                    Перейти к языковой проверке
                   </button>
                 </div>
                 {data.attempts.length > 0 && (
@@ -452,7 +452,7 @@ export function ApplicationWizard({
                 <h2>Как ты подходишь к работе?</h2>
                 <p>
                   Из четырёх утверждений выбери одно, которое больше похоже на
-                  тебя, и одно — которое меньше. Один вариант нельзя выбрать
+                  тебя, и одно, которое меньше. Один вариант нельзя выбрать
                   дважды.
                 </p>
                 <table className="forced-table">
@@ -598,7 +598,7 @@ export function ApplicationWizard({
                     })
                   }
                 >
-                  Отправить заявку <ArrowUpRight size={20} />
+                  Отправить заявку
                 </button>
               </>
             )}
@@ -640,7 +640,7 @@ export function ApplicationWizard({
                   type="submit"
                   disabled={task.busy}
                 >
-                  Дальше <ArrowRight size={17} />
+                  Дальше
                 </button>
               )}
             </div>
@@ -674,7 +674,7 @@ export function ApplicationWizard({
             target="_blank"
             className="text-link"
           >
-            Требования университета <ArrowUpRight size={15} />
+            Требования университета
           </Link>
           {applicationId && (
             <p className="inline subtle" style={{ marginTop: 22 }}>

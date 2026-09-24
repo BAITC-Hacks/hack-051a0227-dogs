@@ -2,7 +2,7 @@
 import { clearUserRecordings } from "@/lib/recording-cache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, LogOut } from "lucide-react";
+import {  LogOut } from "lucide-react";
 import { action } from "@/lib/client";
 import { useTask, Feedback } from "./ui";
 import type { SafeUser } from "@/lib/types";
@@ -28,7 +28,7 @@ export function Header({ user }: { user: SafeUser | null }) {
         <Link
           href={staff ? "/admissions" : "/"}
           className="brand"
-          aria-label="inVision U — главная"
+          aria-label="inVision U, главная"
         >
           inVision<span>U</span>
           <span className="brand-product">AI Leader ID</span>
@@ -82,7 +82,7 @@ export function Header({ user }: { user: SafeUser | null }) {
               className="login-link"
               href={staff ? "/login?staff=1" : "/login"}
             >
-              Войти <ArrowUpRight size={16} />
+              Войти
             </Link>
           )}
         </div>
@@ -97,9 +97,9 @@ export function Footer() {
       <Link href="/" className="wordmark">
         inVision U
       </Link>
-      <span>От первого действия — к своему направлению.</span>
+      <span>Попробуй задачи. Выбери направление.</span>
       <Link href="/admissions">
-        Приёмная комиссия <ArrowUpRight size={15} />
+        Приёмная комиссия
       </Link>
     </footer>
   );

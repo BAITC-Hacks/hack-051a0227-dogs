@@ -3,7 +3,7 @@ import { useState } from "react";
 import {
   ArrowUp,
   ArrowDown,
-  ArrowRight,
+
   Play,
   Plug,
   Monitor,
@@ -141,7 +141,7 @@ export function ProductWorkspace({ state, update, reorder }: SortProps) {
             }}
           >
             {phoneStep === 2 ? "Завершить просмотр" : "Продолжить"}
-            <ArrowRight size={15} />
+
           </button>
         )}
         {preview && currentScreen === "profile" && state.requiredPhone && (

@@ -138,6 +138,30 @@ export async function loadCandidate(id: string) {
   });
   return {
     ...application,
+    sources: application.sources.map((source) => {
+      const answer = application.messages.find(
+        (m) => m.id === source.messageId,
+      );
+      const question = answer?.replyToId
+        ? application.messages.find((m) => m.id === answer.replyToId)
+        : undefined;
+      return {
+        ...source,
+        messageContext: answer
+          ? {
+              author: answer.author.name,
+              createdAt: answer.createdAt,
+              question: question
+                ? {
+                    body: question.body,
+                    author: question.author.name,
+                    createdAt: question.createdAt,
+                  }
+                : null,
+            }
+          : undefined,
+      };
+    }),
     scoring: await scoringView(id),
     materialVersion: (await materialContext(db, id)).version,
   };
@@ -159,7 +183,11 @@ export async function queueData() {
     orderBy: { updatedAt: "desc" },
   });
   return Promise.all(
-    applications.map(async (a) => ({ ...a, scoring: await scoringView(a.id), materialVersion: (await materialContext(db, a.id)).version })),
+    applications.map(async (a) => ({
+      ...a,
+      scoring: await scoringView(a.id),
+      materialVersion: (await materialContext(db, a.id)).version,
+    })),
   );
 }
 export async function interviewData(id: string) {

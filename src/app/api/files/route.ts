@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     if (u.role !== "CANDIDATE")
       throw new AppError("Файлы загружает кандидат.", 403);
     if (Number(req.headers.get("content-length")) > 26 * 1024 * 1024)
-      throw new AppError("Максимальный размер файла — 25 МБ.", 413);
+      throw new AppError("Максимальный размер файла: 25 МБ.", 413);
     const form = await req.formData();
     const file = form.get("file");
     const kind = String(form.get("kind"));
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       file.size === 0 ||
       file.size > 25 * 1024 * 1024
     )
-      throw new AppError("Проверьте тип и размер файла. Максимум — 25 МБ.");
+      throw new AppError("Проверьте тип и размер файла. Максимум: 25 МБ.");
     const app = await db.application.findUnique({ where: { userId: u.id } });
     if (!app) throw new AppError("Сначала сохраните данные заявки.");
     if (app.submittedAt && !["oral", "followup"].includes(kind))

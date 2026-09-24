@@ -103,7 +103,7 @@ export function WorkflowWorkspace({
               <input
                 value={participant}
                 onChange={(e) => setParticipant(e.target.value)}
-                placeholder="Например, P01 — без имени и контактов"
+                placeholder="Например, P01. Без имени и контактов"
               />
             </label>
             <div className="form-grid">
@@ -140,9 +140,9 @@ export function WorkflowWorkspace({
                 value={technical ? "technical" : "human"}
                 onChange={(e) => setTechnical(e.target.value === "technical")}
               >
-                <option value="human">Человек — рабочая проверка</option>
+                <option value="human">Человек: рабочая проверка</option>
                 <option value="technical">
-                  Браузерная автоматизация — техническая проверка
+                  Браузерная автоматизация: техническая проверка
                 </option>
               </select>
             </label>
@@ -211,7 +211,7 @@ export function WorkflowWorkspace({
                     {s.title} ·{" "}
                     {workflowModes[s.mode as keyof typeof workflowModes]}
                   </Link>{" "}
-                  —{" "}
+                  ·{" "}
                   {s.status === "COMPLETED"
                     ? "Завершена"
                     : s.status === "PAUSED"
@@ -371,7 +371,7 @@ export function WorkflowWorkspace({
               {session.input.language && (
                 <section className="notice info">
                   <div>
-                    <strong>Английский — отдельная проверка</strong>
+                    <strong>Английский проверяется отдельно</strong>
                     <p>{session.input.language.conclusion}</p>
                   </div>
                 </section>
@@ -570,14 +570,14 @@ function WorkflowAnnotationForm({
         </select>
       </label>
       <label className="field">
-        Пропущенные существенные основания — по одному на строку
+        Пропущенные существенные основания, по одному на строку
         <textarea
           value={evidence}
           onChange={(e) => setEvidence(e.target.value)}
         />
       </label>
       <label className="field">
-        Пропущенные вопросы — по одному на строку
+        Пропущенные вопросы, по одному на строку
         <textarea
           value={questions}
           onChange={(e) => setQuestions(e.target.value)}

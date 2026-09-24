@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight } from "lucide-react";
 import { actor } from "@/lib/security";
 import { db } from "@/lib/db";
 import { actionLabels } from "@/lib/catalog";
@@ -49,7 +48,7 @@ export default async function Decisions() {
                     className="text-link"
                     href={"/admissions/candidates/" + d.applicationId}
                   >
-                    Открыть <ArrowUpRight size={15} />
+                    Открыть
                   </Link>
                 </td>
               </tr>

@@ -2,8 +2,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Check } from "lucide-react";
+import {  Check } from "lucide-react";
 import { programFor } from "@/lib/catalog";
+import { readMission, missions } from "@/lib/missions";
 import { workHref, workTitle, type Work, type Milestone } from "@/lib/journey";
 import type { myData } from "@/lib/data";
 import { WorkResult } from "./work-result";
@@ -50,7 +51,7 @@ function ProjectCard({
       <MilestoneMarks items={milestones.filter((m) => m.attemptId === a.id)} />
       <div className="passport-actions">
         <Link className="text-link" href={workHref(a, revision)}>
-          Открыть результат <ArrowUpRight size={16} />
+          Открыть результат
         </Link>
         <Link
           className="button secondary"
@@ -62,7 +63,7 @@ function ProjectCard({
       <details className="project-direction">
         <summary>Связь с направлением и заявкой</summary>
         <p>
-          Результат мастерской — {p.artifact.toLowerCase()}. На программе:{" "}
+          Результат работы: {readMission(a.state) ? missions[a.slug].result.toLowerCase() : p.artifact.toLowerCase()}. На программе:{" "}
           {p.disciplines.join(", ")}. Упражнение знакомит с деятельностью и не
           является вступительным экзаменом.
         </p>

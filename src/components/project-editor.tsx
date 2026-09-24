@@ -10,8 +10,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
-  ArrowUpRight,
+
+
   Check,
   CheckCircle2,
   Info,
@@ -166,7 +166,7 @@ export function ProjectEditor({
     <div className="page wrap">
       <div className="breadcrumbs">
         <Link href="/">Проекты</Link>
-        <ArrowRight size={12} />
+
         <span>
           {context === "EQUIPMENT"
             ? "Новый контекст · оборудование"
@@ -176,7 +176,7 @@ export function ProjectEditor({
       <div className="page-title">
         <div>
           <h1>{workTitle({ slug, context }, p.action)}</h1>
-          <p>Маленькое действие. Результат, который принадлежит тебе.</p>
+          <p>Измени решение, проверь условия и сохрани выбранный вариант.</p>
         </div>
         <Tag tone="blue">{p.shortTitle}</Tag>
       </div>
@@ -295,7 +295,7 @@ export function ProjectEditor({
               {context === "WORKSHOP" && slug === "creative-engineering" && (
                 <>
                   <p>
-                    План: 4 × 3 клетки. Правая колонка — проход. Ресурс: 12
+                    План: 4 × 3 клетки. Правая колонка отведена под проход. Ресурс: 12
                     единиц. Нужны стол и питание. Экран должен стоять рядом с
                     питанием по стороне.
                   </p>
@@ -391,7 +391,7 @@ export function ProjectEditor({
               )}
             </>
           )}
-          <hr className="divider" />
+
           <p className="subtle">
             Вымышленная учебная ситуация. Можно менять решение и пробовать
             снова. Работа не влияет на поступление автоматически.
@@ -525,7 +525,7 @@ export function ProjectEditor({
           {revision > 0 && !dirty && (
             <a className="text-link" href="#result">
               Посмотреть сохранённый результат · версия {revision}{" "}
-              <ArrowRight size={16} />
+
             </a>
           )}
           {feedback && (
@@ -609,10 +609,10 @@ export function ProjectEditor({
                 </p>
                 <div className="row">
                   <Link className="button dark" href="/my">
-                    Открыть мой путь <ArrowUpRight size={18} />
+                    Открыть мой путь
                   </Link>
                   <Link className="text-link" href={"/programs/" + slug}>
-                    Изучить направление <ArrowRight size={16} />
+                    Изучить направление
                   </Link>
                 </div>
                 {!authenticated && (
@@ -629,7 +629,7 @@ export function ProjectEditor({
                     >
                       Сохранить доступ в аккаунте
                     </Link>{" "}
-                    — без повторного прохождения.
+                    без повторного прохождения.
                   </p>
                 )}
               </div>

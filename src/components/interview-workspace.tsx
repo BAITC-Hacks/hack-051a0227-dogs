@@ -126,7 +126,7 @@ export function InterviewWorkspace({
         <div>
           <section className="notice info">
             <div>
-              <strong>Подготовка и встреча — разные записи</strong>
+              <strong>Подготовка и встреча сохраняются отдельно</strong>
               <p>
                 Вопросы и план не являются ответами или наблюдениями. Пять
                 секций ATOLA остаются обязательной структурой разговора.

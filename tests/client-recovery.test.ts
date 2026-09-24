@@ -32,7 +32,7 @@ test("Прерванный/непригодный ответ не изображ
         error instanceof ActionError &&
         error.status === 502 &&
         !error.message.includes("private") &&
-        error.message.includes("повторите"),
+        /повторите/i.test(error.message),
     );
     await assert.rejects(
       action("project.save", input),
@@ -56,7 +56,7 @@ test("Загрузка после сетевого сбоя и конфликт 
         new File(["%PDF-1.4"], "work.pdf", { type: "application/pdf" }),
         "document",
       ),
-      /повторите загрузку/,
+      /повторите загрузку/i,
     );
     globalThis.fetch = async () =>
       Response.json(

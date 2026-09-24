@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, FileText } from "lucide-react";
+import {   FileText } from "lucide-react";
 import { myData } from "@/lib/data";
 import { stageLabels, programFor } from "@/lib/catalog";
 import type { ApplicationFields } from "@/lib/types";
@@ -28,7 +28,7 @@ export default async function Status() {
               ? replied
                 ? "Твой ответ у комиссии"
                 : "Давай уточним одну деталь"
-              : "Твоя заявка — на своём пути"}
+              : "Заявка сохранена в рассмотрении"}
           </h1>
           <p>{programFor(app.programSlug)?.title}</p>
         </div>
@@ -44,7 +44,7 @@ export default async function Status() {
                 : app.stage === "CLARIFICATION"
                   ? replied
                     ? "Ответ сохранён в переписке. Сотрудник рассмотрит уточнение и сообщит следующий шаг."
-                    : "Сотрудник задал вопрос. Ответь ниже — сообщение будет сохранено в истории заявки."
+                    : "Сотрудник задал вопрос. Ответь ниже. Сообщение будет сохранено в истории заявки."
                   : app.stage === "LANGUAGE"
                     ? "Комиссия просит пройти отдельную языковую проверку. Технические сложности можно указать в пояснении."
                     : app.stage === "INTERVIEW"
@@ -55,11 +55,11 @@ export default async function Status() {
             </p>
             {app.stage === "LANGUAGE" ? (
               <Link className="button dark" href="/apply/english">
-                Перейти к языковому ответу <ArrowRight size={18} />
+                Перейти к языковому ответу
               </Link>
             ) : (
               <a href="#messages" className="button dark">
-                Открыть переписку <ArrowRight size={18} />
+                Сообщения университета
               </a>
             )}
           </section>
@@ -101,7 +101,7 @@ export default async function Status() {
                 >
                   <FileText size={16} />
                   <span>{m.name}</span>
-                  <ArrowUpRight size={17} />
+
                 </a>
               ))}
             </div>
@@ -150,7 +150,7 @@ export default async function Status() {
               className="text-link"
               style={{ marginTop: 18 }}
             >
-              Открыть языковую проверку <ArrowUpRight size={16} />
+              Открыть языковую проверку
             </Link>
           </section>
         </aside>
