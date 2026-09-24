@@ -1,6 +1,12 @@
 import { z } from "zod";
-export const deskVersion = "vision-desk-facts-v3";
-export const deskSourceKinds = ["Анкета", "Мотивация", "Дневник проекта", "Уточнение кандидата", "Учебное упражнение"];
+export const deskVersion = "vision-desk-facts-v4";
+export const deskSourceKinds = [
+  "Анкета",
+  "Мотивация",
+  "Дневник проекта",
+  "Уточнение кандидата",
+  "Учебное упражнение",
+];
 export const deskTools = [
   "application",
   "sources",
@@ -133,3 +139,44 @@ export const deskDraftSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 export type DeskDraft = z.infer<typeof deskDraftSchema>;
+
+// The same grounded result, with authored wording rather than a selection-only response.
+export const deskAuthoredSchema = z
+  .object({
+    summary: z.string().min(20).max(1500),
+    evidence: z
+      .array(
+        z
+          .object({ key: z.string(), quote: z.string().min(1).max(1000) })
+          .strict(),
+      )
+      .min(1)
+      .max(3),
+    questions: z
+      .array(
+        z
+          .object({
+            sourceKey: z.string(),
+            text: z.string().min(10).max(800),
+            section: z.enum([
+              "action",
+              "thinking",
+              "outcome",
+              "learning",
+              "application",
+            ]),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(5),
+    clarification: z.string().max(2000),
+    feedback: z
+      .object({
+        observation: z.string().min(10).max(1000),
+        suggestion: z.string().min(10).max(1000),
+        nextAction: z.string().min(10).max(1000),
+      })
+      .strict(),
+  })
+  .strict();

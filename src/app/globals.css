@@ -4148,3 +4148,25 @@ video {
   .tree-map .tree-branch:not(.current-branch) { display: none; }
   .tree-map { margin-top: 1rem; }
 }
+
+/* Contextual Vision uses the existing profile panel and source view. */
+.profile-trigger small {display:block;font-size:1rem;font-weight:400;margin-top:.3rem;line-height:1.5}
+.vision-permission,.vision-plan-preview,.vision-voice {margin:1rem 0;padding:1rem;background:var(--blue,#e1ecf4);border-radius:12px;font-size:1rem;line-height:1.6}
+.vision-permission .check-row,.vision-plan-preview .check-row {align-items:flex-start}
+.vision-voice-options {display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.vision-voice input[type=file] {display:block;max-width:100%;font-size:1rem;margin-top:.5rem}
+.vision-voice audio {width:100%;margin-top:1rem}
+.vision-voice summary {cursor:pointer;font-weight:650}
+@media(max-width:600px){.vision-voice-options {grid-template-columns:1fr}.vision-voice,.vision-permission,.vision-plan-preview{padding:.85rem}.interactive-profile .profile-question {scroll-margin-bottom:2rem}}
+.vision-stream-preview {border-left:3px solid var(--blue); padding-left:1rem; overflow-wrap:anywhere}
+.vision-stream-preview blockquote {margin:1rem 0; font-size:16px; color:var(--muted)}
+.vision-personal-plan {margin-top:1rem}
+.vision-personal-plan summary {cursor:pointer;min-height:44px}
+@media(min-width:1001px){.mission-workspace:has(.profile-body){grid-template-columns:minmax(0,1.35fr) minmax(400px,1fr)}}
+@media(min-width:681px) and (max-width:1000px){.mission-workspace:has(.profile-body){grid-template-columns:minmax(0,1fr)}.mission-team:has(.profile-body){max-width:680px}}
+.mission-team .vision-voice-options {grid-template-columns:1fr}
+.mission-team .interactive-profile .profile-prompts {display:grid;grid-template-columns:1fr}
+.mission-team .interactive-profile .profile-source {padding:14px}
+.vision-permission .check-row {display:flex;align-items:flex-start;gap:10px;margin-block:12px}
+.vision-permission .check-row input {flex:0 0 auto;margin-top:5px}
+.profile-question > .button {margin-top:12px}

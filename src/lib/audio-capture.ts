@@ -13,6 +13,7 @@ export class AudioCapture {
       buffer: (blob: Blob) => void;
       complete: (blob: Blob) => void;
       error: (error: Error) => void;
+      stopped?: () => void;
     },
     private devices = {
       getStream: () => navigator.mediaDevices.getUserMedia({ audio: true }),
@@ -25,6 +26,7 @@ export class AudioCapture {
         return new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       },
     },
+    private maxDurationMs = 180000,
   ) {}
   async start() {
     const stream = await requestMicrophone(
@@ -73,7 +75,10 @@ export class AudioCapture {
           );
       };
       recorder.start(1000);
-      this.timer = setTimeout(() => this.stop(), 180000);
+      this.timer = setTimeout(
+        () => this.stop(),
+        Math.min(180000, Math.max(1000, this.maxDurationMs)),
+      );
     } catch (error) {
       this.release();
       throw error;
@@ -89,6 +94,7 @@ export class AudioCapture {
   private release() {
     clearTimeout(this.timer);
     this.stream?.getTracks().forEach((t) => t.stop());
+    this.callbacks.stopped?.();
   }
   dispose(discard = false) {
     this.disposed = true;

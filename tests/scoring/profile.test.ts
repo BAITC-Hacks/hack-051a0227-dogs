@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { db as profileDb } from "../../src/lib/db";
 import { initialState } from "../../src/lib/projects";
 import { emptyFields } from "../../src/lib/validation";
 import { collectProfile } from "../../src/lib/profile-context.server";
@@ -689,6 +690,7 @@ test(
       if (guestId)
         await db.user.deleteMany({ where: { id: guestId, role: "GUEST" } });
       await db.$disconnect();
+      await profileDb.$disconnect();
     }
   },
 );

@@ -13,6 +13,8 @@ model User {
   role String @default("GUEST")
   origin String @default("USER")
   interests String[] @default([])
+  visionConsent Json?
+  visionMedia VisionMedia[]
   createdAt DateTime @default(now())
   sessions Session[]
   attempts ProjectAttempt[]
@@ -44,6 +46,7 @@ model OpenAIConnection {
   speechModel String @default("gpt-4o-mini-tts")
   audioEnabled Boolean @default(false)
   deskEnabled Boolean @default(false)
+  visionEnabled Boolean @default(false)
   startingMicros Int @default(50000000)
   limitMicros Int @default(45000000)
   reserveMicros Int @default(5000000)
@@ -174,6 +177,8 @@ model Application {
 }
 
 model ProfileAnswer {
+  status String @default("COMPLETED")
+  metadata Json?
   id String @id @default(cuid())
   userId String
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
@@ -391,11 +396,13 @@ model AudioConsentEvent {
   @@unique([applicationId,revision])
 }
 model AudioJob {
+  purpose String @default("LANGUAGE")
+  visionMedia VisionMedia?
   id String @id @default(cuid())
-  applicationId String
-  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
-  checkId String
-  check LanguageCheck @relation(fields:[checkId],references:[id],onDelete:Cascade)
+  applicationId String?
+  application Application? @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  checkId String?
+  check LanguageCheck? @relation(fields:[checkId],references:[id],onDelete:Cascade)
   identity String @unique
   mode String @default("LIVE")
   oralId String
@@ -687,4 +694,26 @@ model DeskAction {
   result Json?
   createdAt DateTime @default(now())
   @@index([runId,authorId])
+}
+
+model VisionMedia {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  cacheKey String @unique
+  kind String
+  scope Json
+  inputHash String
+  consentRevision Int
+  dependencies Json
+  answerId String?
+  bytes Bytes
+  mime String
+  text String @default("")
+  model String
+  voice String?
+  jobId String? @unique
+  job AudioJob? @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@index([userId])
 }

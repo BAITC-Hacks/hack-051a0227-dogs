@@ -22,11 +22,13 @@ import type { LanguageState } from "./types";
 
 const leaseMs = 90000;
 async function eligible(tx: Prisma.TransactionClient, job: AudioJob) {
+  if (job.purpose !== "LANGUAGE" || !job.applicationId || !job.checkId)
+    throw new AudioError("SUPERSEDED");
   const [consent, check, app] = await Promise.all([
     tx.audioConsent.findUnique({ where: { applicationId: job.applicationId } }),
     tx.languageCheck.findUnique({ where: { id: job.checkId } }),
     tx.application.findUnique({
-      where: { id: job.applicationId },
+      where: { id: job.applicationId! },
       include: { user: { select: { role: true } } },
     }),
   ]);
@@ -67,8 +69,9 @@ async function fenced<T>(
   });
 }
 export async function claimAudioJob(
-  mode: "LIVE" | "TEST" | "LIVE_CHECK" = "LIVE",
+  mode: "LIVE" | "TEST" | "LIVE_CHECK" | "VISION" = "LIVE",
   onlyId?: string,
+  purpose = "LANGUAGE",
 ): Promise<AudioJob | null> {
   const now = new Date();
   const token = randomUUID();
@@ -76,6 +79,7 @@ export async function claimAudioJob(
   await db.audioJob.updateMany({
     where: {
       mode,
+      purpose,
       ...(onlyId ? { id: onlyId } : {}),
       attempts: { gte: 3 },
       status: { in: activeAudioStatuses },
@@ -90,7 +94,7 @@ export async function claimAudioJob(
   });
   const rows = await db.$queryRaw<AudioJob[]>`
     UPDATE "AudioJob" SET "leaseToken"=${token}, "leaseUntil"=${new Date(Date.now() + leaseMs)}, attempts=attempts+1, status='TRANSCRIBING', "updatedAt"=NOW()
-    WHERE id=(SELECT id FROM "AudioJob" WHERE mode=${mode} AND (${onlyId ?? null}::text IS NULL OR id=${onlyId ?? null})
+    WHERE id=(SELECT id FROM "AudioJob" WHERE mode=${mode} AND purpose=${purpose} AND (${onlyId ?? null}::text IS NULL OR id=${onlyId ?? null})
       AND attempts<3 AND ((status IN ('QUEUED','RETRY_WAIT') AND "nextRunAt"<=NOW() AND "leaseToken" IS NULL)
       OR (status IN ('TRANSCRIBING','SUMMARIZING') AND "leaseUntil"<NOW()))
       ORDER BY "nextRunAt" FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`;
@@ -127,6 +131,8 @@ export async function processClaimedAudio(
   job: AudioJob,
   provider?: AudioProvider,
 ) {
+  if (job.purpose !== "LANGUAGE" || !job.applicationId || !job.checkId)
+    throw new AudioError("SUPERSEDED");
   provider ??= new OpenAIAudioProvider({
     purpose: "LANGUAGE_CONTENT",
     authorize: async () => {
@@ -164,7 +170,7 @@ export async function processClaimedAudio(
       const materialId = kind === "oral" ? job.oralId : job.followupId;
       const material = await fenced(job, async (tx) => {
         const app = await tx.application.findUniqueOrThrow({
-          where: { id: job.applicationId },
+          where: { id: job.applicationId! },
         });
         const file = await tx.material.findFirst({
           where: {
@@ -328,6 +334,7 @@ export async function runAudioWorkerOnce(
     await db.audioJob.updateMany({
       where: {
         mode: options.mode ?? "LIVE",
+        purpose: "LANGUAGE",
         ...(options.onlyId ? { id: options.onlyId } : {}),
         status: { in: activeAudioStatuses },
         OR: [{ leaseToken: null }, { leaseUntil: { lt: new Date() } }],

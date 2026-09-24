@@ -9,13 +9,22 @@ import {
 } from "./openai-settings.server";
 import { pricingVersion, rates, type OpenAITask } from "./openai-policy";
 
+import { consumeResponsesStream } from "./openai-stream.server";
+import { visionTool, visionVoices } from "./vision-contract";
+
 export class OpenAIError extends Error {
   constructor(public code: string) {
     super(code);
   }
 }
 export type OpenAIPermission = {
-  purpose: "CONNECTION_TEST" | "LANGUAGE_CONTENT" | "DESK_FACTS";
+  purpose:
+    | "CONNECTION_TEST"
+    | "LANGUAGE_CONTENT"
+    | "DESK_FACTS"
+    | "VISION_LEARNING"
+    | "VISION_VOICE"
+    | "MISSION_SCENE";
   authorize: () => Promise<void>;
 };
 export const selectedModel = (c: OpenAIConnection, task: OpenAITask) =>
@@ -32,7 +41,8 @@ export function estimatedCost(
   output = 0,
   seconds = 0,
 ) {
-  if (task === "speech") return 100000; // $0.10 ceiling estimate for one fixed short test phrase.
+  if (task === "speech")
+    return Math.max(100000, Math.ceil(bytes / 300) * 100000); // Conservative reservation scales with UTF-8 input, no invented usage.
   const rate = rates[model];
   if (!rate) throw new OpenAIError("MODEL");
   if (task === "transcription")
@@ -58,6 +68,13 @@ export async function reserveOpenAICall(input: {
       throw new OpenAIError("CHANGED");
     if (selectedModel(row, input.task) !== input.model)
       throw new OpenAIError("CHANGED");
+    if (
+      ["VISION_LEARNING", "VISION_VOICE", "MISSION_SCENE"].includes(
+        input.purpose,
+      ) &&
+      !row.visionEnabled
+    )
+      throw new OpenAIError("DISCONNECTED");
     if (input.purpose === "DESK_FACTS" && !row.deskEnabled)
       throw new OpenAIError("DISCONNECTED");
     if (input.purpose === "LANGUAGE_CONTENT" && !row.audioEnabled)
@@ -185,6 +202,7 @@ export async function requestOpenAI(options: {
   requestKey?: string;
   revision?: number;
   secrets?: LocalSecretStore;
+  onDelta?: (text: string) => Promise<void>;
 }) {
   localConnectionOrigin();
   const { task, model, permission } = options;
@@ -203,7 +221,9 @@ export async function requestOpenAI(options: {
     if (
       body.model !== model ||
       bytes > 128000 ||
-      body.tools ||
+      (body.tools &&
+        (permission.purpose !== "VISION_LEARNING" ||
+          JSON.stringify(body.tools) !== JSON.stringify([visionTool]))) ||
       body.previous_response_id ||
       body.conversation ||
       body.background ||
@@ -213,8 +233,15 @@ export async function requestOpenAI(options: {
     if (task === "speech") {
       if (
         typeof body.input !== "string" ||
-        body.input.length > 300 ||
-        body.response_format !== "pcm"
+        body.input.length >
+          (permission.purpose === "VISION_VOICE" ? 2200 : 300) ||
+        (body.response_format !== "pcm" &&
+          !(
+            permission.purpose === "VISION_VOICE" &&
+            body.response_format === "mp3"
+          )) ||
+        (permission.purpose === "VISION_VOICE" &&
+          !visionVoices.includes(body.voice))
       )
         throw new OpenAIError("INPUT_LIMIT");
     } else {
@@ -248,6 +275,7 @@ export async function requestOpenAI(options: {
       throw new OpenAIError("INPUT_LIMIT");
     seconds = (file.size - 44) / 32000;
   }
+  options.signal.throwIfAborted();
   await permission.authorize();
   const call = await reserveOpenAICall({
     task,
@@ -286,6 +314,7 @@ export async function requestOpenAI(options: {
     });
     if (latest.revision !== call.connectionRevision || !latest.secretCipher)
       throw new OpenAIError("CHANGED");
+    options.signal.throwIfAborted();
     sent = true;
     const path =
       task === "transcription"
@@ -321,15 +350,27 @@ export async function requestOpenAI(options: {
       if ([400, 401, 403, 404, 429].includes(response.status)) sent = false;
       throw new OpenAIError(code);
     }
-    const raw = await boundedBody(
-      response,
-      task === "speech" ? 24000 * 2 * 60 : 150000,
-    );
     let value: unknown, usage: unknown;
-    if (task === "speech") value = raw;
-    else {
-      value = JSON.parse(raw.toString("utf8"));
-      usage = (value as { usage?: unknown })?.usage;
+    if (
+      typeof requestBody === "string" &&
+      JSON.parse(requestBody).stream === true
+    ) {
+      value = await consumeResponsesStream(
+        response,
+        options.signal,
+        options.onDelta,
+      );
+      usage = (value as { usage?: unknown }).usage;
+    } else {
+      const raw = await boundedBody(
+        response,
+        task === "speech" ? 24000 * 2 * 180 : 150000,
+      );
+      if (task === "speech") value = raw;
+      else {
+        value = JSON.parse(raw.toString("utf8"));
+        usage = (value as { usage?: unknown })?.usage;
+      }
     }
     const cost = usageCost(model, usage);
     // No fabricated token usage. Missing usage leaves the conservative reservation as an estimate.
@@ -348,7 +389,11 @@ export async function requestOpenAI(options: {
     });
     return { value, usage, requestId };
   } catch (error) {
-    const code = error instanceof OpenAIError ? error.code : "NETWORK";
+    const code = options.signal.aborted
+      ? "CANCELLED"
+      : error instanceof OpenAIError
+        ? error.code
+        : "NETWORK";
     await db.openAICall.update({
       where: { id: call.id },
       data: {

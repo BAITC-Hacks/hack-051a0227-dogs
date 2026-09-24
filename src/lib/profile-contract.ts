@@ -66,7 +66,9 @@ export type ProfileSource = {
     | "interview"
     | "plan"
     | "review"
-    | "program";
+    | "program"
+    | "resource"
+    | "personal";
   href?: string;
   current: boolean;
 };
@@ -150,6 +152,18 @@ export type ProfileTurnView = {
   answer: ProfileAnswer | null;
   stale: boolean;
   unavailable: boolean;
+  vision?: {
+    proposal: {
+      key: string;
+      title: string;
+      basis: string;
+      completion: string;
+      digest: string;
+      expiresAt: string;
+      applied?: boolean;
+    } | null;
+    operations: string[];
+  };
 };
 export type DevelopmentView = {
   id: string;
@@ -161,6 +175,9 @@ export type DevelopmentView = {
   revision: number;
 };
 export type ProfileView = {
+  ownerKey: string;
+  draftQuestion?: string;
+  vision?: import("./vision-contract").VisionCapability;
   audience: "CANDIDATE" | "STAFF";
   topics: ProfileTopic[];
   works: { id: string; title: string; revision: number }[];

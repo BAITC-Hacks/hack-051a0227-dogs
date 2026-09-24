@@ -297,7 +297,13 @@ export async function audioArtifact(id: string, actor: Actor) {
     where: { id },
     include: audioJobInclude,
   });
-  if (!job || job.mode !== "LIVE")
+  if (
+    !job ||
+    job.mode !== "LIVE" ||
+    job.purpose !== "LANGUAGE" ||
+    !job.applicationId ||
+    !job.checkId
+  )
     throw new AppError("Обработка недоступна.", 404);
   await audioApplication(job.applicationId, actor);
   const check = await db.languageCheck.findUniqueOrThrow({
@@ -325,11 +331,17 @@ export async function correctAudio(actor: Actor, raw: unknown) {
     include: { job: true },
   });
   if (!transcript) throw new AppError("Расшифровка недоступна.", 404);
+  if (
+    !transcript.job.applicationId ||
+    !transcript.job.checkId ||
+    transcript.job.purpose !== "LANGUAGE"
+  )
+    throw new AppError("Расшифровка недоступна.", 404);
   await audioApplication(transcript.job.applicationId, actor);
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${transcript.job.applicationId} FOR UPDATE`;
     const check = await tx.languageCheck.findUniqueOrThrow({
-      where: { id: transcript.job.checkId },
+      where: { id: transcript.job.checkId! },
     });
     if (
       !currentAudioJob(transcript.job, check.state as unknown as LanguageState)

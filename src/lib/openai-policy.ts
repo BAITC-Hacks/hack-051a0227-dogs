@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Standard processing, api.openai.com; no tools, cache writes, regional or fast tiers.
+// Standard processing, api.openai.com; only app-owned bounded tools, no paid hosted tools or fast tiers.
 // Official model pages and pricing checked 2026-09-24. USD per million tokens.
 export const pricingVersion = "openai-standard-2026-09-24";
 export const textModels = ["gpt-5.4-mini", "gpt-6-sol", "gpt-6-luna"] as const;
@@ -38,6 +38,7 @@ export const connectionSettingsSchema = z
     speechModel: z.enum(speechModels),
     audioEnabled: z.boolean(),
     deskEnabled: z.boolean().optional(),
+    visionEnabled: z.boolean().optional(),
     startingMicros: z.number().int().min(0).max(1000000000),
     limitMicros: z.number().int().min(0).max(1000000000),
     reserveMicros: z.number().int().min(0).max(1000000000),
@@ -65,6 +66,8 @@ export const money = (micros: number) =>
     maximumFractionDigits: 4,
   }).format(micros / 1e6);
 export const openaiMessages: Record<string, string> = {
+  CANCELLED:
+    "Запрос остановлен. Уже переданная обработка может учитываться в расходах.",
   ACCESS:
     "Ключ отклонён или у него недостаточно прав. Проверьте ключ и проект OpenAI.",
   MODEL:

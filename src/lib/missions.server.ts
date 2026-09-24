@@ -24,6 +24,7 @@ export async function applyMission(
   submitted: unknown,
   previous: unknown,
   command: unknown,
+  dialogue?: { text: string; quote: string; question: string; id: string },
 ): Promise<Mission> {
   const input = readMission(submitted);
   if (!input || input.slug !== slug)
@@ -54,6 +55,27 @@ export async function applyMission(
       throw new AppError("Сначала запусти проверку исходного решения.");
     m.baseline = structuredClone(m.plan);
     m.phase = "UPDATED";
+  } else if (cmd.kind === "dialogue") {
+    if (!dialogue || dialogue.id !== cmd.replyId)
+      throw new AppError("Ответ участника не подтверждён.", 409);
+    m.conversations = [
+      ...m.conversations.filter(
+        (c) =>
+          !(c.role === cmd.role && c.phase === m.phase && c.kind === "ask"),
+      ),
+      {
+        role: cmd.role,
+        phase: m.phase,
+        kind: "ask",
+        text: dialogue.text,
+        quote: dialogue.quote,
+        question: dialogue.question,
+        responseId: dialogue.id,
+        sourceIds: [`mission:2:${slug}:${m.phase}:${cmd.role}:ask`],
+        adapter: "openai-scene",
+        scenarioVersion: 2,
+      },
+    ];
   } else {
     const r = d.team.find((r) => r.id === cmd.role);
     if (!r) throw new AppError("Участник недоступен.");

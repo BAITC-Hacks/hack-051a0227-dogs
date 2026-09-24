@@ -1,0 +1,13 @@
+ALTER TABLE "User" ADD COLUMN "visionConsent" JSONB;
+ALTER TABLE "OpenAIConnection" ADD COLUMN "visionEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "ProfileAnswer" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'COMPLETED', ADD COLUMN "metadata" JSONB;
+ALTER TABLE "AudioJob" ALTER COLUMN "applicationId" DROP NOT NULL, ALTER COLUMN "checkId" DROP NOT NULL, ADD COLUMN "purpose" TEXT NOT NULL DEFAULT 'LANGUAGE';
+CREATE TABLE "VisionMedia" (
+ "id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+ "cacheKey" TEXT UNIQUE NOT NULL, "kind" TEXT NOT NULL, "scope" JSONB NOT NULL, "inputHash" TEXT NOT NULL,
+ "consentRevision" INTEGER NOT NULL, "dependencies" JSONB NOT NULL, "answerId" TEXT,
+ "bytes" BYTEA NOT NULL, "mime" TEXT NOT NULL, "text" TEXT NOT NULL DEFAULT '', "model" TEXT NOT NULL,
+ "voice" TEXT, "jobId" TEXT UNIQUE REFERENCES "AudioJob"("id") ON DELETE CASCADE,
+ "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX "VisionMedia_userId_idx" ON "VisionMedia"("userId");

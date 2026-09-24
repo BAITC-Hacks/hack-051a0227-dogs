@@ -31,6 +31,7 @@ import {
 import { configuredAssessmentProvider } from "../../src/lib/scoring-provider.server";
 import { pcmWav } from "../../src/lib/audio-media.server";
 import { tokenHash } from "../../src/lib/security";
+import { visionTool } from "../../src/lib/vision-contract";
 import { request as httpRequest } from "node:http";
 
 test("local OpenAI connection: ownership, encrypted persistence, dispatch and atomic budgets (no external network)", async (t) => {
@@ -107,6 +108,17 @@ test("local OpenAI connection: ownership, encrypted persistence, dispatch and at
           text: "The library opens at nine.",
           usage: { type: "duration", seconds: 1 },
         });
+      if (body?.stream) {
+        return new Response(
+          `data: ${JSON.stringify({ type: "response.output_text.delta", delta: "Ответ" })}\n\ndata: ${JSON.stringify({ type: "response.completed", response: { status: "completed", output: [], usage: { input_tokens: 50, output_tokens: 10 } } })}\n\n`,
+          {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "x-request-id": "controlled-stream-test",
+            },
+          },
+        );
+      }
       return Response.json(
         {
           id: "test-response",
@@ -621,6 +633,86 @@ test("local OpenAI connection: ownership, encrypted persistence, dispatch and at
           }),
           /PROVIDER_UNAVAILABLE/,
         );
+      },
+    );
+    await t.test(
+      "Vision gate, streaming usage, approved tools and budget are shared with Desk",
+      async () => {
+        const current = await connection();
+        let deltas = "";
+        const key = randomUUID();
+        const opts = {
+          task: "text" as const,
+          model: current.textModel,
+          requestKey: key,
+          body: JSON.stringify({
+            ...JSON.parse(body(current.textModel)),
+            stream: true,
+            tools: [visionTool],
+            parallel_tool_calls: false,
+          }),
+          signal: new AbortController().signal,
+          permission: {
+            purpose: "VISION_LEARNING" as const,
+            authorize: async () => {},
+          },
+          secrets,
+          onDelta: async (text: string) => {
+            deltas += text;
+          },
+        };
+        await db.openAIConnection.update({
+          where: { id: "local" },
+          data: { visionEnabled: false },
+        });
+        const sent = fetches;
+        await assert.rejects(requestOpenAI(opts), /DISCONNECTED/);
+        assert.equal(fetches, sent);
+        await db.openAIConnection.update({
+          where: { id: "local" },
+          data: { visionEnabled: true },
+        });
+        await requestOpenAI(opts);
+        assert.equal(deltas, "Ответ");
+        const saved = await db.openAICall.findUniqueOrThrow({
+          where: { requestKey: key },
+        });
+        assert.equal(saved.status, "SUCCEEDED");
+        assert.equal(saved.costBasis, "USAGE");
+        assert.equal(saved.purpose, "VISION_LEARNING");
+        await assert.rejects(
+          requestOpenAI({
+            ...opts,
+            requestKey: randomUUID(),
+            permission: { purpose: "DESK_FACTS", authorize: async () => {} },
+          }),
+          /INPUT_LIMIT/,
+        );
+        await assert.rejects(
+          requestOpenAI({
+            ...opts,
+            requestKey: randomUUID(),
+            body: JSON.stringify({
+              ...JSON.parse(body(current.textModel)),
+              tools: [{ type: "function", name: "shell" }],
+            }),
+          }),
+          /INPUT_LIMIT/,
+        );
+        await db.openAIConnection.update({
+          where: { id: "local" },
+          data: { dailyMicros: 0 },
+        });
+        const count = fetches;
+        await assert.rejects(
+          requestOpenAI({ ...opts, requestKey: randomUUID() }),
+          /BUDGET/,
+        );
+        assert.equal(fetches, count);
+        await db.openAIConnection.update({
+          where: { id: "local" },
+          data: { dailyMicros: current.dailyMicros },
+        });
       },
     );
     await t.test(

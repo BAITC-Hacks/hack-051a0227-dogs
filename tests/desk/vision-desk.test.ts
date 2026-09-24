@@ -516,8 +516,34 @@ test(
                       {
                         type: "output_text",
                         text: JSON.stringify({
-                          sourceKeys: [externalInput.sources[0].key],
-                          questionKind: "RESULT",
+                          summary:
+                            "Кандидат описал личное действие. Требуется уточнить конкретный результат.",
+                          evidence: [
+                            {
+                              key: externalInput.sources[0].key,
+                              quote: externalInput.sources[0].quote.slice(
+                                0,
+                                80,
+                              ),
+                            },
+                          ],
+                          questions: [
+                            {
+                              sourceKey: externalInput.sources[0].key,
+                              text: "Что изменилось после вашего действия?",
+                              section: "outcome",
+                            },
+                          ],
+                          clarification:
+                            "Что изменилось после вашего действия?",
+                          feedback: {
+                            observation:
+                              "В материале описана работа над проектом.",
+                            suggestion:
+                              "Уточните конкретный результат своего действия.",
+                            nextAction:
+                              "Подготовьте пояснение по этому эпизоду.",
+                          },
                         }),
                       },
                     ],

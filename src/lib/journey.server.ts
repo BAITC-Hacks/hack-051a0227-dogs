@@ -1,5 +1,6 @@
 import "server-only";
 import { isDeepStrictEqual } from "node:util";
+import { sceneReply } from "./vision-scene.server";
 import { applyMission } from "./missions.server";
 import { initialMission, missionRuleVersion, readMission } from "./missions";
 import { z } from "zod";
@@ -134,7 +135,19 @@ export async function journeyAction(type: string, b: Record<string, unknown>) {
     if (isMission)
       state = {
         ...initialState,
-        mission: await applyMission(slug, state, base, b.missionCommand),
+        mission: await applyMission(
+          slug,
+          state,
+          base,
+          b.missionCommand,
+          await sceneReply(
+            tx,
+            u,
+            attempt?.id ?? "",
+            Number(b.revision),
+            b.missionCommand,
+          ),
+        ),
       };
     else if (b.missionCommand !== undefined)
       throw new AppError("Это действие недоступно для исходного задания.");

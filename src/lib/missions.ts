@@ -42,7 +42,10 @@ export const missionSchema = z.object({
         kind: z.enum(["ask", "assign"]),
         text: z.string(),
         sourceIds: z.array(z.string()),
-        adapter: z.literal("local-scripted"),
+        adapter: z.enum(["local-scripted", "openai-scene"]),
+        question: z.string().optional(),
+        quote: z.string().optional(),
+        responseId: z.string().optional(),
         scenarioVersion: z.literal(2),
       }),
     )
@@ -50,10 +53,17 @@ export const missionSchema = z.object({
 });
 export type Mission = z.infer<typeof missionSchema>;
 export type MissionCommand =
-  { kind: "test" | "reveal" } | { kind: "ask" | "assign"; role: string };
+  | { kind: "test" | "reveal" }
+  | { kind: "ask" | "assign"; role: string }
+  | { kind: "dialogue"; role: string; replyId: string };
 export const missionCommandSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("test") }),
   z.object({ kind: z.literal("reveal") }),
+  z.object({
+    kind: z.literal("dialogue"),
+    role: z.string().max(40),
+    replyId: z.string().max(120),
+  }),
   z.object({ kind: z.enum(["ask", "assign"]), role: z.string().max(40) }),
 ]);
 type Option = { id: string; label: string; detail: string };

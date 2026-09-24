@@ -51,7 +51,7 @@ async function cost(provider: "local" | "openai") {
       403,
     );
   return {
-    perOperation: estimatedCost("text", c.textModel, 128000, 500),
+    perOperation: estimatedCost("text", c.textModel, 128000, 2000),
     model: c.textModel,
   };
 }

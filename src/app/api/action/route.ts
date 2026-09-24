@@ -43,6 +43,7 @@ import {
 } from "@/lib/vision-desk.server";
 import { saveApplicationMessage } from "@/lib/application-messages.server";
 import { treeAction } from "@/lib/development-tree.server";
+import { visionAction } from "@/lib/vision-service.server";
 import { saveResource } from "@/lib/learning-resources.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
@@ -57,7 +58,9 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type === "desk.consent") {
+    if (type.startsWith("vision.")) {
+      result = await visionAction(type, b, await guestActor());
+    } else if (type === "desk.consent") {
       result = await deskConsent(await requireUser(), b);
     } else if (type.startsWith("desk.")) {
       result = await deskAction(type, b, await requireStaff());
@@ -177,6 +180,10 @@ export async function POST(req: Request) {
             await tx.profileAnswer.updateMany({
               where: { userId: old.id, audience: "CANDIDATE" },
               data: { userId: existing.id },
+            });
+            await tx.user.update({
+              where: { id: old.id },
+              data: { visionConsent: Prisma.DbNull },
             });
             const guestSteps = await tx.developmentStep.findMany({
               where: { userId: old.id },

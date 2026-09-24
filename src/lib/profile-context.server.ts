@@ -1,4 +1,5 @@
 import "server-only";
+import { resourceCatalog } from "./learning-resources.server";
 import type { User } from "@prisma/client";
 import { db } from "./db";
 import { AppError, assertApplication } from "./security";
@@ -598,6 +599,75 @@ export async function collectProfile(
             ),
           );
       }
+    }
+  }
+  if (!staff) {
+    const handed = await db.workTransfer.findMany({
+      where: {
+        attemptId: { in: works.map((w) => w.id) },
+        application: { userId: user.id },
+      },
+      select: { id: true, attemptId: true, revision: true },
+    });
+    for (const work of works) {
+      const own = handed.filter((t) => t.attemptId === work.id);
+      add(
+        profileSource(
+          `transfer-status:${work.id}`,
+          "Передача этой работы в заявку",
+          own.length
+            ? `Подтверждена передача версий: ${own.map((t) => t.revision).join(", ")}. Новые версии не передаются автоматически.`
+            : "Эта работа не передана в заявку. Для передачи нужно отдельно выбрать сохранённую версию и подтвердить её.",
+          "transfer",
+          "Действия владельца работы",
+          {
+            dependencies: dep(own.map((t) => `transfer:${t.id}`)),
+            href: "/apply",
+          },
+        ),
+      );
+    }
+    for (const record of (await resourceCatalog()).records) {
+      const r = record.versions.at(-1);
+      if (!r?.published || !r.available) continue;
+      add(
+        profileSource(
+          "resource:" + record.id,
+          r.title,
+          r.description + "\n" + r.reason,
+          "resource",
+          r.author + " · " + r.source,
+          { href: r.url, kind: r.type, version: String(r.version) },
+        ),
+      );
+    }
+    const plans = await db.developmentStep.findMany({
+      where: { userId: user.id, treeNode: null },
+      take: 12,
+      orderBy: { updatedAt: "desc" },
+    });
+    for (const step of plans) {
+      const r = step.recommendation as {
+        title?: string;
+        source?: { key: string; version: string };
+      };
+      if (
+        !r.source ||
+        !sources.some(
+          (s) => s.key === r.source!.key && s.version === r.source!.version,
+        )
+      )
+        continue;
+      add(
+        profileSource(
+          "personal-plan:" + step.id,
+          r.title ?? "Личный план",
+          step.note || "Личный шаг сохранён. Пояснение ещё не добавлено.",
+          "personal",
+          "Личная запись кандидата",
+          { dependencies: [r.source], href: "/my", kind: "Личный план" },
+        ),
+      );
     }
   }
   // Stable scope and hash exclude viewer names and private data from the opposite audience.

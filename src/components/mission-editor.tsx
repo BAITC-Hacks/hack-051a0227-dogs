@@ -19,6 +19,7 @@ import { Feedback, useTask } from "./ui";
 import { WorkResult } from "./work-result";
 import { MissionArtifact, MissionRobot } from "./mission-visual";
 import { ContextStart, MilestoneMarks } from "./journey-actions";
+import { InteractiveProfile } from "./interactive-profile";
 
 export function MissionEditor({
   slug,
@@ -58,6 +59,46 @@ export function MissionEditor({
   const [view, setView] = useState(
     selectedRevision !== undefined ? "result" : "work",
   );
+  const [sceneQuestions, setSceneQuestions] = useState<Record<string, string>>(
+      {},
+    ),
+    [sceneBusy, setSceneBusy] = useState(false),
+    [sceneError, setSceneError] = useState("");
+  const sceneAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => sceneAbort.current?.abort(), []);
+  async function discuss(role: string) {
+    setSceneBusy(true);
+    setSceneError("");
+    const controller = new AbortController();
+    sceneAbort.current = controller;
+    try {
+      const response = await fetch("/api/vision/scene", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          attemptId: id,
+          revision,
+          role,
+          question: sceneQuestions[role],
+          requestKey: crypto.randomUUID(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      await save({ kind: "dialogue", role, replyId: result.data.replyId });
+    } catch (e) {
+      setSceneError(
+        controller.signal.aborted
+          ? "Вопрос остановлен. Текст остался в поле."
+          : e instanceof Error
+            ? e.message
+            : "Ответ не получен.",
+      );
+    } finally {
+      setSceneBusy(false);
+    }
+  }
   const request = useRef({ signature: "", key: "" }),
     ownerReady = useRef(!!attempt),
     lock = useRef(false),
@@ -471,6 +512,14 @@ export function MissionEditor({
                 У каждого свои сведения. Можно запросить их и обсудить
                 назначенную работу.
               </p>
+              {id && (
+                <InteractiveProfile
+                  key={`${id}:${revision}`}
+                  scope={{ attemptId: id, revision }}
+                  title="Обсудить сохранённую работу"
+                  compact
+                />
+              )}
               {d.team.map((r) => {
                 const replies = mission.conversations.filter(
                   (c) => c.role === r.id && c.phase === mission.phase,
@@ -502,14 +551,76 @@ export function MissionEditor({
                         Обсудить поручение
                       </button>
                     </div>
+                    {slug === "digital-products" && (
+                      <details className="vision-scene">
+                        <summary>Диалог: {r.name}</summary>
+                        <p>
+                          Участник отвечает по своим сведениям и текущему этапу.
+                          Разрешение на учебный диалог доступно в Vision рядом с
+                          командой.
+                        </p>
+                        <label className="field">
+                          Вопрос участнику
+                          <textarea
+                            rows={2}
+                            maxLength={1000}
+                            value={sceneQuestions[r.id] ?? ""}
+                            onChange={(e) =>
+                              setSceneQuestions((q) => ({
+                                ...q,
+                                [r.id]: e.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                        {dirty && <p>Сохрани текущую работу перед вопросом.</p>}
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={
+                            dirty ||
+                            task.busy ||
+                            sceneBusy ||
+                            !sceneQuestions[r.id]?.trim()
+                          }
+                          onClick={() => void discuss(r.id)}
+                        >
+                          Получить ответ
+                        </button>
+                      </details>
+                    )}
                     {replies.map((c) => (
                       <p className="team-reply" key={c.kind}>
+                        {c.question && (
+                          <>
+                            <strong>Твой вопрос: {c.question}</strong>
+                            <br />
+                          </>
+                        )}
                         {c.text}
+                        {c.quote && (
+                          <>
+                            <br />
+                            <small>Сведения участника: «{c.quote}»</small>
+                          </>
+                        )}
                       </p>
                     ))}
                   </section>
                 );
               })}
+              {sceneBusy && (
+                <p role="status">
+                  Участник отвечает.{" "}
+                  <button
+                    className="text-link"
+                    onClick={() => sceneAbort.current?.abort()}
+                  >
+                    Остановить
+                  </button>
+                </p>
+              )}
+              {sceneError && <p role="alert">{sceneError}</p>}
               <details>
                 <summary>Предпросмотр работы</summary>
                 <MissionArtifact mission={mission} />

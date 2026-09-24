@@ -53,12 +53,16 @@ test("capture includes the final chunk, releases tracks, preserves navigation bu
     const recorder = new VirtualRecorder();
     const buffers: Blob[] = [];
     const completed: Blob[] = [];
+    let stopped = false;
     const capture = new AudioCapture(
       {
         buffer: (b) => buffers.push(b),
         complete: (b) => completed.push(b),
         error: (e) => {
           throw e;
+        },
+        stopped: () => {
+          stopped = true;
         },
       },
       {
@@ -71,6 +75,11 @@ test("capture includes the final chunk, releases tracks, preserves navigation bu
     else capture.dispose(mode === "logout");
     await Promise.resolve();
     assert.ok(virtual.stops() >= 1);
+    assert.equal(
+      stopped,
+      true,
+      "recording UI is released even on consent change or unmount",
+    );
     assert.equal(
       await buffers.at(-1)!.text(),
       mode === "logout" ? "first" : "firstlast",

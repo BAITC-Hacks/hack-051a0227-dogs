@@ -1,4 +1,6 @@
 import "server-only";
+import { visionCapability } from "./vision-context.server";
+import { visionConsentSchema } from "./vision-contract";
 import {
   Prisma,
   type ProfileAnswer as StoredAnswer,
@@ -65,6 +67,18 @@ function turn(row: StoredAnswer, c: ProfileContext): ProfileTurnView {
     question: (row.request as { question: string }).question,
     createdAt: row.createdAt.toISOString(),
     answer: profileAnswerSchema.parse(row.answer),
+    ...(row.provider === "openai-vision"
+      ? {
+          vision: {
+            proposal:
+              (row.metadata as unknown as ProfileTurnView["vision"])
+                ?.proposal ?? null,
+            operations:
+              (row.metadata as unknown as ProfileTurnView["vision"])
+                ?.operations ?? [],
+          },
+        }
+      : {}),
     stale: row.inputHash !== c.hash,
     unavailable: false,
   };
@@ -78,7 +92,12 @@ async function ownAnswer(user: User, c: ProfileContext, answerId: string) {
       scopeKey: c.scopeKey,
     },
   });
-  if (!row || !readable(row, c))
+  if (
+    !row ||
+    (row.provider === "openai-vision" &&
+      !visionConsentSchema.safeParse(user.visionConsent).data?.granted) ||
+    !readable(row, c)
+  )
     throw new AppError("Ответ или его основания больше недоступны.", 404);
   return row;
 }
@@ -89,10 +108,30 @@ export async function profileView(
 ): Promise<ProfileView> {
   c ??= await collectProfile(user, scope);
   const history = await db.profileAnswer.findMany({
-    where: { userId: user.id, audience: c.audience, scopeKey: c.scopeKey },
+    where: {
+      userId: user.id,
+      audience: c.audience,
+      scopeKey: c.scopeKey,
+      status: "COMPLETED",
+    },
     orderBy: { createdAt: "desc" },
     take: 12,
   });
+  const interrupted =
+    c.audience === "CANDIDATE" &&
+    visionConsentSchema.safeParse(user.visionConsent).data?.granted
+      ? await db.profileAnswer.findFirst({
+          where: {
+            userId: user.id,
+            audience: c.audience,
+            scopeKey: c.scopeKey,
+            provider: "openai-vision",
+            inputHash: c.hash,
+            status: { in: ["FAILED", "CANCELLED"] },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
   const developmentContext =
     c.audience === "CANDIDATE" && (scope.attemptId || scope.feedbackId)
       ? await collectProfile(user, {})
@@ -108,13 +147,34 @@ export async function profileView(
   );
   return {
     audience: c.audience,
+    ownerKey: digest({ namespace: "profile-viewer", id: user.id }),
     topics: c.audience === "STAFF" ? staffTopics : candidateTopics,
     works: c.works.map((w) => ({
       id: w.id,
       title: w.title,
       revision: w.revision,
     })),
-    history: history.map((r) => turn(r, c)),
+    draftQuestion:
+      interrupted &&
+      (!history[0] || interrupted.createdAt > history[0].createdAt)
+        ? (interrupted.request as { question: string }).question
+        : undefined,
+    history: history.map((r) =>
+      r.provider === "openai-vision" &&
+      !visionConsentSchema.safeParse(user.visionConsent).data?.granted
+        ? {
+            id: r.id,
+            question: "Содержание недоступно",
+            createdAt: r.createdAt.toISOString(),
+            answer: null,
+            stale: true,
+            unavailable: true,
+          }
+        : turn(r, c),
+    ),
+    ...(c.audience === "CANDIDATE"
+      ? { vision: await visionCapability(user) }
+      : {}),
     recommendations: developmentRecommendations(c).filter(
       (r) =>
         !scope.feedbackId || r.source.key === `publication:${scope.feedbackId}`,

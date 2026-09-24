@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { action, dateLabel } from "@/lib/client";
@@ -16,18 +16,29 @@ import {
   type DevelopmentRecommendation,
   type DevelopmentView,
 } from "@/lib/profile-contract";
+import { VisionDictation, VisionSpeech } from "./vision-voice";
 import { Feedback, useTask } from "./ui";
 export function InteractiveProfile({
   scope = {},
   title = "AI-профиль · объяснить и продолжить",
   initialTopic,
   onFeedback,
+  compact = false,
 }: {
   scope?: ProfileScope;
   title?: string;
   initialTopic?: ProfileTopic;
   onFeedback?: (runId: string, result: ScoringResult) => void;
+  compact?: boolean;
 }) {
+  const [complex, setComplex] = useState(false),
+    [streamStatus, setStreamStatus] = useState(""),
+    [planConfirm, setPlanConfirm] = useState("");
+  const [preview, setPreview] = useState<
+    NonNullable<ProfileTurnView["answer"]>["claims"]
+  >([]);
+  const streamAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => streamAbort.current?.abort(), []);
   const [showHistory, setShowHistory] = useState(false);
   const [open, setOpen] = useState(false),
     [view, setView] = useState<ProfileView | null>(null);
@@ -45,6 +56,18 @@ export function InteractiveProfile({
     sourcePanel = useRef<HTMLDivElement | null>(null),
     answerPanel = useRef<HTMLDivElement | null>(null);
   const request = useRef({ signature: "", key: "" });
+  const ownerKey = useRef("");
+  const receive = useCallback((v: ProfileView) => {
+    if (ownerKey.current && ownerKey.current !== v.ownerKey) {
+      setQuestion("");
+      setSource(null);
+      setPreview([]);
+      setPlanConfirm("");
+    }
+    ownerKey.current = v.ownerKey;
+    setView(v);
+    if (v.draftQuestion) setQuestion((q) => q || v.draftQuestion!);
+  }, []);
   const activeScope: ProfileScope = {
     ...scope,
     ...(selected ? { attemptId: selected } : {}),
@@ -53,7 +76,7 @@ export function InteractiveProfile({
   const scopeText = JSON.stringify(activeScope);
   async function load() {
     const v = await action<ProfileView>("profile.load", { scope: activeScope });
-    setView(v);
+    receive(v);
     if (!selected) setWorkOptions(v.works);
     return v;
   }
@@ -64,10 +87,12 @@ export function InteractiveProfile({
     const refresh = () => {
       setSource(null);
       setView(null);
+      setPreview([]);
+      streamAbort.current?.abort();
       if (document.visibilityState === "hidden") return;
       action<ProfileView>("profile.load", { scope: JSON.parse(scopeText) })
         .then((v) => {
-          if (!cancelled) setView(v);
+          if (!cancelled) receive(v);
         })
         .catch(() => {
           if (!cancelled) setView(null);
@@ -78,10 +103,76 @@ export function InteractiveProfile({
       cancelled = true;
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [open, scopeText]);
+  }, [open, scopeText, receive]);
+  async function askLive(text: string, loaded = view) {
+    setQuestion(text);
+    if (!loaded?.vision?.granted)
+      throw new Error("Подтверди передачу выбранных учебных материалов ниже.");
+    const controller = new AbortController();
+    streamAbort.current = controller;
+    setStreamStatus("Запрос отправляется");
+    setPreview([]);
+    let done = false;
+    try {
+      const res = await fetch("/api/vision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          scope: activeScope,
+          question: text,
+          operation: complex ? "complex" : "text",
+          requestKey: crypto.randomUUID(),
+          previousId: loaded.history.find((h) => !h.unavailable && !h.stale)
+            ?.id,
+        }),
+      });
+      if (!res.ok) {
+        const b = await res.json();
+        throw new Error(b.error ?? "Ответ не получен.");
+      }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Ответ не получен.");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        buffer += decoder.decode(part.value, { stream: true });
+        let end: number;
+        while ((end = buffer.indexOf("\n\n")) !== -1) {
+          const line = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          if (!line.startsWith("data: ")) continue;
+          const e = JSON.parse(line.slice(6));
+          if (e.type === "error") throw new Error(e.value);
+          if (e.type === "done") done = true;
+          if (e.type === "status") setStreamStatus(e.value);
+          if (e.type === "receiving") setStreamStatus("Получаем ответ Vision");
+          if (e.type === "preview") setPreview(e.value);
+          if (e.type === "tool")
+            setStreamStatus("Проверяем разрешённое действие");
+        }
+      }
+      if (!done)
+        throw new Error("Ответ прервался. Твой вопрос остаётся в поле.");
+      setQuestion("");
+      setSource(null);
+      await load();
+      answerPanel.current?.focus();
+    } catch (e) {
+      if (controller.signal.aborted)
+        throw new Error("Запрос остановлен. Вопрос остаётся в поле.");
+      throw e;
+    } finally {
+      setStreamStatus("");
+      setPreview([]);
+    }
+  }
   async function ask(topic?: ProfileTopic, loaded = view) {
     const text = topic ? profileTopics[topic] : question.trim();
     if (!text) return;
+    if (loaded?.audience === "CANDIDATE") return askLive(text, loaded);
     const previous = loaded?.history.find((h) => !h.unavailable);
     const signature = JSON.stringify({
       scope: activeScope,
@@ -125,13 +216,14 @@ export function InteractiveProfile({
   return (
     <section
       className={`interactive-profile ${open ? "is-open" : ""}`}
-      aria-label={title}
+      aria-label={scope.applicationId ? title : "Vision · Твой AI-наставник"}
     >
       <button
         className="profile-trigger"
         aria-expanded={open}
         onClick={() => {
           if (open) {
+            streamAbort.current?.abort();
             setOpen(false);
             setSource(null);
             setView(null);
@@ -144,7 +236,15 @@ export function InteractiveProfile({
           }
         }}
       >
-        <span>{title}</span>
+        <span>
+          {scope.applicationId ? title : "Vision"}
+          {!scope.applicationId && (
+            <small>
+              Твой AI-наставник ·{" "}
+              {title.startsWith("AI-профиль") ? "помоги разобраться" : title}
+            </small>
+          )}
+        </span>
         <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
       {open && (
@@ -244,7 +344,98 @@ export function InteractiveProfile({
                 </button>
               ))}
           </div>
+          {view?.audience === "CANDIDATE" && view.vision && (
+            <div className="vision-permission">
+              {!view.vision.granted ? (
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    disabled={task.busy}
+                    onChange={(e) => {
+                      if (e.target.checked)
+                        void task.run(async () => {
+                          await action("vision.consent", {
+                            granted: true,
+                            revision: view.vision!.revision,
+                          });
+                          await load();
+                        });
+                    }}
+                  />
+                  Разрешаю передавать OpenAI вопрос, выбранную учебную работу и
+                  доступный контекст для диалога Vision. Голос передаётся только
+                  при расшифровке, текст ответа при озвучивании. Это личное
+                  обучение, вне оценки поступления.
+                </label>
+              ) : (
+                <p>
+                  Учебный диалог разрешён.{" "}
+                  <button
+                    type="button"
+                    className="text-link"
+                    disabled={task.busy}
+                    onClick={() =>
+                      task.run(async () => {
+                        await action("vision.consent", {
+                          granted: false,
+                          revision: view.vision!.revision,
+                        });
+                        setSource(null);
+                        await load();
+                      })
+                    }
+                  >
+                    Отозвать разрешение
+                  </button>
+                </p>
+              )}
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={complex}
+                  disabled={task.busy}
+                  onChange={(e) => setComplex(e.target.checked)}
+                />
+                Сложный разбор отдельной настроенной моделью
+              </label>
+              <p>
+                Обычный вопрос использует основную модель. Расходы входят в
+                общий лимит приложения.
+              </p>
+            </div>
+          )}
+          {streamStatus && (
+            <p role="status">
+              {streamStatus}{" "}
+              <button
+                type="button"
+                className="text-link"
+                onClick={() => streamAbort.current?.abort()}
+              >
+                Остановить
+              </button>
+            </p>
+          )}
           <Feedback task={task} />
+          {!!preview.length && (
+            <div
+              className="vision-stream-preview"
+              aria-label="Полученные части ответа"
+            >
+              {preview.map((claim, i) => (
+                <div key={i}>
+                  <p>{claim.text}</p>
+                  {claim.refs.map((ref) => (
+                    <blockquote key={ref.key}>{ref.quote}</blockquote>
+                  ))}
+                </div>
+              ))}
+              <p>
+                Ответ ещё поступает. Действия будут доступны после завершения
+                проверки.
+              </p>
+            </div>
+          )}
           {!view && !task.busy && (
             <button
               className="button secondary"
@@ -275,6 +466,32 @@ export function InteractiveProfile({
                 ) : (
                   <>
                     <p>{h.answer.text}</p>
+                    {!!h.vision?.operations.length && (
+                      <details>
+                        <summary>Выполненные операции</summary>
+                        <ul>
+                          {[...new Set(h.vision.operations)].map((op) => (
+                            <li key={op}>
+                              {(
+                                {
+                                  read_work: "Прочитана выбранная работа",
+                                  compare_versions:
+                                    "Сопоставлены сохранённые версии",
+                                  get_program: "Открыто описание программы",
+                                  find_resource:
+                                    "Найден материал из проверенного каталога",
+                                  suggest_development:
+                                    "Подобран личный следующий шаг",
+                                  open_task: "Подготовлен переход к задаче",
+                                  prepare_plan:
+                                    "Подготовлено предложение в план",
+                                } as Record<string, string>
+                              )[op] ?? "Проверены доступные материалы"}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {h.answer.claims.map((claim, i) => (
                       <div className="profile-claim" key={i}>
                         {claim.text.length > 1800 ? (
@@ -317,12 +534,65 @@ export function InteractiveProfile({
                               }}
                             >
                               Основание
-                              {claim.refs.length > 1 ? ` ${n + 1}` : ""} ↗
+                              {claim.refs.length > 1 ? ` ${n + 1}` : ""}
                             </button>
                           ))}
                         </div>
                       </div>
                     ))}
+                    {h.vision?.proposal && !h.stale && (
+                      <div className="vision-plan-preview">
+                        <h4>Предложение в личный план</h4>
+                        <p>{h.vision.proposal.title}</p>
+                        <p>{h.vision.proposal.basis}</p>
+                        <p>
+                          Условие завершения: {h.vision.proposal.completion}
+                        </p>
+                        {h.vision.proposal.applied ? (
+                          <p>Шаг сохранён в личном плане.</p>
+                        ) : (
+                          <>
+                            <label className="check-row">
+                              <input
+                                type="checkbox"
+                                checked={planConfirm === h.id}
+                                onChange={(e) =>
+                                  setPlanConfirm(e.target.checked ? h.id : "")
+                                }
+                              />
+                              Добавить именно этот шаг в мой личный план
+                            </label>
+                            <button
+                              className="button secondary"
+                              disabled={task.busy || planConfirm !== h.id}
+                              onClick={() =>
+                                task.run(async () => {
+                                  const p = h.vision!.proposal!;
+                                  await action("vision.confirmPlan", {
+                                    answerId: h.id,
+                                    key: p.key,
+                                    digest: p.digest,
+                                    confirm: true,
+                                  });
+                                  setPlanConfirm("");
+                                  await load();
+                                }, "Шаг сохранён")
+                              }
+                            >
+                              Подтвердить сохранение
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {view.audience === "CANDIDATE" && h.vision && !h.stale && (
+                      <VisionSpeech
+                        key={h.id}
+                        scope={activeScope}
+                        answerId={h.id}
+                        enabled={!!view.vision?.granted && !task.busy}
+                      />
+                    )}
                     <div className="profile-prompts">
                       {h.answer.actions.map((a) => (
                         <button
@@ -388,33 +658,64 @@ export function InteractiveProfile({
             </div>
           )}
           <Feedback task={sourceTask} />
-          <form
-            className="profile-question"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void task.run(() => ask());
-            }}
-          >
-            <label className="field">
-              Продолжить вопрос по этим материалам
-              <textarea
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                rows={2}
-                maxLength={2000}
-                placeholder="Например: «Что изменилось?» или «Покажи источник»"
-              />
-            </label>
-            <button
-              className="button dark"
-              disabled={!question.trim() || task.busy || !view}
+          {view && (
+            <form
+              className="profile-question"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void task.run(() => ask());
+              }}
             >
-              Получить ответ
-            </button>
-          </form>
-          {view?.audience === "CANDIDATE" && (
-            <DevelopmentArea view={view} scope={activeScope} reload={load} />
+              <label className="field">
+                Продолжить вопрос по этим материалам
+                <textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="Например: почему мой маршрут обрывается, если книга недоступна?"
+                />
+              </label>
+              <button
+                className="button dark"
+                disabled={!question.trim() || task.busy || !view}
+              >
+                Получить ответ
+              </button>
+            </form>
           )}
+          {view?.audience === "CANDIDATE" && (
+            <VisionDictation
+              key={`${view.ownerKey}:${scopeText}`}
+              scope={activeScope}
+              enabled={!!view.vision?.granted && !task.busy}
+              onText={(text) =>
+                setQuestion((q) => (q.trim() ? q + "\n" + text : text))
+              }
+            />
+          )}
+          {view?.audience === "CANDIDATE" &&
+            !view.history.some(
+              (h) => h.vision && !h.stale && !h.unavailable,
+            ) && (
+              <VisionSpeech
+                scope={activeScope}
+                enabled={!!view.vision?.granted && !task.busy}
+              />
+            )}
+          {view?.audience === "CANDIDATE" &&
+            (compact ? (
+              <details className="vision-personal-plan">
+                <summary>Личный план и продолжения</summary>
+                <DevelopmentArea
+                  view={view}
+                  scope={activeScope}
+                  reload={load}
+                />
+              </details>
+            ) : (
+              <DevelopmentArea view={view} scope={activeScope} reload={load} />
+            ))}
         </div>
       )}
     </section>
@@ -477,8 +778,8 @@ function DevelopmentArea({
           </p>
         ))}
         <p>
-          Связь упражнений с рамкой задана конфигурацией приложения. Это не официальная
-          формула университета. Баллы по буквам не рассчитываются.
+          Связь упражнений с рамкой задана конфигурацией приложения. Это не
+          официальная формула университета. Баллы по буквам не рассчитываются.
         </p>
         <a
           className="text-link"
