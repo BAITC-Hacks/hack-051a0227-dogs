@@ -3,10 +3,25 @@ import { redirect } from "next/navigation";
 import { myData } from "@/lib/data";
 import { MyPath } from "@/components/my-path";
 import { WorkshopChoices } from "@/components/journey-actions";
-export default async function My() {
+import { treeView } from "@/lib/development-tree.server";
+import { actor } from "@/lib/security";
+import { DevelopmentTree } from "@/components/development-tree";
+export default async function My({
+  searchParams,
+}: {
+  searchParams: Promise<{ tree?: string; node?: string }>;
+}) {
+  const query = await searchParams;
   const data = await myData();
   if (data?.user.role === "STAFF") redirect("/admissions");
-  if (data) return <MyPath data={data} />;
+  const tree = await treeView(await actor());
+  if (query.tree === "1")
+    return (
+      <div className="page wrap candidate-journey">
+        <DevelopmentTree key={query.node ?? "tree"} initial={tree} selectedId={query.node} full />
+      </div>
+    );
+  if (data) return <MyPath data={data} tree={tree} />;
   return (
     <div className="page wrap candidate-journey">
       <header className="journey-heading">
@@ -26,8 +41,8 @@ export default async function My() {
           <p className="eyebrow">Можно начать здесь</p>
           <h2>Выбери задачу, которую хочется решить</h2>
           <p>
-            Запусти обмен учебниками, собери робота, подготовь репортаж,
-            проведи исследование или составь план центра.
+            Запусти обмен учебниками, собери робота, подготовь репортаж, проведи
+            исследование или составь план центра.
           </p>
         </div>
         <div className="journey-primary">
@@ -40,12 +55,13 @@ export default async function My() {
         </div>
       </section>
       <p className="journey-boundary">
-        Мастерские знакомят с деятельностью и не являются скрытым экзаменом. Проходить
-        все пять для поступления не нужно.{" "}
+        Мастерские знакомят с деятельностью и не являются скрытым экзаменом.
+        Проходить все пять для поступления не нужно.{" "}
         <Link className="text-link" href="/login">
           Войти к своим работам
         </Link>
       </p>
+      <DevelopmentTree initial={tree} />
       <WorkshopChoices />
     </div>
   );

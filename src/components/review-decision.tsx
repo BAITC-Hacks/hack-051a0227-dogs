@@ -7,12 +7,15 @@ import { action, dateLabel } from "@/lib/client";
 import type { loadCandidate } from "@/lib/data";
 import { Feedback, useTask } from "./ui";
 import type { ScoringResult } from "@/lib/scoring-contract";
+import type { DeskResult } from "@/lib/vision-desk-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 export function ReviewDecision({
   application: a,
   scoringDraft,
+  deskDraft,
 }: {
   application: Candidate;
+  deskDraft?: DeskResult["feedback"] | null;
   scoringDraft?: { result: ScoringResult; runId: string } | null;
 }) {
   const router = useRouter(),
@@ -66,6 +69,31 @@ export function ReviewDecision({
   return (
     <section className="review-section" id="decision-publication">
       <h2>Решение и обратная связь</h2>
+      {deskDraft && (
+        <details className="notice info" open>
+          <summary>Предложение Vision Desk</summary>
+          <p>{deskDraft.observation}</p>
+          <p>{deskDraft.suggestion}</p>
+          <p>{deskDraft.nextAction}</p>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => {
+              setObservation(deskDraft.observation);
+              setSuggestion(deskDraft.suggestion);
+              setNextAction(deskDraft.nextAction);
+              setSourceIds(deskDraft.sourceIds);
+              resetPreview();
+            }}
+          >
+            Использовать этот текст в форме ниже
+          </button>
+          <p>
+            Заменит текст сообщения в форме. Сохранение черновика, решение и
+            публикация остаются отдельными действиями.
+          </p>
+        </details>
+      )}
       {scoringDraft && (
         <p className="notice info">
           Перенесена проверенная рекомендация AI-скоринга. Отредактируйте текст

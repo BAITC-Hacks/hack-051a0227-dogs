@@ -18,8 +18,10 @@ import {
 } from "./journey-actions";
 import { ProjectPassport } from "./project-passport";
 import { InteractiveProfile } from "./interactive-profile";
+import { DevelopmentTree } from "./development-tree";
+import type { TreeView } from "@/lib/development-tree.server";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
-export function MyPath({ data }: { data: Data }) {
+export function MyPath({ data, tree }: { data: Data; tree: TreeView }) {
   const { user, attempts, application: app } = data;
   const pendingQuestions = unansweredQuestions(app?.messages ?? []);
   const latestStaff =
@@ -223,6 +225,7 @@ export function MyPath({ data }: { data: Data }) {
           )}
         </section>
       )}
+      <DevelopmentTree initial={tree} />
       {(attempts.length > 0 || app) && (
         <InteractiveProfile title="AI-профиль · мои работы и личный план" />
       )}

@@ -330,7 +330,7 @@ export async function profileAction(
       return { id: step.id };
     }
     const step = await db.developmentStep.findFirst({
-      where: { id: id.parse(b.id), userId: user.id },
+      where: { id: id.parse(b.id), userId: user.id, treeNode: null },
     });
     if (!step) throw new AppError("Личный шаг недоступен.", 404);
     const r = step.recommendation as unknown as DevelopmentRecommendation;

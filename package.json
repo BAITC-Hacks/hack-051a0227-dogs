@@ -8,7 +8,7 @@
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
-    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/audio/*.test.ts tests/scoring/*.test.ts && node --conditions=react-server --import tsx --test tests/connection/*.test.ts",
+    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/audio/*.test.ts tests/scoring/*.test.ts && node --conditions=react-server --import tsx --test tests/connection/*.test.ts && node --conditions=react-server --import tsx --test tests/desk/*.test.ts",
     "assessment:fixtures": "node --conditions=react-server --import tsx scripts/assessment-fixtures.ts",
     "db:start": "bash scripts/db-start.sh",
     "db:stop": "bash scripts/db-stop.sh",

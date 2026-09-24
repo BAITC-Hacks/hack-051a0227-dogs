@@ -132,6 +132,7 @@ export async function reviewAction(
   type: string,
   b: Record<string, unknown>,
   u: User,
+  transaction?: Tx,
 ): Promise<unknown> {
   if (u.role !== "STAFF")
     throw new AppError("Это действие доступно сотруднику комиссии.", 403);
@@ -145,7 +146,7 @@ export async function reviewAction(
   }
   const applicationId = id.parse(appId);
   await assertApplication(applicationId, u);
-  return db.$transaction(async (tx) => {
+  const execute = async (tx: Tx) => {
     const app = await locked(tx, applicationId, u);
     const context = await materialContext(tx, applicationId);
     if (type === "review.profile")
@@ -569,5 +570,6 @@ export async function reviewAction(
       return { published: true, id: feedback.id };
     }
     throw new AppError("Действие не найдено.", 404);
-  });
+  };
+  return transaction ? execute(transaction) : db.$transaction(execute);
 }

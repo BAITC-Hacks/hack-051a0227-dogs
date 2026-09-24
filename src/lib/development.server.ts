@@ -124,7 +124,7 @@ export async function developmentView(
 ): Promise<DevelopmentView[]> {
   if (c.audience !== "CANDIDATE") return [];
   const records = await db.developmentStep.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, treeNode: null },
     orderBy: { createdAt: "desc" },
   });
   const works = await db.projectAttempt.findMany({

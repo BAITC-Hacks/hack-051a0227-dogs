@@ -14,6 +14,7 @@ import {
 import type { ProjectState } from "@/lib/types";
 import {
   actor,
+  guestActor,
   requireUser,
   requireStaff,
   setSession,
@@ -34,6 +35,15 @@ import { profileAction } from "@/lib/profile-service.server";
 import { programFor, forcedStatements } from "@/lib/catalog";
 import { fieldsSchema, emptyFields, submissionIssues } from "@/lib/validation";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
+import {
+  deskAction,
+  deskConsent,
+  queueDeskEvent,
+  processDesk,
+} from "@/lib/vision-desk.server";
+import { saveApplicationMessage } from "@/lib/application-messages.server";
+import { treeAction } from "@/lib/development-tree.server";
+import { saveResource } from "@/lib/learning-resources.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
@@ -47,7 +57,29 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("workflow.")) {
+    if (type === "desk.consent") {
+      result = await deskConsent(await requireUser(), b);
+    } else if (type.startsWith("desk.")) {
+      result = await deskAction(type, b, await requireStaff());
+      if (["desk.prepare", "desk.retry"].includes(type))
+        after(() => processDesk((result as { id: string }).id));
+      if (type === "desk.batch")
+        after(async () => {
+          for (const id of (result as { runs: string[] }).runs)
+            await processDesk(id);
+        });
+      if (type === "desk.view")
+        after(async () => {
+          for (const r of (
+            result as { runs: { id: string; status: string }[] }
+          ).runs.filter((r) => ["QUEUED", "RUNNING"].includes(r.status)))
+            await processDesk(r.id);
+        });
+    } else if (type.startsWith("tree.")) {
+      result = await treeAction(type, b, await guestActor());
+    } else if (type === "resource.save") {
+      result = await saveResource(await requireStaff(), b);
+    } else if (type.startsWith("workflow.")) {
       result = await workflowAction(type, b, await requireStaff());
       return NextResponse.json(
         { ok: true, data: result },
@@ -146,10 +178,22 @@ export async function POST(req: Request) {
               where: { userId: old.id, audience: "CANDIDATE" },
               data: { userId: existing.id },
             });
-            await tx.developmentStep.updateMany({
+            const guestSteps = await tx.developmentStep.findMany({
               where: { userId: old.id },
-              data: { userId: existing.id },
             });
+            for (const step of guestSteps) {
+              const same = await tx.developmentStep.findUnique({
+                where: { userId_key: { userId: existing.id, key: step.key } },
+              });
+              await tx.developmentStep.update({
+                where: { id: step.id },
+                data: {
+                  userId: existing.id,
+                  updatedAt: step.updatedAt,
+                  ...(same ? { key: step.key + ":" + step.id } : {}),
+                },
+              });
+            }
             const owners = await tx.user.findMany({
               where: { id: { in: [old.id, existing.id] } },
             });
@@ -480,42 +524,7 @@ export async function POST(req: Request) {
       result = await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${app.id} FOR UPDATE`;
         const replyToId = b.replyToId ? id.parse(b.replyToId) : null;
-        if (replyToId) {
-          const question = await tx.message.findFirst({
-            where: {
-              id: replyToId,
-              applicationId: app.id,
-              kind: { in: ["QUESTION", "MESSAGE"] },
-              author: { role: "STAFF" },
-            },
-          });
-          if (!question || u.role !== "CANDIDATE")
-            throw new AppError("Вопрос недоступен для ответа.", 404);
-        }
-        const message = await tx.message.create({
-          data: {
-            applicationId: app.id,
-            authorId: u.id,
-            body,
-            replyToId,
-            kind: u.role === "STAFF" ? "QUESTION" : "MESSAGE",
-          },
-        });
-        if (u.role === "CANDIDATE")
-          await tx.source.create({
-            data: {
-              applicationId: app.id,
-              messageId: message.id,
-              title: "Ответ в переписке",
-              kind: "Уточнение кандидата",
-              content: body,
-            },
-          });
-        await tx.application.update({
-          where: { id: app.id },
-          data: { updatedAt: new Date() },
-        });
-        return message;
+        return saveApplicationMessage(tx, u, app.id, body, replyToId);
       });
     } else if (type === "correction") {
       const u = await requireUser();
@@ -794,6 +803,24 @@ export async function POST(req: Request) {
           },
         }));
     } else throw new AppError("Действие не найдено.", 404);
+    const event =
+      type === "application.submit"
+        ? "submitted"
+        : type === "message" && (await actor())?.role === "CANDIDATE"
+          ? "clarification"
+          : type === "decision" && b.action === "INTERVIEW"
+            ? "interview"
+            : type === "desk.consent" && b.granted === true
+              ? "submitted"
+              : null;
+    if (event) {
+      const applicationId =
+        type === "application.submit"
+          ? (result as { id: string }).id
+          : String(b.applicationId);
+      const queued = await queueDeskEvent(applicationId, event);
+      if (queued) after(() => processDesk(queued.id));
+    }
     return NextResponse.json(
       { ok: true, data: result },
       { headers: { "Cache-Control": "no-store" } },

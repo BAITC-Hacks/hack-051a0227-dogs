@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { treeHref } from "@/lib/development-tree";
 import { notFound } from "next/navigation";
 import { programFor } from "@/lib/catalog";
 import { actor } from "@/lib/security";
@@ -26,7 +28,10 @@ export default async function Project({
     : [];
   const attempt = query.attempt
     ? owned.find((a) => a.id === query.attempt && a.slug === slug)
-    : owned.find((a) => a.slug === slug && a.context === "WORKSHOP" && readMission(a.state));
+    : owned.find(
+        (a) =>
+          a.slug === slug && a.context === "WORKSHOP" && readMission(a.state),
+      );
   if (query.attempt && !attempt) notFound();
   for (const requested of [query.version, query.from])
     if (
@@ -40,27 +45,49 @@ export default async function Project({
         .flatMap((a) => a.versions.map((v) => ({ attempt: a, version: v })))
         .find((p) => p.version.id === attempt.parentVersionId)
     : undefined;
-  const Editor = !attempt || readMission(attempt.state) ? MissionEditor : ProjectEditor;
+  const Editor =
+    !attempt || readMission(attempt.state) ? MissionEditor : ProjectEditor;
+  const step =
+    u && attempt
+      ? await db.developmentStep.findFirst({
+          where: {
+            userId: u.id,
+            treeNode: { not: null },
+            treeState: { path: ["attemptId"], equals: attempt.id },
+          },
+          orderBy: { updatedAt: "desc" },
+        })
+      : null;
   return (
-    <Editor
-      key={`${attempt?.id ?? slug}-${query.from ?? "current"}-${query.version ?? "latest"}`}
-      slug={slug}
-      attempt={attempt ?? null}
-      authenticated={!!u && u.role !== "GUEST"}
-      milestones={projectMilestones(owned)}
-      selectedRevision={
-        query.version === undefined ? undefined : Number(query.version)
-      }
-      fromRevision={query.from === undefined ? undefined : Number(query.from)}
-      parent={
-        parent
-          ? {
-              attemptId: parent.attempt.id,
-              revision: parent.version.revision,
-              feedback: parent.version.feedback,
-            }
-          : undefined
-      }
-    />
+    <>
+      {step?.treeNode && (
+        <aside className="wrap tree-return">
+          <Link className="text-link" href={treeHref(step.treeNode)}>
+            Вернуться к материалу и личному шагу
+          </Link>
+          <span> · Сохранённая версия подтвердит практику по её условиям.</span>
+        </aside>
+      )}
+      <Editor
+        key={`${attempt?.id ?? slug}-${query.from ?? "current"}-${query.version ?? "latest"}`}
+        slug={slug}
+        attempt={attempt ?? null}
+        authenticated={!!u && u.role !== "GUEST"}
+        milestones={projectMilestones(owned)}
+        selectedRevision={
+          query.version === undefined ? undefined : Number(query.version)
+        }
+        fromRevision={query.from === undefined ? undefined : Number(query.from)}
+        parent={
+          parent
+            ? {
+                attemptId: parent.attempt.id,
+                revision: parent.version.revision,
+                feedback: parent.version.feedback,
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }

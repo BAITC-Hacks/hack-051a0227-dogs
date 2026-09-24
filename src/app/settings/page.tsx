@@ -29,6 +29,7 @@ export default async function Settings() {
           </Link>
         </p>
       )}
+      <p><Link className="button secondary" href="/settings/resources">Материалы личного развития</Link></p>
       <SettingsForm guidance={value.guidance} version={value.version} />
       <section className="review-section" style={{ marginTop: 32 }}>
         <h2>Порядок работы с источниками</h2>

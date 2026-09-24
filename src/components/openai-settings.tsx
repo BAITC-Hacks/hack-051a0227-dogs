@@ -180,6 +180,7 @@ function editable(v: ConnectionView) {
     transcriptionModel: v.transcriptionModel,
     speechModel: v.speechModel,
     audioEnabled: v.audioEnabled,
+    deskEnabled: v.deskEnabled,
     starting: String(v.startingMicros / 1e6),
     limit: String(v.limitMicros / 1e6),
     reserve: String(v.reserveMicros / 1e6),
@@ -420,6 +421,7 @@ export function OpenAISettings({ initial }: { initial: ConnectionView }) {
                 transcriptionModel: settings.transcriptionModel,
                 speechModel: settings.speechModel,
                 audioEnabled: settings.audioEnabled,
+                deskEnabled: settings.deskEnabled,
                 startingMicros: Math.round(Number(settings.starting) * 1e6),
                 limitMicros: Math.round(Number(settings.limit) * 1e6),
                 reserveMicros: Math.round(Number(settings.reserve) * 1e6),
@@ -481,6 +483,8 @@ export function OpenAISettings({ initial }: { initial: ConnectionView }) {
           </p>
         </section>
         <section className="review-section">
+          <label className="connection-toggle"><input type="checkbox" checked={settings.deskEnabled} onChange={e=>setSettings({...settings,deskEnabled:e.target.checked})}/>Разрешить внешнюю фактическую подготовку Vision Desk</label>
+          <p>Только выбранные кандидатом источники по отдельному согласию. Автоподготовку сотрудник включает отдельно; действуют общие лимиты расходов.</p>
           <h2>Бюджет приложения</h2>
           <div className="connection-totals">
             <div>

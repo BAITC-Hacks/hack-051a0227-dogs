@@ -8,6 +8,7 @@ import { dateLabel } from "@/lib/client";
 import { Messages } from "@/components/messages";
 import { Tag } from "@/components/ui";
 import { PublishedFeedback } from "@/components/published-feedback";
+import { DeskConsent } from "@/components/desk-consent";
 import { CorrectionForm } from "@/components/correction-form";
 export default async function Status() {
   const data = await myData();
@@ -64,6 +65,7 @@ export default async function Status() {
             )}
           </section>
           <PublishedFeedback application={app} />
+          <DeskConsent applicationId={app.id} initial={app.deskConsent} sources={app.sources.map(s=>({id:s.id,title:s.title,kind:s.kind}))} />
           <section id="messages">
             <h2>Переписка с комиссией</h2>
             <Messages

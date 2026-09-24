@@ -100,6 +100,7 @@ export async function connectionView(user: Pick<User, "id" | "role"> | null) {
     transcriptionModel: row.transcriptionModel,
     speechModel: row.speechModel,
     audioEnabled: row.audioEnabled,
+    deskEnabled: row.deskEnabled,
     startingMicros: row.startingMicros,
     limitMicros: row.limitMicros,
     reserveMicros: row.reserveMicros,
@@ -195,6 +196,7 @@ export async function disconnectConnection(
         checkCode: null,
         checkedAt: null,
         audioEnabled: false,
+        deskEnabled: false,
         revision: { increment: 1 },
       },
     });

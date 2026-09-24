@@ -43,6 +43,7 @@ model OpenAIConnection {
   transcriptionModel String @default("gpt-4o-mini-transcribe")
   speechModel String @default("gpt-4o-mini-tts")
   audioEnabled Boolean @default(false)
+  deskEnabled Boolean @default(false)
   startingMicros Int @default(50000000)
   limitMicros Int @default(45000000)
   reserveMicros Int @default(5000000)
@@ -147,6 +148,7 @@ model Application {
   stage String @default("DRAFT")
   revision Int @default(0)
   origin String @default("USER")
+  deskConsent Json?
   submittedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -195,12 +197,16 @@ model DevelopmentStep {
   user User @relation(fields:[userId], references:[id], onDelete:Cascade)
   key String
   recommendation Json
+  treeNode String?
+  treeConfig String?
+  treeState Json?
   note String @default("")
   selfCompletedAt DateTime?
   revision Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([userId,key])
+  @@index([userId,treeNode])
 }
 model ApplicationVersion {
   id String @id @default(cuid())
@@ -509,6 +515,7 @@ model ScoringRun {
   attempts Int @default(0)
   createdAt DateTime @default(now())
   completedAt DateTime?
+  deskActions DeskAction[]
   reviews ScoringReview[]
   @@index([applicationId, createdAt])
   @@unique([auditId, variant])
@@ -663,4 +670,21 @@ model WorkflowSession {
   pausedMs Int @default(0)
   completedAt DateTime?
   @@index([ownerId,startedAt])
+}
+
+model DeskAction {
+  id String @id @default(cuid())
+  runId String
+  run ScoringRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+  authorId String
+  kind String
+  content Json
+  inputHash String
+  digest String
+  expiresAt DateTime
+  revokedAt DateTime?
+  executedAt DateTime?
+  result Json?
+  createdAt DateTime @default(now())
+  @@index([runId,authorId])
 }

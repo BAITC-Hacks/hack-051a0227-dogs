@@ -21,6 +21,8 @@ import { submissionIssues } from "@/lib/validation";
 import { ScoringPanel } from "./scoring-panel";
 import type { ScoringResult } from "@/lib/scoring-contract";
 import { InteractiveProfile } from "./interactive-profile";
+import { VisionDesk } from "./vision-desk";
+import type { DeskResult } from "@/lib/vision-desk-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 const subscribeHash = (listener: () => void) => {
   window.addEventListener("hashchange", listener);
@@ -47,6 +49,9 @@ export function CandidateReview({
   audio: AudioState;
   returnHref?: string;
 }) {
+  const [deskDraft, setDeskDraft] = useState<DeskResult["feedback"] | null>(
+    null,
+  );
   const [sourceId, setSourceId] = useState("");
   const [tab, setTab] = useState("profile");
   const hash = useSyncExternalStore(
@@ -179,6 +184,14 @@ export function CandidateReview({
         className={`review-layout ${source ? "has-source" : "source-closed"}`}
       >
         <div className="review-main">
+          <VisionDesk
+            applicationId={a.id}
+            onSource={openSource}
+            onFeedback={(feedback) => {
+              setDeskDraft(feedback);
+              setTab("decision");
+            }}
+          />
           {mainTab === "profile" && (
             <InteractiveProfile
               scope={{ applicationId: a.id }}
@@ -618,7 +631,11 @@ export function CandidateReview({
             </details>
           )}
           {mainTab === "decision" && (
-            <ReviewDecision application={a} scoringDraft={scoringDraft} />
+            <ReviewDecision
+              application={a}
+              scoringDraft={scoringDraft}
+              deskDraft={deskDraft}
+            />
           )}
           {tab === "sources" && (
             <section>

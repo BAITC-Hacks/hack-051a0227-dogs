@@ -345,7 +345,7 @@ export async function collectProfile(
         ),
       );
     }
-    const latest = versions[0];
+    const latest = versions.find((v) => v.kind !== "DESK_CONSENT");
     if (latest) {
       const f =
         (latest.snapshot as { fields?: Record<string, unknown> }).fields ?? {};

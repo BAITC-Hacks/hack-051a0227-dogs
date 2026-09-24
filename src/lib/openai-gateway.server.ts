@@ -15,7 +15,7 @@ export class OpenAIError extends Error {
   }
 }
 export type OpenAIPermission = {
-  purpose: "CONNECTION_TEST" | "LANGUAGE_CONTENT";
+  purpose: "CONNECTION_TEST" | "LANGUAGE_CONTENT" | "DESK_FACTS";
   authorize: () => Promise<void>;
 };
 export const selectedModel = (c: OpenAIConnection, task: OpenAITask) =>
@@ -58,6 +58,8 @@ export async function reserveOpenAICall(input: {
       throw new OpenAIError("CHANGED");
     if (selectedModel(row, input.task) !== input.model)
       throw new OpenAIError("CHANGED");
+    if (input.purpose === "DESK_FACTS" && !row.deskEnabled)
+      throw new OpenAIError("DISCONNECTED");
     if (input.purpose === "LANGUAGE_CONTENT" && !row.audioEnabled)
       throw new OpenAIError("DISCONNECTED");
     if (

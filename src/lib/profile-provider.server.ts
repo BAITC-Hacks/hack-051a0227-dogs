@@ -1,4 +1,5 @@
 import "server-only";
+import { treeHref, treeNodes } from "./development-tree";
 import {
   profileAnswerSchema,
   type ProfileAnswer,
@@ -160,6 +161,7 @@ export class LocalProfileProvider implements ProfileProvider {
           `${r.title}\nОснование: ${r.basis}\n${r.purpose}\nЗавершение: ${r.completion}`,
         );
       }
+      if(c.audience==="CANDIDATE") link(treeHref(treeNodes.find(n=>n.slug===work?.slug)?.id), "Материал и практика в личном маршруте");
       if (!answer.claims.length)
         answer.text =
           "Сохрани свою работу или открой опубликованное сообщение, чтобы выбрать связанный личный шаг.";

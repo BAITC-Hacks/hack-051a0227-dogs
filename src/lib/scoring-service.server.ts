@@ -127,6 +127,7 @@ export async function processScoringRun(runId: string) {
   const claimed = await db.scoringRun.updateMany({
     where: {
       id: runId,
+      context: { in: ["OFFICIAL", "AUDIT"] },
       OR: [
         { status: "QUEUED" },
         { status: "RUNNING", leaseUntil: { lt: now } },

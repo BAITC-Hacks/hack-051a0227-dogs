@@ -37,6 +37,7 @@ export const connectionSettingsSchema = z
     transcriptionModel: z.enum(transcriptionModels),
     speechModel: z.enum(speechModels),
     audioEnabled: z.boolean(),
+    deskEnabled: z.boolean().optional(),
     startingMicros: z.number().int().min(0).max(1000000000),
     limitMicros: z.number().int().min(0).max(1000000000),
     reserveMicros: z.number().int().min(0).max(1000000000),
