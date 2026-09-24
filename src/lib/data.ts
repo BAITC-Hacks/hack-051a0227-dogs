@@ -1,3 +1,5 @@
+import { pathProgress } from "./path-progress";
+import { avatarIdentity, avatarSelect } from "./avatar";
 import { projectMilestones } from "./journey";
 import { db } from "./db";
 import { materialContext } from "./review-service.server";
@@ -19,7 +21,7 @@ export const materialSelect = {
 export async function myData() {
   const u = await actor();
   if (!u) return null;
-  const [attempts, application] = await Promise.all([
+  const [attempts, application, steps] = await Promise.all([
     db.projectAttempt.findMany({
       where: { userId: u.id },
       include: { versions: { orderBy: { revision: "desc" } } },
@@ -30,7 +32,9 @@ export async function myData() {
       include: {
         materials: { select: materialSelect },
         messages: {
-          include: { author: { select: { name: true, role: true } } },
+          include: {
+            author: { select: { ...avatarSelect, name: true, role: true } },
+          },
           orderBy: { createdAt: "asc" },
         },
         language: {
@@ -54,9 +58,15 @@ export async function myData() {
         versions: { orderBy: { revision: "desc" } },
       },
     }),
+    db.developmentStep.findMany({
+      where: { userId: u.id, treeNode: null },
+      select: { recommendation: true, selfCompletedAt: true, note: true },
+    }),
   ]);
   return {
+    progress: pathProgress(attempts, steps),
     user: {
+      ...avatarIdentity(u),
       id: u.id,
       name: u.name,
       email: u.email,
@@ -105,7 +115,9 @@ export async function loadCandidate(id: string) {
   const application = await db.application.findUniqueOrThrow({
     where: { id },
     include: {
-      user: { select: { name: true, email: true, interests: true } },
+      user: {
+        select: { ...avatarSelect, name: true, email: true, interests: true },
+      },
       program: true,
       episodes: { include: { sources: true, annotations: true } },
       sources: {
@@ -122,7 +134,9 @@ export async function loadCandidate(id: string) {
       },
       language: { include: { history: { orderBy: { revision: "desc" } } } },
       messages: {
-        include: { author: { select: { name: true, role: true } } },
+        include: {
+          author: { select: { ...avatarSelect, name: true, role: true } },
+        },
         orderBy: { createdAt: "asc" },
       },
       decisions: {
@@ -171,7 +185,7 @@ export async function queueData() {
   const applications = await db.application.findMany({
     where: { submittedAt: { not: null } },
     include: {
-      user: { select: { name: true, email: true } },
+      user: { select: { ...avatarSelect, name: true, email: true } },
       program: true,
       language: true,
       materials: { select: { id: true } },
@@ -197,7 +211,7 @@ export async function interviewData(id: string) {
     include: {
       application: {
         include: {
-          user: { select: { name: true } },
+          user: { select: { ...avatarSelect, name: true } },
           program: true,
           sources: {
             include: {

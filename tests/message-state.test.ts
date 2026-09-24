@@ -33,3 +33,29 @@ test("Связанный ответ закрывает свой вопрос, а
     2,
   );
 });
+
+test("Историческое уточнение остаётся важным действием до ответа кандидата", () => {
+  const question = {
+    id: "legacy",
+    kind: "CLARIFICATION",
+    createdAt: "2026-09-24T10:00:00Z",
+    author: { role: "STAFF" },
+  };
+  const reply = {
+    id: "answer",
+    kind: "MESSAGE",
+    createdAt: "2026-09-24T11:00:00Z",
+    author: { role: "CANDIDATE" },
+  };
+  assert.equal(unansweredQuestions([question]).length, 1);
+  assert.equal(
+    unansweredQuestions([question, { ...reply, replyToId: "legacy" }]).length,
+    0,
+  );
+  assert.equal(unansweredQuestions([question, reply]).length, 0);
+  assert.equal(
+    unansweredQuestions([question, { ...reply, replyToId: "another-question" }])
+      .length,
+    1,
+  );
+});

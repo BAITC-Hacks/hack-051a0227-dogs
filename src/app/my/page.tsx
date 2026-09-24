@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { myData } from "@/lib/data";
 import { MyPath } from "@/components/my-path";
+import { UserAvatar } from "@/components/user-avatar";
 import { WorkshopChoices } from "@/components/journey-actions";
 import { treeView } from "@/lib/development-tree.server";
 import { actor } from "@/lib/security";
@@ -9,60 +10,66 @@ import { DevelopmentTree } from "@/components/development-tree";
 export default async function My({
   searchParams,
 }: {
-  searchParams: Promise<{ tree?: string; node?: string }>;
+  searchParams: Promise<{ tree?: string; node?: string; view?: string }>;
 }) {
   const query = await searchParams;
   const data = await myData();
   if (data?.user.role === "STAFF") redirect("/admissions");
   const tree = await treeView(await actor());
+  if (data)
+    return (
+      <MyPath
+        key={data.user.id}
+        data={data}
+        tree={tree}
+        initialView={query.tree === "1" ? "route" : query.view}
+        nodeId={query.node}
+      />
+    );
   if (query.tree === "1")
     return (
       <div className="page wrap candidate-journey">
-        <DevelopmentTree key={query.node ?? "tree"} initial={tree} selectedId={query.node} full />
+        <DevelopmentTree initial={tree} selectedId={query.node} full />
       </div>
     );
-  if (data) return <MyPath data={data} tree={tree} />;
   return (
-    <div className="page wrap candidate-journey">
-      <header className="journey-heading">
-        <p className="eyebrow">inVision U · начни без аккаунта</p>
-        <h1>
-          Сначала сделай.
-          <br />
-          Потом выбирай направление.
-        </h1>
-        <p>
-          Пять задач знакомят с разными видами работы. В каждой можно проверить
-          и пересмотреть своё решение.
-        </p>
-      </header>
-      <section className="journey-next">
-        <div>
-          <p className="eyebrow">Можно начать здесь</p>
-          <h2>Выбери задачу, которую хочется решить</h2>
-          <p>
-            Запусти обмен учебниками, собери робота, подготовь репортаж, проведи
-            исследование или составь план центра.
-          </p>
+    <div className="page wrap candidate-hub">
+      <header className="hub-heading">
+        <div className="hub-person">
+          <UserAvatar size={72} />
+          <div>
+            <p className="eyebrow">Мой путь · без аккаунта</p>
+            <h1>Начни с того, что хочется сделать</h1>
+            <p>Небольшая задача, твоё решение и понятный следующий шаг.</p>
+          </div>
         </div>
-        <div className="journey-primary">
-          <Link className="button dark" href="/#projects">
-            Выбрать задачу
-          </Link>
-          <Link className="text-link" href="/apply">
-            Сразу подать заявку
-          </Link>
-        </div>
-      </section>
-      <p className="journey-boundary">
-        Мастерские знакомят с деятельностью и не являются скрытым экзаменом.
-        Проходить все пять для поступления не нужно.{" "}
-        <Link className="text-link" href="/login">
+        <Link className="text-link" href="/login?next=/my">
           Войти к своим работам
         </Link>
+      </header>
+      <section className="hub-next">
+        <div>
+          <p className="eyebrow">Можно начать здесь · цифровые продукты</p>
+          <h2>Запусти обмен учебниками</h2>
+          <p>
+            Построй путь от поиска книги до её передачи. Проверь, где студенту
+            не хватает информации, и сохрани свой вариант.
+          </p>
+        </div>
+        <Link className="button dark" href="/projects/digital-products">
+          Открыть мини-практику
+        </Link>
+      </section>
+      <p className="journey-boundary">
+        Мастерские добровольны.{" "}
+        <Link className="text-link" href="/apply">
+          Сразу подать заявку
+        </Link>
       </p>
-      <DevelopmentTree initial={tree} />
-      <WorkshopChoices />
+      <WorkshopChoices
+        exclude={["digital-products"]}
+        title="Можно попробовать другое"
+      />
     </div>
   );
 }

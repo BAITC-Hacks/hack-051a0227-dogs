@@ -14,6 +14,10 @@ model User {
   origin String @default("USER")
   interests String[] @default([])
   visionConsent Json?
+  avatarRevision Int @default(0)
+  avatarPhoto Boolean @default(false)
+  avatarCharacter String?
+  avatar UserAvatar?
   visionMedia VisionMedia[]
   createdAt DateTime @default(now())
   sessions Session[]
@@ -29,6 +33,14 @@ model User {
   developmentSteps DevelopmentStep[]
   workflowSessions WorkflowSession[]
   connection OpenAIConnection?
+}
+
+model UserAvatar {
+  userId String @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  small Bytes
+  display Bytes
+  updatedAt DateTime @updatedAt
 }
 
 model OpenAIConnection {

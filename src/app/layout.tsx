@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/manrope";
 import "@fontsource-variable/golos-text";
 import "./globals.css";
+import { avatarIdentity } from "@/lib/avatar";
 import { actor } from "@/lib/security";
 import { Header, Footer } from "@/components/header";
 export const metadata: Metadata = {
@@ -23,7 +24,7 @@ export default async function RootLayout({
 }) {
   const u = await actor();
   const safe = u
-    ? { id: u.id, name: u.name, email: u.email, role: u.role }
+    ? { ...avatarIdentity(u), id: u.id, name: u.name, email: u.email, role: u.role }
     : null;
   return (
     <html lang="ru" data-scroll-behavior="smooth">

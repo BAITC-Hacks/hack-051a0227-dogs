@@ -1,3 +1,5 @@
+import { avatarSelect } from "@/lib/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { actor } from "@/lib/security";
@@ -9,7 +11,7 @@ export default async function Interviews() {
   const rows = await db.interview.findMany({
     include: {
       application: {
-        include: { user: { select: { name: true } }, program: true },
+        include: { user: { select: { ...avatarSelect, name: true } }, program: true },
       },
     },
     orderBy: { scheduledAt: "asc" },
@@ -38,10 +40,10 @@ export default async function Interviews() {
               <tr key={i.id}>
                 <td>
                   <Link
-                    className="candidate-name"
+                    className="candidate-name person-heading"
                     href={"/admissions/candidates/" + i.applicationId}
                   >
-                    {i.application.user.name}
+                    <UserAvatar user={i.application.user} size={36} />{i.application.user.name}
                   </Link>
                 </td>
                 <td data-label="Программа">

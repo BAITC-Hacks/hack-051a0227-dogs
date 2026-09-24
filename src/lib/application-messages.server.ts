@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma, User } from "@prisma/client";
 import { AppError } from "./security";
+import { questionKinds } from "./message-state";
 export async function saveApplicationMessage(
   tx: Prisma.TransactionClient,
   user: User,
@@ -16,7 +17,7 @@ export async function saveApplicationMessage(
       where: {
         id: replyToId,
         applicationId,
-        kind: { in: ["QUESTION", "MESSAGE"] },
+        kind: { in: questionKinds },
         author: { role: "STAFF" },
       },
     });

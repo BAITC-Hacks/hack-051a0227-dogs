@@ -39,7 +39,7 @@ export type Feedback = {
   summary: string;
   actions: string[];
 };
-export type SafeUser = {
+export type SafeUser = import("./avatar").AvatarIdentity & {
   id: string;
   name: string;
   email: string | null;

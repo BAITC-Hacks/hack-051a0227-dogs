@@ -1,4 +1,5 @@
 "use client";
+import { AvatarEditor } from "./avatar-editor";
 import { clearUserRecordings } from "@/lib/recording-cache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -63,6 +64,7 @@ export function Header({ user }: { user: SafeUser | null }) {
         <div className="header-account">
           {user && user.role !== "GUEST" ? (
             <>
+              <AvatarEditor user={user} compact />
               <span className="account-name">{user.name.split(" ")[0]}</span>
               <button
                 className="icon-button"

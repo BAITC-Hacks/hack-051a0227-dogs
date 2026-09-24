@@ -101,6 +101,20 @@ export type DevelopmentRecommendation = {
   versionId?: string;
   href?: string;
 };
+/** Wording revisions do not create a second personal action for the same source version. */
+export function sameDevelopmentAction(
+  a: DevelopmentRecommendation | null | undefined,
+  b: DevelopmentRecommendation,
+) {
+  return (
+    !!a &&
+    a.kind === b.kind &&
+    a.title === b.title &&
+    a.origin === b.origin &&
+    a.source.key === b.source.key &&
+    a.source.version === b.source.version
+  );
+}
 export type ProfileAction = {
   key: string;
   label: string;

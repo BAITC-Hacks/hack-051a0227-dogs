@@ -639,11 +639,10 @@ export function MissionEditor({
             work={{ id, slug, context: "WORKSHOP", versions }}
             revision={resultRevision}
             onRevision={setResultRevision}
-            expanded
           />
           <div className="mission-next">
             <h3>Что попробовать дальше</h3>
-            <p>{d.programConnection}</p>
+
             <button
               className="button primary"
               onClick={() => {
@@ -676,9 +675,7 @@ export function MissionEditor({
                   </button>
                 </>
               )}
-            <Link className="button secondary" href={`/programs/${slug}`}>
-              Изучить программу
-            </Link>
+
             <Link className="text-link" href={`/projects/${d.nextSlug}`}>
               Другая задача: {missions[d.nextSlug].title.toLowerCase()}
             </Link>

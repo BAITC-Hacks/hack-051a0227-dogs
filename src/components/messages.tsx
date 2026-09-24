@@ -1,7 +1,9 @@
 "use client";
+import type { AvatarIdentity } from "@/lib/avatar";
+import { UserAvatar } from "./user-avatar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { unansweredQuestions } from "@/lib/message-state";
+import { questionKinds, unansweredQuestions } from "@/lib/message-state";
 import { action, dateLabel } from "@/lib/client";
 import { Feedback, useTask } from "./ui";
 export type MessageView = {
@@ -10,7 +12,7 @@ export type MessageView = {
   kind: string;
   createdAt: Date;
   replyToId?: string | null;
-  author: { name: string; role: string };
+  author: { name: string; role: string } & AvatarIdentity;
 };
 export function Messages({
   applicationId,
@@ -26,8 +28,7 @@ export function Messages({
   const router = useRouter(),
     task = useTask();
   const questions = messages.filter(
-    (m) =>
-      m.author.role === "STAFF" && ["QUESTION", "MESSAGE"].includes(m.kind),
+    (m) => m.author.role === "STAFF" && questionKinds.includes(m.kind),
   );
   const [replyToId, setReplyToId] = useState(
     unansweredQuestions(messages).at(-1)?.id ?? "",
@@ -44,7 +45,10 @@ export function Messages({
               id={`message-${m.id}`}
             >
               <div className="message-meta">
-                <span>
+                <span className="message-person">
+                  {m.kind !== "RECEIPT" && (
+                    <UserAvatar user={m.author} size={32} />
+                  )}
                   {m.kind === "RECEIPT"
                     ? "Статус заявки"
                     : `${m.author.role === "STAFF" ? "Комиссия" : "Кандидат"}: ${m.author.name}`}

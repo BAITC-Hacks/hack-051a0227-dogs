@@ -1,4 +1,5 @@
 "use client";
+import { UserAvatar } from "./user-avatar";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -127,7 +128,7 @@ export function CandidateReview({
       <div className="page-title">
         <div>
           <div className="row" style={{ marginBottom: 10 }}>
-            <h1 style={{ margin: 0 }}>{a.user.name}</h1>
+            <UserAvatar user={a.user} size={52} /><h1 style={{ margin: 0 }}>{a.user.name}</h1>
             <Tag tone={a.stage === "CLARIFICATION" ? "warning" : "blue"}>
               {stageLabels[a.stage]}
             </Tag>

@@ -1,4 +1,5 @@
 "use client";
+import { UserAvatar } from "./user-avatar";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -331,7 +332,7 @@ export function AdmissionsQueue({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a, i) => (
+            {filtered.map((a) => (
               <tr key={a.id}>
                 <td>
                   <input
@@ -350,15 +351,7 @@ export function AdmissionsQueue({
                 </td>
                 <td>
                   <Link className="name-cell" href={candidateHref(a.id)}>
-                    <span
-                      className={`avatar ${i % 3 === 1 ? "lime" : i % 3 === 2 ? "pink" : ""}`}
-                    >
-                      {a.user.name
-                        .split(" ")
-                        .map((s) => s[0])
-                        .slice(0, 2)
-                        .join("")}
-                    </span>
+                    <UserAvatar user={a.user} size={44} />
                     <span>
                       <span className="candidate-name">{a.user.name}</span>
                       <span className="candidate-email">{a.user.email}</span>

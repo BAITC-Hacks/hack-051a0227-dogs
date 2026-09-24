@@ -2,7 +2,7 @@
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {   X } from "lucide-react";
+import { X } from "lucide-react";
 import { programs } from "@/lib/catalog";
 import { missions } from "@/lib/missions";
 import { MissionVisual } from "./mission-visual";
@@ -10,36 +10,49 @@ import { workHref, type Milestone } from "@/lib/journey";
 import { action } from "@/lib/client";
 
 import { Feedback, useTask } from "./ui";
-export function WorkshopChoices({ tried = [] }: { tried?: string[] }) {
+export function WorkshopChoices({
+  tried = [],
+  id = "workshop-choices",
+  exclude = [],
+  title,
+}: {
+  tried?: string[];
+  id?: string;
+  exclude?: string[];
+  title?: string;
+}) {
   return (
-    <section className="workshop-choices" id="workshop-choices">
+    <section className="workshop-choices" id={id}>
       <div className="section-heading">
-        <h2>{tried.length ? "Что попробовать дальше" : "Выбери действие"}</h2>
+        <h2>
+          {title ??
+            (tried.length ? "Что попробовать дальше" : "Выбери действие")}
+        </h2>
         <p>
-          Пять самостоятельных проб. Можно начать с любой или сразу подать
-          заявку.
+          Самостоятельные пробы. Можно начать с любой или сразу подать заявку.
         </p>
       </div>
       <div className="workshop-choice-grid">
-        {programs.map((p) => (
-          <article className={`workshop-choice ${p.color}`} key={p.slug}>
-            <div className="choice-copy">
-              <p className="eyebrow">
-                {p.title}
-                {tried.includes(p.slug) ? " · уже есть работа" : ""}
-              </p>
-              <h3>{p.action}</h3>
-              <p>{missions[p.slug].goal}</p>
-              <Link className="text-link" href={`/projects/${p.slug}`}>
-                {tried.includes(p.slug) ? "Открыть мастерскую" : "Начать"}
-
-              </Link>
-            </div>
-            <div className="choice-preview" aria-label="Материал для пробы">
-              <MissionVisual slug={p.slug}/>
-            </div>
-          </article>
-        ))}
+        {programs
+          .filter((p) => !exclude.includes(p.slug))
+          .map((p) => (
+            <article className={`workshop-choice ${p.color}`} key={p.slug}>
+              <div className="choice-copy">
+                <p className="eyebrow">
+                  {p.title}
+                  {tried.includes(p.slug) ? " · уже есть работа" : ""}
+                </p>
+                <h3>{p.action}</h3>
+                <p>{missions[p.slug].goal}</p>
+                <Link className="text-link" href={`/projects/${p.slug}`}>
+                  {tried.includes(p.slug) ? "Открыть мастерскую" : "Начать"}
+                </Link>
+              </div>
+              <div className="choice-preview" aria-label="Материал для пробы">
+                <MissionVisual slug={p.slug} />
+              </div>
+            </article>
+          ))}
       </div>
     </section>
   );
@@ -70,6 +83,10 @@ export function ContextStart({
       >
         Попробовать бронирование
       </button>
+      <p className="subtle context-reward">
+        Дополнительно: примени порядок шагов к бронированию оборудования.
+        Сохранённое решение по условиям даст +5 поинтов один раз.
+      </p>
       <Feedback task={task} />
     </div>
   );

@@ -7,6 +7,7 @@ import type { ScoringResult } from "@/lib/scoring-contract";
 import { domains } from "@/lib/catalog";
 import {
   profileTopics,
+  sameDevelopmentAction,
   drive,
   type ProfileScope,
   type ProfileTopic,
@@ -16,6 +17,7 @@ import {
   type DevelopmentRecommendation,
   type DevelopmentView,
 } from "@/lib/profile-contract";
+import { VisionMark } from "./user-avatar";
 import { VisionDictation, VisionSpeech } from "./vision-voice";
 import { Feedback, useTask } from "./ui";
 export function InteractiveProfile({
@@ -237,6 +239,7 @@ export function InteractiveProfile({
         }}
       >
         <span>
+          {!scope.applicationId && <VisionMark size={32} />}
           {scope.applicationId ? title : "Vision"}
           {!scope.applicationId && (
             <small>
@@ -732,7 +735,10 @@ function DevelopmentArea({
 }) {
   const task = useTask();
   const suggestions = view.recommendations
-    .filter((r) => !view.steps.some((s) => s.recommendation?.key === r.key))
+    .filter(
+      (r) =>
+        !view.steps.some((s) => sameDevelopmentAction(s.recommendation, r)),
+    )
     .slice(0, 3);
   return (
     <section className="development-area" aria-label="Личные шаги развития">
@@ -814,11 +820,13 @@ function RecommendationText({ r }: { r: DevelopmentRecommendation }) {
     </>
   );
 }
-function DevelopmentStepCard({
+export function DevelopmentStepCard({
   step: s,
   scope,
   reload,
+  brief = false,
 }: {
+  brief?: boolean;
   step: DevelopmentView;
   scope: ProfileScope;
   reload: () => Promise<ProfileView>;
@@ -836,7 +844,7 @@ function DevelopmentStepCard({
   const r = s.recommendation;
   return (
     <article className="development-step" id={`development-${s.id}`}>
-      <RecommendationText r={r} />
+      {brief ? <p>{r.purpose}</p> : <RecommendationText r={r} />}
       <p className="result-state">
         {s.status === "RESULT_SAVED"
           ? "Задание выполнено · результат сохранён"
@@ -898,6 +906,7 @@ function DevelopmentStepCard({
               complete,
             });
             await reload();
+            router.refresh();
           }, "Личный шаг сохранён")
         }
       >

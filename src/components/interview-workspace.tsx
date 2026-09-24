@@ -1,4 +1,5 @@
 "use client";
+import { UserAvatar } from "./user-avatar";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -110,7 +111,7 @@ export function InterviewWorkspace({
       </Link>
       <div className="page-title">
         <div>
-          <h1>Интервью · {i.application.user.name}</h1>
+          <h1 className="person-heading"><UserAvatar user={i.application.user} size={48} />Интервью · {i.application.user.name}</h1>
           <p>
             {dateLabel(i.scheduledAt)} · Алматы ·{" "}
             {i.application.program.shortTitle}

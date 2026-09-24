@@ -17,8 +17,10 @@ export function DevelopmentTree({
   initial,
   full = false,
   selectedId,
+  embedded = false,
 }: {
   initial: TreeView;
+  embedded?: boolean;
   full?: boolean;
   selectedId?: string;
 }) {
@@ -54,12 +56,18 @@ export function DevelopmentTree({
   }
   return (
     <div className="development-tree">
-      <Link className="text-link" href="/my">
-        Мой путь
-      </Link>
+      {!embedded && (
+        <Link className="text-link" href="/my">
+          Мой путь
+        </Link>
+      )}
       <header className="tree-heading">
         <p className="eyebrow">Личный маршрут</p>
-        <h1>Развитие через работу</h1>
+        {embedded ? (
+          <h2>Развитие через работу</h2>
+        ) : (
+          <h1>Развитие через работу</h1>
+        )}
         <p>
           Выбери то, что хочется попробовать. Материал помогает разобраться,
           практика оставляет результат.

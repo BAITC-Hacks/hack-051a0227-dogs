@@ -1,15 +1,17 @@
 import "server-only";
+import { deepeningPrompts } from "./path-progress";
 import { Prisma, type User } from "@prisma/client";
 import { db } from "./db";
 import { AppError } from "./security";
 import { digest } from "./scoring-input.server";
 import { meaningfullyChanged, versionCompleted } from "./journey";
 import { sourceRef, type ProfileContext } from "./profile-context.server";
+import { sameDevelopmentAction } from "./profile-contract";
 import type {
   DevelopmentRecommendation,
   DevelopmentView,
 } from "./profile-contract";
-export const developmentVersion = "work-actions-drive-v1";
+export const developmentVersion = "work-actions-drive-v2";
 // Exercise mapping belongs to this application, not an official university formula.
 const direction: Record<string, DevelopmentRecommendation["drive"]> = {
   "digital-products": "R",
@@ -80,7 +82,9 @@ export function developmentRecommendations(
       title: "Записать объяснение своего выбора",
       basis: failed ? `${failed.label}: ${failed.detail}` : w.feedback.summary,
       purpose:
-        "Назови своё решение, одну альтернативу и условие, при котором ты выберешь её. Запись останется личной.",
+        (deepeningPrompts[w.slug] ??
+          "Назови своё решение, одну альтернативу и условие, при котором ты выберешь её.") +
+        " Запись останется личной.",
       completion:
         "Объяснение сохранено, и ты отдельно отметил выполнение личного шага. Смысл текста и навык автоматически не оцениваются.",
     });
@@ -112,7 +116,7 @@ export function availableRecommendation(
   c: ProfileContext,
 ) {
   return (
-    r.configVersion === developmentVersion &&
+    [developmentVersion, "work-actions-drive-v1"].includes(r.configVersion) &&
     c.sources.some(
       (s) => s.key === r.source.key && s.version === r.source.version,
     )
@@ -199,16 +203,26 @@ export async function startDevelopment(
       "Рекомендация недоступна. Обновите выбранную версию.",
       409,
     );
-  return db.$transaction(async tx => {
+  return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE id=${user.id} FOR UPDATE`;
+    const previous = await tx.developmentStep.findMany({
+      where: { userId: user.id, treeNode: null },
+    });
+    const existing = previous.find((step) =>
+      sameDevelopmentAction(
+        step.recommendation as DevelopmentRecommendation | null,
+        r,
+      ),
+    );
+    if (existing) return existing;
     return tx.developmentStep.upsert({
-    where: { userId_key: { userId: user.id, key } },
-    update: {},
-    create: {
-      userId: user.id,
-      key,
-      recommendation: JSON.parse(JSON.stringify(r)) as Prisma.InputJsonValue,
-    },
+      where: { userId_key: { userId: user.id, key } },
+      update: {},
+      create: {
+        userId: user.id,
+        key,
+        recommendation: JSON.parse(JSON.stringify(r)) as Prisma.InputJsonValue,
+      },
     });
   });
 }

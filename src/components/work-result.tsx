@@ -1,6 +1,8 @@
 "use client";
+import { readMission, samePlan, missionChecks } from "@/lib/missions";
 import { useState } from "react";
 import type { AttemptVersion } from "@prisma/client";
+import { WorkOutcome } from "./work-outcome";
 import { WorkPreview } from "./work-preview";
 import { workChanges, versionCompleted, type Work } from "@/lib/journey";
 import type { Feedback } from "@/lib/types";
@@ -13,12 +15,14 @@ export function WorkResult({
   onRevision,
   expanded = false,
   compact = false,
+  continuation = true,
 }: {
   work: Pick<Work, "slug" | "context" | "versions"> & { id?: string };
   revision: number;
   onRevision: (n: number) => void;
   expanded?: boolean;
   compact?: boolean;
+  continuation?: boolean;
 }) {
   const [comparing, setComparing] = useState(false),
     [side, setSide] = useState("saved");
@@ -33,6 +37,13 @@ export function WorkResult({
     v;
   const shown = comparing && side === "before" ? before : v;
   const feedback = shown.feedback as unknown as Feedback;
+  const mission = readMission(shown.state);
+  const initialChecked =
+    mission?.phase === "INITIAL" &&
+    mission.tests.some(
+      (t) => t.phase === "INITIAL" && samePlan(t.plan, mission.plan),
+    ) &&
+    missionChecks(mission).every((c) => c.passed);
   const changes = workChanges(work.slug, before.state, v.state, work.context);
   return (
     <div className="work-result">
@@ -97,7 +108,9 @@ export function WorkResult({
           ? "Материал задания"
           : versionCompleted(work, shown)
             ? "Условия выполнены · результат сохранён"
-            : "Черновик сохранён · есть условия для доработки"}
+            : initialChecked
+              ? "Исходное решение проверено · впереди новое условие"
+              : "Черновик сохранён · есть условия для доработки"}
         {comparing && ` · показана версия ${shown.revision}`}
       </p>
       <WorkPreview
@@ -106,6 +119,7 @@ export function WorkResult({
         state={shown.state}
         compact={compact}
       />
+      {continuation && <WorkOutcome work={work} revision={v.revision} />}
       {v.revision > 0 && (
         <div className="work-difference">
           <strong>
@@ -154,7 +168,14 @@ export function WorkResult({
           </p>
         )}
       </details>
-      {work.id && v.revision > 0 && <InteractiveProfile key={`${work.id}-${v.revision}`} scope={{attemptId:work.id,revision:v.revision}} title="Объяснить изменения и выбрать продолжение" initialTopic="changes"/>}
+      {continuation && work.id && v.revision > 0 && (
+        <InteractiveProfile
+          key={`${work.id}-${v.revision}`}
+          scope={{ attemptId: work.id, revision: v.revision }}
+          title="Объяснить изменения и выбрать продолжение"
+          initialTopic="changes"
+        />
+      )}
     </div>
   );
 }

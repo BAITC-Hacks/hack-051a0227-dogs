@@ -168,6 +168,28 @@ test(
           );
           assert.equal(saved[0].id, saved[1].id);
           contextStepId = saved[0].id;
+          // A wording/configuration upgrade retains the existing action and its history.
+          await db.developmentStep.update({
+            where: { id: contextStepId },
+            data: {
+              key: `legacy-${contextStepId}`,
+              recommendation: {
+                ...r,
+                key: `legacy-${contextStepId}`,
+                configVersion: "work-actions-drive-v1",
+              },
+            },
+          });
+          const resumed = await candidate.call("profile.stepStart", {
+            scope: scope(),
+            key: r.key,
+          });
+          assert.equal(resumed.id, contextStepId);
+          assert.equal(
+            (await load()).steps.find((step) => step.id === resumed.id)!
+              .recommendation!.configVersion,
+            "work-actions-drive-v1",
+          );
           const next = await candidate.call("profile.stepContinue", {
             scope: scope(),
             id: contextStepId,

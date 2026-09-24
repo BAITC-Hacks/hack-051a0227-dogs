@@ -222,6 +222,7 @@ async function main() {
         passwordHash: hash("MyPath2026!"),
         role: "CANDIDATE",
         origin: "SEED",
+        avatarCharacter: String(i + 1),
         interests: [programSlug],
       },
     });
