@@ -2,7 +2,7 @@
 import { clearUserRecordings } from "@/lib/recording-cache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {  LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { action } from "@/lib/client";
 import { useTask, Feedback } from "./ui";
 import type { SafeUser } from "@/lib/types";
@@ -10,7 +10,10 @@ export function Header({ user }: { user: SafeUser | null }) {
   const path = usePathname();
   const router = useRouter();
   const task = useTask();
-  const staff = path.startsWith("/admissions") || path === "/settings";
+  const staff =
+    path.startsWith("/admissions") ||
+    path === "/settings" ||
+    path.startsWith("/settings/");
   const links = staff
     ? [
         ["Кандидаты", "/admissions"],
@@ -98,9 +101,7 @@ export function Footer() {
         inVision U
       </Link>
       <span>Попробуй задачи. Выбери направление.</span>
-      <Link href="/admissions">
-        Приёмная комиссия
-      </Link>
+      <Link href="/admissions">Приёмная комиссия</Link>
     </footer>
   );
 }

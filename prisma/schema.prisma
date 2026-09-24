@@ -26,6 +26,60 @@ model User {
   profileAnswers ProfileAnswer[]
   developmentSteps DevelopmentStep[]
   workflowSessions WorkflowSession[]
+  connection OpenAIConnection?
+}
+
+model OpenAIConnection {
+  id String @id @default("local")
+  ownerId String? @unique
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  vaultId String @unique @default(uuid())
+  secretCipher String?
+  secretStorage String?
+  keySuffix String?
+  revision Int @default(0)
+  textModel String @default("gpt-5.4-mini")
+  complexModel String @default("gpt-6-sol")
+  transcriptionModel String @default("gpt-4o-mini-transcribe")
+  speechModel String @default("gpt-4o-mini-tts")
+  audioEnabled Boolean @default(false)
+  startingMicros Int @default(50000000)
+  limitMicros Int @default(45000000)
+  reserveMicros Int @default(5000000)
+  dailyMicros Int @default(5000000)
+  parallelLimit Int @default(2)
+  catalog Json?
+  checkedAt DateTime?
+  checkCode String?
+  pairingHash String?
+  pairingActor String?
+  pairingEmail String?
+  pairingUntil DateTime?
+  pairingAttempts Int @default(0)
+  updatedAt DateTime @updatedAt
+  calls OpenAICall[]
+}
+
+model OpenAICall {
+  id String @id @default(uuid())
+  connectionId String @default("local")
+  connection OpenAIConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  requestKey String @unique
+  connectionRevision Int
+  task String
+  purpose String
+  model String
+  pricingVersion String
+  status String @default("RESERVED")
+  reservedMicros Int
+  chargedMicros Int
+  costBasis String @default("RESERVATION")
+  usage Json?
+  requestId String?
+  errorCode String?
+  createdAt DateTime @default(now())
+  finishedAt DateTime?
+  @@index([createdAt, status])
 }
 model Session {
   tokenHash String @id

@@ -2,8 +2,12 @@ import { redirect } from "next/navigation";
 import { actor } from "@/lib/security";
 import { db } from "@/lib/db";
 import { SettingsForm } from "@/components/settings-form";
+import Link from "next/link";
+import { connection } from "@/lib/openai-settings.server";
 export default async function Settings() {
-  if ((await actor())?.role !== "STAFF") redirect("/login?staff=1");
+  const user = await actor();
+  if (user?.role !== "STAFF") redirect("/login?staff=1");
+  const openai = await connection();
   const setting = await db.setting.findUniqueOrThrow({
     where: { key: "rubric" },
   });
@@ -16,6 +20,15 @@ export default async function Settings() {
           <p>Правила содержательной человеческой оценки и версия рубрики.</p>
         </div>
       </div>
+      {(!openai.ownerId || openai.ownerId === user.id) && (
+        <p className="settings-connection-link">
+          <Link className="button secondary" href="/settings/openai">
+            {openai.ownerId
+              ? "OpenAI: подключение и расходы"
+              : "Назначить владельца подключения OpenAI"}
+          </Link>
+        </p>
+      )}
       <SettingsForm guidance={value.guidance} version={value.version} />
       <section className="review-section" style={{ marginTop: 32 }}>
         <h2>Порядок работы с источниками</h2>

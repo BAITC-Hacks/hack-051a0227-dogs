@@ -91,11 +91,9 @@ export async function enqueueAudio(
   const app = await audioApplication(applicationId, actor);
   if (actor.role !== "CANDIDATE" || app.userId !== actor.id)
     throw new AppError("Обработку своих ответов запускает кандидат.", 403);
-  const config = audioConfig();
+  const config = await audioConfig();
   const mode = options.mode ?? "LIVE";
-  const available =
-    options.available ??
-    (audioProviderAvailable() && process.env.AUDIO_WORKER_ENABLED !== "false");
+  const available = options.available ?? (await audioProviderAvailable());
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${app.id} FOR UPDATE`;
     const consent = await tx.audioConsent.findUnique({
@@ -242,8 +240,7 @@ export function currentAudioJob(
 }
 export async function audioStatus(applicationId: string, actor: Actor) {
   await audioApplication(applicationId, actor);
-  const available =
-    audioProviderAvailable() && process.env.AUDIO_WORKER_ENABLED !== "false";
+  const available = await audioProviderAvailable();
   if (!available)
     await db.audioJob.updateMany({
       where: {

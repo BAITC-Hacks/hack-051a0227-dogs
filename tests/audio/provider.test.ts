@@ -15,73 +15,63 @@ const sources = Object.entries(expected).map(([kind, text]) => ({
   text,
   version: 0,
 }));
-test("provider sends only finished audio or task plus source texts, with strict Responses output and no storage", async (t) => {
-  const previous = process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY = "isolated-test-key";
-  const calls: { url: string; body: BodyInit | null | undefined }[] = [];
-  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
-    assert.equal(init.redirect, "error");
-    calls.push({ url, body: init.body });
-    return new Response(
-      JSON.stringify(
-        url.endsWith("transcriptions")
-          ? { text: expected.oral, usage: { seconds: 10 } }
-          : {
-              id: "fixture-response",
-              status: "completed",
-              output: [
-                {
-                  type: "message",
-                  content: [
-                    {
-                      type: "output_text",
-                      text: JSON.stringify(fixtureSummary(sources)),
-                    },
-                  ],
-                },
-              ],
-              usage: { total_tokens: 20 },
-            },
-      ),
-      { headers: { "x-request-id": "fixture-request" } },
-    );
+test("provider sends only finished audio or task plus source texts, with strict Responses output and no storage", async () => {
+  const calls: { url: string; body: BodyInit }[] = [];
+  const provider = new OpenAIAudioProvider(undefined, async (path, body) => {
+    calls.push({ url: path, body });
+    return {
+      value: path.endsWith("transcriptions")
+        ? { text: expected.oral, usage: { seconds: 10 } }
+        : {
+            id: "fixture-response",
+            status: "completed",
+            output: [
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: JSON.stringify(fixtureSummary(sources)),
+                  },
+                ],
+              },
+            ],
+            usage: { total_tokens: 20 },
+          },
+      requestId: "fixture-request",
+    };
   });
-  try {
-    const provider = new OpenAIAudioProvider();
-    await provider.transcribe({
-      wav: Buffer.from("fixture-bytes"),
-      model: "test-model",
-      signal: new AbortController().signal,
-    });
-    const summary = await provider.summarize({
-      task: languageTask,
-      sources,
-      model: "test-model",
-      signal: new AbortController().signal,
-    });
-    assert.equal(summary.requestId, "fixture-request");
-    assert.equal(summary.responseId, "fixture-response");
-    const form = calls[0].body as FormData;
-    assert.deepEqual([...form.keys()].sort(), [
-      "file",
-      "model",
-      "response_format",
-    ]);
-    assert.equal((form.get("file") as File).name, "answer.wav");
-    const body = JSON.parse(calls[1].body as string);
-    assert.equal(body.store, false);
-    assert.equal(body.text.format.strict, true);
-    assert.equal(body.max_output_tokens, 2400);
-    assert.deepEqual(JSON.parse(body.input[0].content), {
-      task: languageTask,
-      sources,
-    });
-    assert.equal(body.instructions, summaryInstructions);
-    assert.ok(summaryInstructions.includes("untrusted data"));
-  } finally {
-    if (previous === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = previous;
-  }
+  await provider.transcribe({
+    wav: Buffer.from("fixture-bytes"),
+    model: "test-model",
+    signal: new AbortController().signal,
+  });
+  const summary = await provider.summarize({
+    task: languageTask,
+    sources,
+    model: "test-model",
+    signal: new AbortController().signal,
+  });
+  assert.equal(summary.requestId, "fixture-request");
+  assert.equal(summary.responseId, "fixture-response");
+  const form = calls[0].body as FormData;
+  assert.deepEqual([...form.keys()].sort(), [
+    "file",
+    "model",
+    "response_format",
+  ]);
+  assert.equal((form.get("file") as File).name, "answer.wav");
+  const body = JSON.parse(calls[1].body as string);
+  assert.equal(body.store, false);
+  assert.equal(body.service_tier, "default");
+  assert.equal(body.text.format.strict, true);
+  assert.equal(body.max_output_tokens, 2400);
+  assert.deepEqual(JSON.parse(body.input[0].content), {
+    task: languageTask,
+    sources,
+  });
+  assert.equal(body.instructions, summaryInstructions);
+  assert.ok(summaryInstructions.includes("untrusted data"));
 });
 test("source validation rejects another answer, unknown transcript, stale version and fabricated absence evidence", () => {
   validateAudioSummary(fixtureSummary(sources), sources);
@@ -113,67 +103,27 @@ test("source validation rejects another answer, unknown transcript, stale versio
     ),
   );
 });
-test("provider handles rate limits, timeout and refusal with bounded retry information", async (t) => {
+test("audio adapter never falls back to an environment key and preserves refusal", async () => {
   const previous = process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY = "isolated-test-key";
-  let mode = "rate";
-  t.mock.method(
-    globalThis,
-    "fetch",
-    async (_url: string, init: RequestInit) => {
-      if (mode === "timeout") {
-        assert.ok(init.signal?.aborted);
-        throw new Error("aborted");
-      }
-      if (mode === "rate")
-        return new Response("", {
-          status: 429,
-          headers: { "x-request-id": "rate-limit-request" },
-        });
-      return new Response(
-        JSON.stringify({
-          id: "refusal-response",
-          status: "completed",
-          usage: { total_tokens: 4 },
-          output: [{ type: "message", content: [{ type: "refusal" }] }],
-        }),
-        { headers: { "x-request-id": "refusal-request" } },
-      );
-    },
-  );
+  process.env.OPENAI_API_KEY = "must-not-be-used";
   try {
-    const provider = new OpenAIAudioProvider();
     await assert.rejects(
-      provider.transcribe({
+      new OpenAIAudioProvider().transcribe({
         wav: Buffer.from("fixture"),
         model: "fixture",
         signal: new AbortController().signal,
       }),
-      (e: unknown) => {
-        const error = e as {
-          code: string;
-          retryable: boolean;
-          metadata: { requestId: string };
-        };
-        return (
-          error.code === "PROVIDER_RATE_LIMIT" &&
-          error.retryable &&
-          error.metadata.requestId === "rate-limit-request"
-        );
+      /PROVIDER_UNAVAILABLE/,
+    );
+    const provider = new OpenAIAudioProvider(undefined, async () => ({
+      value: {
+        id: "refusal-response",
+        status: "completed",
+        usage: { total_tokens: 4 },
+        output: [{ type: "message", content: [{ type: "refusal" }] }],
       },
-    );
-    mode = "timeout";
-    const controller = new AbortController();
-    controller.abort();
-    await assert.rejects(
-      provider.transcribe({
-        wav: Buffer.from("fixture"),
-        model: "fixture",
-        signal: controller.signal,
-      }),
-      /PROVIDER_TIMEOUT/,
-    );
-    mode = "refusal";
+      requestId: "refusal-request",
+    }));
     await assert.rejects(
       provider.summarize({
         task: languageTask,

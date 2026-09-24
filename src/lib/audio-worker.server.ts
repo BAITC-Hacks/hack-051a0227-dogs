@@ -125,8 +125,14 @@ function metadata(result: ProviderResult) {
 }
 export async function processClaimedAudio(
   job: AudioJob,
-  provider: AudioProvider = new OpenAIAudioProvider(),
+  provider?: AudioProvider,
 ) {
+  provider ??= new OpenAIAudioProvider({
+    purpose: "LANGUAGE_CONTENT",
+    authorize: async () => {
+      await fenced(job, async () => undefined);
+    },
+  });
   const controller = new AbortController();
   const heartbeat = setInterval(() => {
     void fenced(job, async (tx) => {
@@ -318,7 +324,7 @@ export async function runAudioWorkerOnce(
     provider?: AudioProvider;
   } = {},
 ) {
-  if (!options.provider && !audioProviderAvailable()) {
+  if (!options.provider && !(await audioProviderAvailable())) {
     await db.audioJob.updateMany({
       where: {
         mode: options.mode ?? "LIVE",
@@ -341,7 +347,7 @@ export async function runAudioWorkerOnce(
   return true;
 }
 export function startAudioWorker() {
-  if (process.env.AUDIO_WORKER_ENABLED === "false") return;
+  // The owner enables processing in the connection UI; a key/environment variable alone never does.
   const scope = globalThis as typeof globalThis & {
     leaderAudioWorker?: ReturnType<typeof setInterval>;
   };
