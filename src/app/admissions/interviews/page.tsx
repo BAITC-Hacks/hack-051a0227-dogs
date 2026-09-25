@@ -1,91 +1,41 @@
 import { avatarSelect } from "@/lib/avatar";
-import { UserAvatar } from "@/components/user-avatar";
-import Link from "next/link";
+import { InterviewsList } from "@/components/interviews-list";
 import { redirect } from "next/navigation";
 import { actor } from "@/lib/security";
 import { db } from "@/lib/db";
-import { dateLabel } from "@/lib/client";
-import { Tag } from "@/components/ui";
 export default async function Interviews() {
   if ((await actor())?.role !== "STAFF") redirect("/login?staff=1");
   const rows = await db.interview.findMany({
     include: {
       application: {
-        include: { user: { select: { ...avatarSelect, name: true } }, program: true },
+        include: {
+          user: { select: { ...avatarSelect, name: true } },
+          program: { select: { shortTitle: true } },
+        },
       },
     },
     orderBy: { scheduledAt: "asc" },
   });
+  const now = new Date();
   return (
-    <div className="staff-page">
-      <div className="page-title">
-        <div>
-          <h1>Интервью</h1>
-          <p>Подготовка по источникам, разговор и наблюдения сотрудника.</p>
-        </div>
-      </div>
-      <div className="table-scroll">
-        <table className="candidate-table interview-list">
-          <thead>
-            <tr>
-              <th>Кандидат</th>
-              <th>Программа</th>
-              <th>Время · Алматы</th>
-              <th>Состояние</th>
-              <th>Действие</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.id}>
-                <td>
-                  <Link
-                    className="candidate-name person-heading"
-                    href={"/admissions/candidates/" + i.applicationId}
-                  >
-                    <UserAvatar user={i.application.user} size={36} />{i.application.user.name}
-                  </Link>
-                </td>
-                <td data-label="Программа">
-                  {i.application.program.shortTitle}
-                </td>
-                <td data-label="Алматы">
-                  {dateLabel(
-                    i.status === "COMPLETED" && i.performedAt
-                      ? i.performedAt
-                      : i.scheduledAt,
-                  )}
-                </td>
-                <td>
-                  <Tag tone={i.status === "COMPLETED" ? "success" : "blue"}>
-                    {i.status === "COMPLETED" ? "Завершено" : "Назначено"}
-                  </Tag>
-                </td>
-                <td>
-                  <Link
-                    className="text-link"
-                    href={"/admissions/interviews/" + i.id}
-                  >
-                    Открыть интервью
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {!rows.length && (
-        <div className="empty">
-          <h2>Назначьте первый разговор</h2>
-          <p>
-            В карточке кандидата выберите «Пригласить на интервью» и укажите
-            время.
-          </p>
-          <Link className="button primary" href="/admissions">
-            К кандидатам
-          </Link>
-        </div>
-      )}
-    </div>
+    <InterviewsList
+      today={new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Almaty",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now)}
+      now={now.getTime()}
+      rows={rows.map((row) => ({
+        id: row.id,
+        applicationId: row.applicationId,
+        user: row.application.user,
+        program: row.application.program.shortTitle,
+        scheduledAt: row.scheduledAt.toISOString(),
+        performedAt: row.performedAt?.toISOString() ?? null,
+        status: row.status,
+        hasPlan: row.plan !== null,
+      }))}
+    />
   );
 }
