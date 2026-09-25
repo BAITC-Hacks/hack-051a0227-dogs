@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-09-25",
+  "tool": "image_gen.imagegen",
+  "reference": "Изображение ChatGPT 25 сент. 2026 г., 21_45_10.png",
+  "calls": 2,
+  "usage": "Static decorative assets; UI and captions remain HTML. No runtime generation.",
+  "assets": [
+    {
+      "id": "checklist",
+      "source": "checklist-source.png",
+      "optimized": [
+        "checklist-360.webp",
+        "checklist-720.webp"
+      ],
+      "prompt": "Create a single isolated raster illustration asset for the inVision U student dashboard. The attached image is a STYLE AND COMPOSITION REFERENCE: closely match the large checklist illustration at the right of its light green main task card, including the pale yellow sticky note. Output only the illustration, not a UI mockup. White paper sheet with gently rounded corners, thin near-black hand ink outline, tilted clockwise 10 degrees, pale lime backing sheet. Four round electric-lime check circles with black ticks and short gray placeholder strokes, no actual words. Small lime hand drawn emphasis strokes above and to the left. A pale cream-yellow blank sticky note overlaps the lower right quarter of the checklist, softly curled bottom right corner, tilted counterclockwise about 8 degrees. The sticky note must be blank so real HTML text can be placed over it. The entire paper and note visible with margin, no cropping. Clean mature editorial illustration, restrained ink lines, subtle paper texture, cream white, lime and near-black, slight natural dimensional paper shadow. Transparent background with real alpha. No people, no UI, no headings, no logos, no letters, no numbers, no watermark. Portrait composition about 3:4, same arrangement as the reference."
+    },
+    {
+      "id": "books",
+      "source": "books-source.png",
+      "optimized": [
+        "books-360.webp",
+        "books-720.webp"
+      ],
+      "prompt": "Generate one portrait editorial photograph asset for the CURRENT PROJECT card of the inVision U dashboard. Attached dashboard is composition reference: the small image on the right side of the project card shows a few books on a warm wooden desk, soft daylight, cream wall and softly blurred green plant behind. Match that asset closely. Three small dark charcoal hardback books stacked on a light wooden tabletop near a sunny window. Clean blank spines with no lettering or titles. Soft warm natural daylight, restrained cream and neutral color palette with green plant details, premium calm educational editorial still life, realistic materials, not an illustration and no people. One pale cream-yellow blank sticky note leaning against front of lower book, at lower right, gently tilted counterclockwise; blank note occupies about lower right quarter and can receive live HTML text. The stack fills the left/center, plant softly blurred upper right, crop tightly to show actual books and note. 3:4 portrait crop. No text, no labels, no letters, no logo, no university badge, no UI, no watermark. Output only the photographic card asset, not the dashboard."
+    }
+  ]
+}
