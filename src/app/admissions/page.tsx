@@ -13,15 +13,21 @@ export default async function Admissions({
   const u = await actor();
   if (u?.role !== "STAFF") return <AuthForm staff />;
   const initialFilters = queueFilters(await searchParams);
-  const applications=await queueData();
+  const applications = await queueData();
   return (
-    <>
-    <div className="wrap"><VisionDeskQueue initial={await deskQueue(u)} candidates={applications.map(a=>({id:a.id,name:a.user.name}))}/></div>
     <AdmissionsQueue
       key={JSON.stringify(initialFilters)}
       initialFilters={initialFilters}
       applications={applications}
+      preparation={
+        <VisionDeskQueue
+          initial={await deskQueue(u)}
+          candidates={applications.map((a) => ({
+            id: a.id,
+            name: a.user.name,
+          }))}
+        />
+      }
     />
-    </>
   );
 }

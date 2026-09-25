@@ -1,0 +1,82 @@
+{
+  "created": "2026-09-25",
+  "origin": "Built-in image_gen, generated editorial illustrations. No photographs of actual students. Generated once during development; never at page load.",
+  "assets": [
+    {
+      "name": "project-studio",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Homepage hero scene representing exploration of several educational directions, WITHOUT ANY ROBOT, machine character or human figures. An inviting contemporary learning studio seen from a wide three-quarter angle. A broad pale-blue communal project table in foreground with an open cream sketchbook, three thoughtfully arranged paper studies with abstract unlettered shapes, an electric-lime notebook, a charcoal pencil, a small simple blue camera resting to one side. Background has cream bookshelves, a large warm daylight window, lime and pale-blue chairs around another shared table, a plant. Open doorway connects a second collaborative space, suggesting paths to explore without signs, arrows or a maze. Beautiful tactile hand-drawn gouache illustration, strongly visible pencil line and dry-brush texture, soft geometric color planes, cream and blue light. Keep the composition restrained with breathing room. The workspace as a whole is the subject, not one discipline or a collage of five objects. No people, photographic material or robot anywhere. All furniture and important foreground objects comfortably within frame, no embedded typography. This is an invented educational space, not an actual university building.",
+      "sourceGeneration": "153f8190-94ab-4884-8bb1-34dcfb702122",
+      "original": "originals/project-studio.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "creative-engineering",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible. Engineering mission cover: close three-quarter illustration of a small functional book-delivery robot on a cream test bench. Electric lime chassis, four dark charcoal wheels with pale blue hubs, cream book tray carrying two blue-and-cream books, visible hand-drawn screws and cable, a little mounted distance sensor. In front is a short corrugated cardboard ramp, next to it a ruler and two spare fasteners. Robot is the hero, fully visible and in correct proportions, clear enough to recognize at small size. No human figures or hands. Beautiful detailed pencil linework over soft gouache volumes; warm cream and blue shadows, much more crafted than a simple code-drawn icon.",
+      "sourceGeneration": "3a7e3512-bba9-4ffc-81a5-d4665c416939",
+      "original": "originals/creative-engineering.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "digital-products",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Digital product mission cover, no people or hands: a composed illustrated workbench with four paper prototype cards for a book-exchange service, drawn as tangible paper sheets with unlettered blocks and little book illustrations, a pair of cream and blue books, lime sticky notes and charcoal pencil. One paper card is lifted a little to suggest rearranging the order to check availability before exchanging. Intentionally illustrated colored pencil and gouache, pronounced sketch line, cream negative space, pale blue tabletop. No legible screen text or floating UI. Clear single scene about testing a service, not scattered unrelated symbols.",
+      "sourceGeneration": "c8e6f660-41b0-4b51-8b46-5919b32524d4",
+      "original": "originals/digital-products.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "digital-media",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Digital media mission cover, no people: a beautifully illustrated tabletop scene of a small charcoal-and-blue video camera, a microphone with cable, and three small printed illustrated frames showing a blue book being exchanged, a bookshelf and an open book. One frame partly overlaps a lime editing notebook. A pencil indicates work in progress. Physical equipment and storyboard-like pictures, no UI, timelines, arrows, play-button overlay or text. Close three-quarter still life, complete camera and microphone in frame, gently imperfect colored pencil lines and gouache color, tactile paper texture.",
+      "sourceGeneration": "fa705556-32d3-4d23-a11a-8d90fa351e35",
+      "original": "originals/digital-media.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "sociology",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Sociology mission cover, no people, faces or hands: an illustrated research table, small charcoal-and-blue audio recorder, cream open field notebook without text, three overlapping observational pictures drawn in gouache showing empty club chairs and a table at different arrangements, a magnifying glass resting beside two paper notes, lime page tabs. A few clear deliberate tools to compare accounts and evidence. Warm cream background, pale-blue table shadows, attractive uncluttered arrangement, no charts, graphs, mystical symbols or user interface.",
+      "sourceGeneration": "4cf9ab75-b672-4542-9382-46cdcf03b01f",
+      "original": "originals/sociology.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "public-policy",
+      "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Public policy mission cover, no people: an illustrated small community learning center with a cutaway view of two connected rooms, pale-blue desks, a modest shelf of books and electric-lime chairs. In foreground on the same planning table, a plain clipboard and pencil and a few rectangular paper resource slips without text. Wide doorway and clear passage visible. Focus on distributing limited space and shared resources for a community. Professional editorial architectural sketch rendered in textured gouache and charcoal lines, no game pieces, coins or miniature people. Complete model centered with ample space.",
+      "sourceGeneration": "8ae3db5e-8110-4447-94d4-ce67cb5cd61d",
+      "original": "originals/public-policy.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "path-point",
+      "prompt": "Create a single hand-drawn editorial brand emblem on a transparent background for personal learning progress. Square canvas. One small electric-lime ribbon folded into three gently rising broad steps, drawn in tactile gouache with subtle colored-pencil grain and a confident charcoal-black contour, a pale-blue underside visible. Compact sculptural paper shape with clear silhouette, centered, occupies 80% of canvas, no perspective distortion, good legibility at 28 pixels. Style: adult contemporary educational brand, warm cream highlights, electric lime, powder blue and black. Clearly an illustration, not a photograph, not shiny plastic, no realistic hands. The folded ribbon represents a personal path. No letters, text, arrows, stars, laurels, crowns, dice, currency signs, coins, numbers, logos or additional decoration. No background panel, no shadow outside the shape, genuine transparent background.",
+      "sourceGeneration": "caa273b0-f866-43db-90fc-d16258abb9f0",
+      "original": "originals/path-point.png",
+      "widths": [
+        64,
+        128
+      ]
+    }
+  ]
+}

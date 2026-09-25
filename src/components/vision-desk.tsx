@@ -20,6 +20,7 @@ export function VisionDeskQueue({
   initial: Queue;
   candidates: { id: string; name: string }[];
 }) {
+  const [mode, setMode] = useState<"batch" | "events" | null>(null);
   const [config, setConfig] = useState(initial.config),
     [confirm, setConfirm] = useState(false),
     [chosen, setChosen] = useState<string[]>([]),
@@ -36,43 +37,78 @@ export function VisionDeskQueue({
     setPreview(null);
   }
   return (
-    <section className="desk-queue">
-      <div>
-        <p className="eyebrow">Vision Desk</p>
-        <h2>Подготовлено для вас</h2>
-        {initial.runs.length ? (
-          <ul className="desk-prepared">
-            {initial.runs.slice(0, 4).map((r) => (
-              <li key={r.id}>
-                <Link
-                  href={`/admissions/candidates/${r.applicationId}#vision-desk`}
-                >
-                  {r.name}
-                </Link>
-                <span>
-                  {r.status === "COMPLETED"
-                    ? "Подготовка сохранена"
-                    : r.status === "FAILED"
-                      ? "Нужно проверить подготовку"
-                      : "В очереди подготовки"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
+    <section className="desk-queue" aria-label="Vision Desk">
+      <div className="desk-queue-header">
+        <div>
+          <p className="eyebrow">Vision Desk</p>
+          <h2>
+            {initial.runs.length
+              ? "Подготовлено для вас"
+              : "Подготовить материалы"}
+          </h2>
           <p>
-            Выберите заявки ниже или включите подготовку новых событий.
-            Существующие записи не обрабатываются автоматически.
+            Сводка источников и вопросы к интервью. Выберите заявки и проверьте
+            запуск.
           </p>
-        )}
+        </div>
+        <div className="desk-queue-actions">
+          <button
+            className="button secondary"
+            aria-expanded={mode === "batch"}
+            aria-controls="desk-queue-controls"
+            onClick={() => setMode(mode === "batch" ? null : "batch")}
+          >
+            Подготовить заявки
+          </button>
+          <button
+            className="button text"
+            aria-expanded={mode === "events"}
+            aria-controls="desk-queue-controls"
+            onClick={() => setMode(mode === "events" ? null : "events")}
+          >
+            Подготовка по событиям
+          </button>
+        </div>
       </div>
-      <details>
-        <summary>Автоподготовка и выбор заявок</summary>
+      {initial.runs.length > 0 && (
+        <ul className="desk-prepared">
+          {initial.runs.slice(0, 4).map((r) => (
+            <li key={r.id}>
+              <Link
+                href={`/admissions/candidates/${r.applicationId}#vision-desk`}
+              >
+                {r.name}
+              </Link>
+              <span>
+                {r.status === "COMPLETED"
+                  ? "Подготовка сохранена"
+                  : r.status === "FAILED"
+                    ? "Нужно проверить подготовку"
+                    : "В очереди подготовки"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div
+        id="desk-queue-controls"
+        hidden={!mode}
+        className="desk-queue-controls"
+      >
+        <h3>
+          {mode === "batch"
+            ? "Какие заявки подготовить?"
+            : "Когда готовить материалы?"}
+        </h3>
         <p>
-          Шесть разрешённых операций: открыть отправленную заявку, собрать
-          источники, прочитать человеческие заключения, найти рабочие задачи и
-          встречи, сохранить собственные черновики. Сообщения, решения и планы
-          без подтверждения не меняются.
+          {mode === "batch"
+            ? "Выберите до пяти кандидатов в списке ниже. Перед запуском вы увидите число операций и расходы."
+            : "Включите нужные события. Подготовка будет запускаться только для новых событий после сохранения настроек."}
+        </p>
+        <p className="desk-operation-note">
+          Vision Desk читает доступную заявку, источники, заключения, задачи и
+          встречи, затем сохраняет свои черновики. Отправку сообщений и
+          изменение планов подтверждает сотрудник.
         </p>
         <label>
           Способ подготовки
@@ -91,121 +127,131 @@ export function VisionDeskQueue({
             ? "Сводка по сохранённым источникам. Расход на подготовку: 0."
             : `Одна текстовая операция на событие. Общий рабочий лимит ${money(initial.limitMicros)}, дневной ${money(initial.dailyMicros)}. Нужны отдельное согласие кандидата и разрешённые источники.`}
         </p>
-        {(
-          [
-            ["submitted", "Новые отправленные заявки"],
-            ["clarification", "Новый ответ на уточнение"],
-            ["interview", "Назначенное интервью"],
-          ] as const
-        ).map(([k, label]) => (
-          <label className="check-row" key={k}>
-            <input
-              type="checkbox"
-              checked={config[k]}
-              onChange={(e) => setting(k, e.target.checked)}
-            />
-            {label}
-          </label>
-        ))}
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={confirm}
-            onChange={(e) => setConfirm(e.target.checked)}
-          />
-          Подтверждаю перечисленные операции и использование выбранного бюджета
-          для новых событий
-        </label>
-        <button
-          className="button secondary"
-          disabled={!confirm || task.busy}
-          onClick={() =>
-            task.run(async () => {
-              const c = await action<DeskSettings>("desk.settings", {
-                settings: {
-                  provider: config.provider,
-                  submitted: config.submitted,
-                  clarification: config.clarification,
-                  interview: config.interview,
-                },
-                revision: config.revision,
-                confirm,
-              });
-              setConfig(c);
-              setConfirm(false);
-              router.refresh();
-            }, "Настройки новых событий сохранены.")
-          }
-        >
-          Сохранить автоподготовку
-        </button>
-        <h3>Подготовить выбранные заявки</h3>
-        <p>До пяти заявок за один подтверждённый запуск.</p>
-        <div className="desk-batch-list">
-          {candidates.map((c) => (
-            <label className="check-row" key={c.id}>
+        {mode === "events" && (
+          <>
+            {(
+              [
+                ["submitted", "Новые отправленные заявки"],
+                ["clarification", "Новый ответ на уточнение"],
+                ["interview", "Назначенное интервью"],
+              ] as const
+            ).map(([k, label]) => (
+              <label className="check-row" key={k}>
+                <input
+                  type="checkbox"
+                  checked={config[k]}
+                  onChange={(e) => setting(k, e.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+            <label className="check-row">
               <input
                 type="checkbox"
-                checked={chosen.includes(c.id)}
-                disabled={!chosen.includes(c.id) && chosen.length >= 5}
-                onChange={(e) => {
-                  setChosen((x) =>
-                    e.target.checked
-                      ? [...x, c.id]
-                      : x.filter((id) => id !== c.id),
-                  );
-                  setPreview(null);
-                }}
+                checked={confirm}
+                onChange={(e) => setConfirm(e.target.checked)}
               />
-              {c.name}
+              Подтверждаю перечисленные операции и использование выбранного
+              бюджета для новых событий
             </label>
-          ))}
-        </div>
-        <button
-          className="button secondary"
-          disabled={!chosen.length || task.busy}
-          onClick={() =>
-            task.run(async () =>
-              setPreview(
-                await action("desk.batchPreview", {
-                  applicationIds: chosen,
-                  provider: config.provider,
-                }),
-              ),
-            )
-          }
-        >
-          Предпросмотр запуска
-        </button>
-        {preview && (
-          <aside className="notice info">
-            <p>
-              Заявок: {chosen.length}. Операций: {preview.operations}. Верхняя
-              оценка резервирования: {money(preview.estimatedMicros)}. Повтор
-              уже подготовленной версии не создаёт новый запрос.
-            </p>
             <button
-              className="button dark"
-              disabled={task.busy}
+              className="button secondary"
+              disabled={!confirm || task.busy}
               onClick={() =>
                 task.run(async () => {
-                  await action("desk.batch", {
-                    applicationIds: chosen,
-                    provider: config.provider,
-                    signature: preview.signature,
-                    confirm: true,
+                  const c = await action<DeskSettings>("desk.settings", {
+                    settings: {
+                      provider: config.provider,
+                      submitted: config.submitted,
+                      clarification: config.clarification,
+                      interview: config.interview,
+                    },
+                    revision: config.revision,
+                    confirm,
                   });
-                  setPreview(null);
+                  setConfig(c);
+                  setConfirm(false);
                   router.refresh();
-                }, "Подготовка поставлена в очередь.")
+                }, "Настройки новых событий сохранены.")
               }
             >
-              Подтвердить подготовку выбранных
+              Сохранить автоподготовку
             </button>
-          </aside>
+          </>
+        )}
+        {mode === "batch" && (
+          <>
+            <p className="desk-selection-count" aria-live="polite">
+              Выбрано: {chosen.length} из 5
+            </p>
+            <div className="desk-batch-list">
+              {candidates.map((c) => (
+                <label className="check-row" key={c.id}>
+                  <input
+                    type="checkbox"
+                    checked={chosen.includes(c.id)}
+                    disabled={!chosen.includes(c.id) && chosen.length >= 5}
+                    onChange={(e) => {
+                      setChosen((x) =>
+                        e.target.checked
+                          ? [...x, c.id]
+                          : x.filter((id) => id !== c.id),
+                      );
+                      setPreview(null);
+                    }}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+            <button
+              className="button secondary"
+              disabled={!chosen.length || task.busy}
+              onClick={() =>
+                task.run(async () =>
+                  setPreview(
+                    await action("desk.batchPreview", {
+                      applicationIds: chosen,
+                      provider: config.provider,
+                    }),
+                  ),
+                )
+              }
+            >
+              Предпросмотр запуска
+            </button>
+            {preview && (
+              <aside className="notice info">
+                <p>
+                  Заявок: {chosen.length}. Операций: {preview.operations}.
+                  Верхняя оценка резервирования:{" "}
+                  {money(preview.estimatedMicros)}. Повтор уже подготовленной
+                  версии не создаёт новый запрос.
+                </p>
+                <button
+                  className="button dark"
+                  disabled={task.busy}
+                  onClick={() =>
+                    task.run(async () => {
+                      await action("desk.batch", {
+                        applicationIds: chosen,
+                        provider: config.provider,
+                        signature: preview.signature,
+                        confirm: true,
+                      });
+                      setPreview(null);
+                      router.refresh();
+                    }, "Подготовка поставлена в очередь.")
+                  }
+                >
+                  Подтвердить подготовку выбранных
+                </button>
+              </aside>
+            )}
+          </>
         )}
         <Feedback task={task} />
-      </details>
+      </div>
     </section>
   );
 }

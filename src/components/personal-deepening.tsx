@@ -1,4 +1,5 @@
 "use client";
+import { PathPointMark } from "./path-point-mark";
 import { useState } from "react";
 import { action } from "@/lib/client";
 import type { ProfileView } from "@/lib/profile-contract";
@@ -47,6 +48,7 @@ export function PersonalDeepening({
       <summary>
         Дополнительный шаг: объясни свой выбор{" "}
         <span className="path-points">
+          {step?.status !== "SELF_REPORTED" && <PathPointMark />}
           {step?.status === "SELF_REPORTED" ? "Выполнено" : "+5 поинтов"}
         </span>
       </summary>

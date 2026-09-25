@@ -1,9 +1,8 @@
 "use client";
 import { UserAvatar } from "./user-avatar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-
   Search,
   SlidersHorizontal,
   Settings2,
@@ -28,9 +27,11 @@ const nextAction: Record<string, string> = {
 export function AdmissionsQueue({
   applications,
   initialFilters,
+  preparation,
 }: {
   applications: Queue;
   initialFilters: QueueFilters;
+  preparation?: ReactNode;
 }) {
   const [search, setSearch] = useState(initialFilters.search);
   const [program, setProgram] = useState(initialFilters.program);
@@ -71,16 +72,18 @@ export function AdmissionsQueue({
       <div className="page-title">
         <div>
           <h1>Кандидаты</h1>
-          <p>Откройте материалы кандидата и выберите следующий шаг рассмотрения.</p>
+          <p>
+            Откройте материалы кандидата и выберите следующий шаг рассмотрения.
+          </p>
         </div>
-        <Link className="text-link" href="/admissions/workflow">
-          Проверка рабочего процесса
-        </Link>
-        <Link className="button secondary small" href="/settings">
-          <Settings2 size={15} />
-          Настройки рассмотрения
-        </Link>
+        <div className="queue-heading-actions">
+          <Link className="button secondary small" href="/settings">
+            <Settings2 size={15} />
+            Настройки рассмотрения
+          </Link>
+        </div>
       </div>
+      {preparation}
       <div className="queue-tabs" role="group" aria-label="Этап рассмотрения">
         {[
           ["", "Все заявки"],
@@ -434,7 +437,6 @@ export function AdmissionsQueue({
                     href={candidateHref(a.id)}
                   >
                     {nextAction[a.stage]}
-
                   </Link>
                 </td>
               </tr>

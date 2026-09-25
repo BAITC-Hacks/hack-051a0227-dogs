@@ -2,6 +2,7 @@ import Link from "next/link";
 import { programs } from "@/lib/catalog";
 import { missions } from "@/lib/missions";
 import { MissionVisual } from "@/components/mission-visual";
+import { InvisionIllustration } from "@/components/invision-illustration";
 export default function Home() {
   return (
     <div className="home">
@@ -28,9 +29,9 @@ export default function Home() {
           </p>
         </div>
         <figure className="mission-hero-art">
-          <MissionVisual slug="creative-engineering" hero />
+          <InvisionIllustration asset="project-studio" hero />
           <figcaption>
-            Собрать робота, проверить маршрут, пересмотреть решение.
+            Пространство для идей, проб и собственных проектов.
           </figcaption>
         </figure>
       </section>
@@ -62,24 +63,28 @@ export default function Home() {
         </div>
       </section>
       <section className="wrap mission-process">
-        <h2>Попробуй. Сопоставь. Выбери продолжение.</h2>
-        <p>
-          После работы ты получишь разбор по условиям задачи и связь с
-          программой. Эти авторские упражнения знакомят с деятельностью и не
-          являются закрытым вступительным тестом.
-        </p>
-        <p>
-          Работы и рекомендации доступны в «Моём пути». Комиссия получит только
-          ту версию, которую ты отдельно разрешишь передать. Мастерские не
-          обязательны для поступления.
-        </p>
-        <div className="hero-actions">
-          <Link href="/my" className="button dark">
-            Открыть мой путь
-          </Link>
-          <Link href="/apply" className="text-link">
-            Подать заявку без мастерских
-          </Link>
+        <div>
+          <p className="eyebrow">После практики</p>
+          <h2>Работа остаётся с тобой. Выбери, как продолжить.</h2>
+        </div>
+        <div className="mission-process-copy">
+          <p>
+            В «Моём пути» ты найдёшь сохранённые версии, разбор по условиям
+            задачи и связь с программой. Можно доработать проект или попробовать
+            другое направление.
+          </p>
+          <p>
+            Мастерские добровольные. В заявку попадёт только та версия, которую
+            ты отдельно разрешишь передать.
+          </p>
+          <div className="hero-actions">
+            <Link href="/my" className="button dark">
+              Открыть мой путь
+            </Link>
+            <Link href="/apply" className="text-link">
+              Подать заявку без мастерских
+            </Link>
+          </div>
         </div>
       </section>
     </div>

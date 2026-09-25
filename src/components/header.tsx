@@ -34,7 +34,10 @@ export function Header({ user }: { user: SafeUser | null }) {
           className="brand"
           aria-label="inVision U, главная"
         >
-          inVision<span>U</span>
+          inVision
+          <span className="brand-u">
+            <span>U</span>
+          </span>
           <span className="brand-product">AI Leader ID</span>
         </Link>
         <nav aria-label={staff ? "Навигация комиссии" : "Основная навигация"}>
@@ -99,11 +102,66 @@ export function Header({ user }: { user: SafeUser | null }) {
 export function Footer() {
   return (
     <footer className="site-footer">
-      <Link href="/" className="wordmark">
-        inVision U
-      </Link>
-      <span>Попробуй задачи. Выбери направление.</span>
-      <Link href="/admissions">Приёмная комиссия</Link>
+      <div className="footer-main">
+        <div className="footer-identity">
+          <Link href="/" className="brand" aria-label="inVision U, главная">
+            inVision
+            <span className="brand-u">
+              <span>U</span>
+            </span>
+          </Link>
+          <p>AI Leader ID</p>
+          <p>Практика, проекты и твой следующий шаг.</p>
+        </div>
+        <nav aria-label="Университет">
+          <h2>inVision U</h2>
+          <a
+            href="https://www.invisionu.education/ru"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Сайт университета
+          </a>
+          <a
+            href="https://www.invisionu.education/ru/foundation"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Foundation
+          </a>
+          <a
+            href="https://www.invisionu.education/ru/undergraduate"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Бакалавриат
+          </a>
+        </nav>
+        <nav aria-label="Связаться с университетом">
+          <h2>Связаться с университетом</h2>
+          <a href="mailto:info@invisionu.education">info@invisionu.education</a>
+          <a href="tel:+77710707370">+7 771 070 73 70</a>
+          <a
+            href="https://www.invisionu.education/contacts"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Контакты и адрес
+          </a>
+        </nav>
+      </div>
+      <div className="footer-bottom">
+        <span>© inVision U · AI Leader ID</span>
+        <a
+          href="https://cdn.prod.website-files.com/6798ba0f2cbf12d58d36f439/67e5344eb13914f196a1e1cb_Privacy%20Policy%20inVision%20University_ru.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Конфиденциальность inVision U{" "}
+          <span className="footer-file-type">PDF</span>
+        </a>
+        <Link href="/admissions">Приёмная комиссия</Link>
+      </div>
     </footer>
   );
 }

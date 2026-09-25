@@ -1,4 +1,5 @@
 "use client";
+import { PathPointMark } from "./path-point-mark";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -377,6 +378,7 @@ export function MyPath({
                   <div className="hub-block-heading">
                     <h2>Личный прогресс</h2>
                     <span className="path-points">
+                      <PathPointMark />
                       {data.progress.total} поинтов
                     </span>
                   </div>
@@ -535,13 +537,18 @@ export function MyPath({
           <section className="hub-block">
             <div className="hub-block-heading">
               <h3>Прогресс по работам</h3>
-              <span className="path-points">{data.progress.total} поинтов</span>
+              <span className="path-points">
+                <PathPointMark />
+                {data.progress.total} поинтов
+              </span>
             </div>
             {data.progress.awards.length ? (
               <ul className="progress-evidence">
                 {data.progress.awards.map((a) => (
                   <li key={a.key}>
-                    <span className="path-points">+{a.points}</span>
+                    <span className="path-points">
+                      <PathPointMark />+{a.points}
+                    </span>
                     <div>
                       <Link className="text-link" href={a.href}>
                         {a.title}
