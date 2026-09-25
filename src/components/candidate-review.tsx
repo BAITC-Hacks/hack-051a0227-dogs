@@ -1,4 +1,5 @@
 "use client";
+import { DeskChatLauncher } from "./desk-chat";
 import { UserAvatar } from "./user-avatar";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -21,9 +22,6 @@ import { EpisodeNotes, MergeEpisodes } from "./episode-notes";
 import { submissionIssues } from "@/lib/validation";
 import { ScoringPanel } from "./scoring-panel";
 import type { ScoringResult } from "@/lib/scoring-contract";
-import { InteractiveProfile } from "./interactive-profile";
-import { VisionDesk } from "./vision-desk";
-import type { DeskResult } from "@/lib/vision-desk-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 const subscribeHash = (listener: () => void) => {
   window.addEventListener("hashchange", listener);
@@ -50,9 +48,6 @@ export function CandidateReview({
   audio: AudioState;
   returnHref?: string;
 }) {
-  const [deskDraft, setDeskDraft] = useState<DeskResult["feedback"] | null>(
-    null,
-  );
   const [sourceId, setSourceId] = useState("");
   const [tab, setTab] = useState("profile");
   const hash = useSyncExternalStore(
@@ -128,7 +123,8 @@ export function CandidateReview({
       <div className="page-title">
         <div>
           <div className="row" style={{ marginBottom: 10 }}>
-            <UserAvatar user={a.user} size={52} /><h1 style={{ margin: 0 }}>{a.user.name}</h1>
+            <UserAvatar user={a.user} size={52} />
+            <h1 style={{ margin: 0 }}>{a.user.name}</h1>
             <Tag tone={a.stage === "CLARIFICATION" ? "warning" : "blue"}>
               {stageLabels[a.stage]}
             </Tag>
@@ -138,10 +134,17 @@ export function CandidateReview({
             {a.submittedAt ? dateLabel(a.submittedAt) : ""}
           </p>
         </div>
-        <details className="candidate-contact">
-          <summary>Контакт</summary>
-          <p>{a.user.email}</p>
-        </details>
+        <div className="queue-heading-actions">
+          <DeskChatLauncher
+            compact
+            applicationIds={[a.id]}
+            names={[a.user.name]}
+          />
+          <details className="candidate-contact">
+            <summary>Контакт</summary>
+            <p>{a.user.email}</p>
+          </details>
+        </div>
       </div>
       <div className="tabs" role="tablist" aria-label="Рассмотрение кандидата">
         {[
@@ -185,25 +188,6 @@ export function CandidateReview({
         className={`review-layout ${source ? "has-source" : "source-closed"}`}
       >
         <div className="review-main">
-          <VisionDesk
-            applicationId={a.id}
-            onSource={openSource}
-            onFeedback={(feedback) => {
-              setDeskDraft(feedback);
-              setTab("decision");
-            }}
-          />
-          {mainTab === "profile" && (
-            <InteractiveProfile
-              scope={{ applicationId: a.id }}
-              title="AI-профиль · объяснить оценку и изменения"
-              initialTopic="assessment"
-              onFeedback={(runId, result) => {
-                setScoringDraft({ result, runId });
-                setTab("decision");
-              }}
-            />
-          )}
           {mainTab === "profile" && (
             <ScoringPanel
               applicationId={a.id}
@@ -632,11 +616,7 @@ export function CandidateReview({
             </details>
           )}
           {mainTab === "decision" && (
-            <ReviewDecision
-              application={a}
-              scoringDraft={scoringDraft}
-              deskDraft={deskDraft}
-            />
+            <ReviewDecision application={a} scoringDraft={scoringDraft} />
           )}
           {tab === "sources" && (
             <section>

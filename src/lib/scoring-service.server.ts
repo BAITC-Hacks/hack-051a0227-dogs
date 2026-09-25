@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { AppError, assertApplication } from "./security";
 import { scoringInput, scoringCriteria, digest } from "./scoring-input.server";
+import { collectProfile } from "./profile-context.server";
 import {
   validateScoringResult,
   scoringResultSchema,
@@ -89,9 +90,11 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
       try {
         scope(app.origin, r.scenarioVersion, r.provider);
         const ownInput = r.input as unknown as ScoringInput;
-        if (digest(ownInput) !== r.inputHash) throw new Error("INPUT_HASH_MISMATCH");
+        if (digest(ownInput) !== r.inputHash)
+          throw new Error("INPUT_HASH_MISMATCH");
         if (r.result) validateScoringResult(r.result, ownInput);
-        for (const review of r.reviews) validateScoringResult(review.result, ownInput, true);
+        for (const review of r.reviews)
+          validateScoringResult(review.result, ownInput, true);
       } catch {
         allowed = false;
       }
@@ -152,8 +155,14 @@ export async function processScoringRun(runId: string) {
     const input = run.input as unknown as ScoringInput;
     if (digest(input) !== run.inputHash) throw new Error("INPUT_HASH_MISMATCH");
     scope(run.application.origin, run.scenarioVersion, run.provider);
-    let prepared: { inputHash: string; scenarioVersion: string; result: unknown } | null =
-      run.context === "AUDIT" || run.provider !== "local" || run.scenarioVersion === "structured-fields-v1"
+    let prepared: {
+      inputHash: string;
+      scenarioVersion: string;
+      result: unknown;
+    } | null =
+      run.context === "AUDIT" ||
+      run.provider !== "local" ||
+      run.scenarioVersion === "structured-fields-v1"
         ? null
         : await db.scoringFixture.findUnique({
             where: {
@@ -166,7 +175,8 @@ export async function processScoringRun(runId: string) {
     if (run.context === "AUDIT") {
       const { preparedTwinResponse } = await import("./twin-service.server");
       prepared = preparedTwinResponse(run);
-    } else if (run.auditId || run.variant) throw new Error("INVALID_RUN_CONTEXT");
+    } else if (run.auditId || run.variant)
+      throw new Error("INVALID_RUN_CONTEXT");
     if (
       run.provider === "local" &&
       run.scenarioVersion !== "structured-fields-v1" &&
@@ -220,6 +230,19 @@ export async function scoringAction(
   const applicationId = id.parse(b.applicationId);
   await assertApplication(applicationId, user);
   if (type === "scoring.status") return scoringView(applicationId);
+  if (type === "scoring.evidence") {
+    const view = await scoringView(applicationId);
+    const run = view.runs.find((r) => r.id === id.parse(b.runId));
+    const result = run?.reviews[0]?.result ?? run?.result;
+    const evidence = result?.evidence.find(
+      (e) => e.id === id.parse(b.evidenceId),
+    );
+    if (!evidence) throw new AppError("Основание недоступно.", 404);
+    const context = await collectProfile(user, { applicationId });
+    if (!context.sources.some((s) => s.key === `source:${evidence.sourceId}`))
+      throw new AppError("Источник удалён или больше недоступен.", 404);
+    return evidence;
+  }
   return db.$transaction(
     async (tx) => {
       const app = await lock(tx, applicationId);

@@ -626,6 +626,33 @@ test(
           assert.equal(failed.errorCode, "EXTERNAL_TRANSPORT_DISABLED");
         },
       );
+      await t.test(
+        "основание повторно проверяет роль, заявку и доступность исходного материала",
+        async () => {
+          const view: ScoringView = await staff.call("scoring.status", {
+            applicationId: appIds[1],
+          });
+          const saved = view.runs.find((r) => r.result?.evidence.length)!;
+          const e = saved.result!.evidence[0];
+          const request = {
+            applicationId: appIds[1],
+            runId: saved.id,
+            evidenceId: e.id,
+          };
+          assert.equal(
+            (await staff.call("scoring.evidence", request)).quote,
+            e.quote,
+          );
+          await users[1].call("scoring.evidence", request, 403);
+          await staff.call(
+            "scoring.evidence",
+            { ...request, applicationId: appIds[2] },
+            404,
+          );
+          await db.source.delete({ where: { id: e.sourceId } });
+          await staff.call("scoring.evidence", request, 404);
+        },
+      );
     } finally {
       for (const id of appIds)
         await db.application.update({ where: { id }, data: { origin: "QA" } });

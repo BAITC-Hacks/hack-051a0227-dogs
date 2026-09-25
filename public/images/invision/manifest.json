@@ -3,6 +3,27 @@
   "origin": "Built-in image_gen, generated editorial illustrations. No photographs of actual students. Generated once during development; never at page load.",
   "assets": [
     {
+      "name": "university-welcome",
+      "prompt": "Create a wide landscape 1536x1024 editorial hand-drawn illustration for the background of the inVision U applicant portal homepage. Fictional diverse young adult illustrated characters in the same mature manga-influenced ink-and-gouache portrait style as a modern university's character avatars: expressive ink outlines, gentle painted shading, cream paper texture, natural proportions, NOT photorealism, not 3D, not children. Scene: welcoming contemporary university project commons, a young adult with a portfolio discussing a small paper service prototype with two peers; another sitting on steps with a sketchbook. Warm cream architecture, a tall pale blue window, restrained electric lime clothing and stationery, charcoal details. NO ROBOT. Composition for website BACKGROUND: left 55 percent is very quiet open warm cream wall and light paper texture with minimal detail so large HTML title and buttons will be readable. Main small group, broad architectural steps and project table inhabit rightmost 40 percent and lower right, comfortably inset with no cut-off heads. Draw an integrated continuous environment, not a separate framed picture, not portrait cards, no border. Soft cream edges. Sophisticated, welcoming, airy, useful narrative of preparing a project for university, no literal application forms. No text, no arrows, no logos, no charts, no interface elements, no watermarks.",
+      "sourceGeneration": "0eda2751-c81c-4852-ab35-1205d06a5bdb",
+      "original": "originals/university-welcome.png",
+      "widths": [
+        480,
+        960,
+        1536
+      ]
+    },
+    {
+      "name": "path-coin",
+      "prompt": "A single isolated illustrated university progress coin, front facing circular medallion with very slight thickness on the lower right edge, centered. Electric lime enamel main face, dark charcoal double rim, a clear bold uppercase black letter U centered perfectly inside the circle, small pale blue highlight on rim. Mature hand drawn ink and flat gouache style on paper, clean silhouette and restrained shading, same editorial character as inVision U cream lime and pale blue university illustrations. It must be immediately recognizable as a coin at 28px. U occupies 60% of face, absolutely no other letters, symbols, swirls, ribbons, stars, faces or text. No gold, no cryptocurrency associations, no gradients, no glossy 3D render. Transparent background with alpha, no square backdrop, no environment. Generous even transparent margin of 10 percent around coin, high quality crisp clean illustration.",
+      "sourceGeneration": "881623ff-1992-4dd1-82de-eb82454fef56",
+      "original": "originals/path-coin.png",
+      "widths": [
+        64,
+        128
+      ]
+    },
+    {
       "name": "project-studio",
       "prompt": "High-quality editorial illustration with tactile gouache and colored-pencil texture, confident charcoal-black outlines of varied weight, simplified sculptural shapes, warm cream background, electric lime accents, pale powder blue planes, off-white paper and warm neutral wood. Contemporary adult educational brand inVision U, thoughtful clean composition, expressive but not childish. Clearly drawn and illustrated, NEVER photographic or photorealistic, no photographic people, no polished stock 3D render, no SVG-flat icon look. Rich hand-made details and slight print grain. No text, lettering, numbers, logo, arrows, flowchart lines, interface overlays or watermark. Landscape 3:2, preserve generous cream margins and keep essential objects fully visible.  Homepage hero scene representing exploration of several educational directions, WITHOUT ANY ROBOT, machine character or human figures. An inviting contemporary learning studio seen from a wide three-quarter angle. A broad pale-blue communal project table in foreground with an open cream sketchbook, three thoughtfully arranged paper studies with abstract unlettered shapes, an electric-lime notebook, a charcoal pencil, a small simple blue camera resting to one side. Background has cream bookshelves, a large warm daylight window, lime and pale-blue chairs around another shared table, a plant. Open doorway connects a second collaborative space, suggesting paths to explore without signs, arrows or a maze. Beautiful tactile hand-drawn gouache illustration, strongly visible pencil line and dry-brush texture, soft geometric color planes, cream and blue light. Keep the composition restrained with breathing room. The workspace as a whole is the subject, not one discipline or a collage of five objects. No people, photographic material or robot anywhere. All furniture and important foreground objects comfortably within frame, no embedded typography. This is an invented educational space, not an actual university building.",
       "sourceGeneration": "153f8190-94ab-4884-8bb1-34dcfb702122",

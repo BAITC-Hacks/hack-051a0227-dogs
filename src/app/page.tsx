@@ -2,38 +2,36 @@ import Link from "next/link";
 import { programs } from "@/lib/catalog";
 import { missions } from "@/lib/missions";
 import { MissionVisual } from "@/components/mission-visual";
-import { InvisionIllustration } from "@/components/invision-illustration";
 export default function Home() {
   return (
     <div className="home">
-      <section className="hero wrap mission-hero">
-        <div className="hero-copy">
-          <h1>
-            Найди своё направление в{" "}
-            <span className="lime-mark">inVision U</span>
-          </h1>
-          <p className="hero-intro">
-            Попробуй задачи пяти программ. Получи рекомендации: что изучить
-            подробнее, какие навыки потренировать и как продолжить поступление.
-          </p>
-          <div className="hero-actions">
-            <Link href="#projects" className="button primary large">
-              Начать
-            </Link>
-            <Link href="/apply" className="button secondary large">
-              Подать заявку
-            </Link>
+      <section className="home-welcome">
+        <div className="welcome-art" aria-hidden="true" />
+        <div className="hero wrap mission-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">Твой путь в университет</p>
+            <h1>
+              Найди своё направление в{" "}
+              <span className="lime-mark">inVision U</span>
+            </h1>
+            <p className="hero-intro">
+              Попробуй задачи пяти программ. Получи рекомендации: что изучить
+              подробнее, какие навыки потренировать и как продолжить
+              поступление.
+            </p>
+            <div className="hero-actions">
+              <Link href="#projects" className="button primary large">
+                Начать
+              </Link>
+              <Link href="/apply" className="button secondary large">
+                Подать заявку
+              </Link>
+            </div>
+            <p className="subtle">
+              Начни без аккаунта. Выбери одну задачу или попробуй несколько.
+            </p>
           </div>
-          <p className="subtle">
-            Начни без аккаунта. Выбери одну задачу или попробуй несколько.
-          </p>
         </div>
-        <figure className="mission-hero-art">
-          <InvisionIllustration asset="project-studio" hero />
-          <figcaption>
-            Пространство для идей, проб и собственных проектов.
-          </figcaption>
-        </figure>
       </section>
       <section className="wrap mission-selection" id="projects">
         <div className="section-heading">

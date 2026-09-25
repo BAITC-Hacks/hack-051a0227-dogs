@@ -1,6 +1,7 @@
 "use client";
+import { DeskChatLauncher } from "./desk-chat";
 import { UserAvatar } from "./user-avatar";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -27,11 +28,9 @@ const nextAction: Record<string, string> = {
 export function AdmissionsQueue({
   applications,
   initialFilters,
-  preparation,
 }: {
   applications: Queue;
   initialFilters: QueueFilters;
-  preparation?: ReactNode;
 }) {
   const [search, setSearch] = useState(initialFilters.search);
   const [program, setProgram] = useState(initialFilters.program);
@@ -77,13 +76,16 @@ export function AdmissionsQueue({
           </p>
         </div>
         <div className="queue-heading-actions">
+          <DeskChatLauncher
+            applicationIds={selected}
+            names={pick.map((a) => a.user.name)}
+          />
           <Link className="button secondary small" href="/settings">
             <Settings2 size={15} />
             Настройки рассмотрения
           </Link>
         </div>
       </div>
-      {preparation}
       <div className="queue-tabs" role="group" aria-label="Этап рассмотрения">
         {[
           ["", "Все заявки"],
@@ -158,7 +160,9 @@ export function AdmissionsQueue({
       </div>
       <div className="row between" style={{ marginBottom: 14 }}>
         <span className="subtle">
-          {filtered.length} из {applications.length} заявок
+          {selected.length
+            ? `Выбрано ${selected.length} из 4. Сравните основания или задайте вопрос Vision Desk.`
+            : `${filtered.length} из ${applications.length} заявок. Выберите 2–4 для сравнения оснований.`}
         </span>
         <button
           className="button secondary small"
@@ -173,9 +177,11 @@ export function AdmissionsQueue({
       </div>
       {compare && (
         <section className="compare-panel">
-          <h2>Одни показатели, разные истории</h2>
+          <h2>Сравнение оснований</h2>
           <p className="subtle" style={{ margin: "10px 0 20px" }}>
-            Сопоставление без общего балла и автоматического ранжирования.
+            Сверьте одинаковые области: где есть подтверждённая сотрудником
+            интерпретация, а где ещё нужны сведения. Нажмите «Открыть основания
+            и шкалу», чтобы проверить материал.
           </p>
           <h3>AI-скоринг · предварительные оценки</h3>
           {new Set(
@@ -342,7 +348,7 @@ export function AdmissionsQueue({
                     type="checkbox"
                     aria-label={"Сравнить: " + a.user.name}
                     checked={selected.includes(a.id)}
-                    disabled={selected.length >= 3 && !selected.includes(a.id)}
+                    disabled={selected.length >= 4 && !selected.includes(a.id)}
                     onChange={(e) =>
                       setSelected((s) =>
                         e.target.checked

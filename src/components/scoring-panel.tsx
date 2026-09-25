@@ -9,6 +9,7 @@ import {
   type ScoringView,
 } from "@/lib/scoring-contract";
 import { sections, woundedBoundary } from "@/lib/review-contract";
+import { ScoringEvidence } from "./scoring-evidence";
 import { Feedback, Tag, useTask } from "./ui";
 
 export function ScoringPanel({
@@ -274,15 +275,26 @@ function ScoringResultPanel({
         </strong>
         <p>{shown.recommendation.reason}</p>
         <div className="source-buttons">
-          {shown.recommendation.sourceIds.map((id) => (
-            <button
-              key={id}
-              className="source-button"
-              onClick={() => onSource(id)}
-            >
-              Открыть основание
-            </button>
-          ))}
+          {shown.recommendation.sourceIds.map((id) => {
+            const evidence = shown.evidence.find((e) => e.sourceId === id);
+            return evidence ? (
+              <ScoringEvidence
+                key={id}
+                evidence={evidence}
+                applicationId={applicationId}
+                runId={run.id}
+                onSource={onSource}
+              />
+            ) : (
+              <button
+                key={id}
+                className="source-button"
+                onClick={() => onSource(id)}
+              >
+                Открыть материал
+              </button>
+            );
+          })}
         </div>
       </div>
       <details className="scoring-scale">
@@ -386,14 +398,12 @@ function ScoringResultPanel({
               const e = shown.evidence.find((e) => e.id === id)!;
               return (
                 <div className="scoring-evidence" key={id}>
-                  <blockquote>«{e.quote}»</blockquote>
-                  <p>{e.explanation}</p>
-                  <button
-                    className="text-link"
-                    onClick={() => onSource(e.sourceId)}
-                  >
-                    Открыть источник рядом
-                  </button>
+                  <ScoringEvidence
+                    evidence={e}
+                    applicationId={applicationId}
+                    runId={run.id}
+                    onSource={onSource}
+                  />
                   {editing && (
                     <button className="button quiet" onClick={() => reject(id)}>
                       Отклонить основание
@@ -427,8 +437,8 @@ function ScoringResultPanel({
           ))}
         </div>
       ))}
-      <section className="review-section">
-        <h3>Вопросы для интервью</h3>
+      <details className="review-detail">
+        <summary>Вопросы для интервью · {shown.questions.length}</summary>
         <p>Дополнительные вопросы сохраняют пять обязательных секций ATOLA.</p>
         {shown.questions.map((q) => (
           <div className="scoring-question" key={q.id}>
@@ -453,7 +463,7 @@ function ScoringResultPanel({
             плане интервью.
           </p>
         )}
-      </section>
+      </details>
       <section className="review-section" id="scoring-human-review">
         <h3>Человеческая проверка</h3>
         <p>

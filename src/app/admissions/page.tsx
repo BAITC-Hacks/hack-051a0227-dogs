@@ -3,8 +3,6 @@ import { queueData } from "@/lib/data";
 import { AuthForm } from "@/components/auth-form";
 import { AdmissionsQueue } from "@/components/admissions-queue";
 import { queueFilters } from "@/lib/queue-location";
-import { deskQueue } from "@/lib/vision-desk.server";
-import { VisionDeskQueue } from "@/components/vision-desk";
 export default async function Admissions({
   searchParams,
 }: {
@@ -19,15 +17,6 @@ export default async function Admissions({
       key={JSON.stringify(initialFilters)}
       initialFilters={initialFilters}
       applications={applications}
-      preparation={
-        <VisionDeskQueue
-          initial={await deskQueue(u)}
-          candidates={applications.map((a) => ({
-            id: a.id,
-            name: a.user.name,
-          }))}
-        />
-      }
     />
   );
 }

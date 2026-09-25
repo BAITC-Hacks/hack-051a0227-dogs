@@ -44,6 +44,7 @@ import {
 import { saveApplicationMessage } from "@/lib/application-messages.server";
 import { treeAction } from "@/lib/development-tree.server";
 import { visionAction } from "@/lib/vision-service.server";
+import { deskChatAction } from "@/lib/desk-chat.server";
 import { saveResource } from "@/lib/learning-resources.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
@@ -62,6 +63,8 @@ export async function POST(req: Request) {
       result = await visionAction(type, b, await guestActor());
     } else if (type === "desk.consent") {
       result = await deskConsent(await requireUser(), b);
+    } else if (type.startsWith("desk.chat")) {
+      result = await deskChatAction(type, b, await requireStaff());
     } else if (type.startsWith("desk.")) {
       result = await deskAction(type, b, await requireStaff());
       if (["desk.prepare", "desk.retry"].includes(type))
