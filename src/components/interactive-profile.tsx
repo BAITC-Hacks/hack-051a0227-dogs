@@ -26,12 +26,16 @@ export function InteractiveProfile({
   initialTopic,
   onFeedback,
   compact: _compact = false,
+  initialOpen = false,
+  initialQuestion = "",
 }: {
   scope?: ProfileScope;
   title?: string;
   initialTopic?: ProfileTopic;
   onFeedback?: (runId: string, result: ScoringResult) => void;
   compact?: boolean;
+  initialOpen?: boolean;
+  initialQuestion?: string;
 }) {
   const [streamStatus, setStreamStatus] = useState(""),
     [planConfirm, setPlanConfirm] = useState("");
@@ -41,9 +45,9 @@ export function InteractiveProfile({
   const streamAbort = useRef<AbortController | null>(null);
   useEffect(() => () => streamAbort.current?.abort(), []);
   const [showHistory, setShowHistory] = useState(false);
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(initialOpen),
     [view, setView] = useState<ProfileView | null>(null);
-  const [question, setQuestion] = useState(""),
+  const [question, setQuestion] = useState(initialQuestion),
     [source, setSource] = useState<ProfileSource | null>(null);
   const [selected, setSelected] = useState(""),
     [domain, setDomain] = useState<ProfileScope["domain"]>(
@@ -75,6 +79,29 @@ export function InteractiveProfile({
     ...(domain ? { domain } : {}),
   };
   const scopeText = JSON.stringify(activeScope);
+  const [openingError, setOpeningError] = useState("");
+  useEffect(() => {
+    if (!initialOpen) return;
+    let cancelled = false;
+    action<ProfileView>("profile.load", { scope: JSON.parse(scopeText) })
+      .then((v) => {
+        if (!cancelled) {
+          receive(v);
+          setWorkOptions(v.works);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setOpeningError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось открыть диалог.",
+          );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialOpen, scopeText, receive]);
   async function load() {
     const v = await action<ProfileView>("profile.load", { scope: activeScope });
     receive(v);
@@ -251,6 +278,11 @@ export function InteractiveProfile({
       </button>
       {open && (
         <div className="profile-body">
+          {openingError && (
+            <p role="alert" className="notice error">
+              {openingError}
+            </p>
+          )}
           <p className="profile-boundary">
             {scope.applicationId
               ? "Ответы по доступным материалам заявки. Предложение системы, человеческая проверка и публикация разделены."

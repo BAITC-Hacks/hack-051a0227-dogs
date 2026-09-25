@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-09-25",
+  "tool": "image_gen.imagegen",
+  "calls": 2,
+  "reference": "User-supplied dashboard: ChatGPT Image 25 сент. 2026 г., 18_19_13.png",
+  "purpose": "Static decorative assets for the HTML candidate overview. Fictional character, not a real university student. No runtime image generation.",
+  "assets": [
+    {
+      "id": "student",
+      "source": "student-source.png",
+      "optimized": [
+        "student-320.webp",
+        "student-640.webp"
+      ],
+      "prompt": "Create a single isolated raster illustration ASSET for the existing inVision U student dashboard. Reference image shows the precise desired style, especially the woman in the TOP RIGHT blue banner and bottom right blue banner. Generate that same style of fictional young adult female student, short wavy black bob, warm medium skin, friendly thoughtful upward glance to the right, black short sleeve shirt, bright electric lime backpack and straps. Waist-up side/three-quarter portrait, clean mature hand-drawn editorial comic illustration, delicate textured ink outlines, flat natural colors, not photorealistic, not 3D, not childish. Copy closely the visual proportions, hairstyle and palette of the banner character, NOT the circular profile avatar. Entire hair/head, both shoulders and backpack visible, cropped at waist only. Character fills frame, centered. TRANSPARENT background with actual alpha, no blue rectangle, no badge, no text, no UI, no letters, no arrows, no surrounding objects. Output ONE character asset only, not a dashboard mockup. This is a fictional branded character, not a real university student.",
+      "optimization": "Resized with existing Sharp; WebP with alpha. Original PNG preserved."
+    },
+    {
+      "id": "checklist",
+      "source": "checklist-source.png",
+      "optimized": [
+        "checklist-320.webp",
+        "checklist-640.webp"
+      ],
+      "prompt": "Create a single isolated raster illustration asset for the inVision U dashboard. Use the attached dashboard as precise STYLE reference, specifically the checklist illustration at lower right of the light-lime interview preparation card. Output only that object, NOT the interface. A crisp slightly hand-drawn white paper checklist in three-quarter perspective, tilted clockwise about 12 degrees, thin bold near-black outline, pale lime second sheet behind, three electric lime circular checkmarks with black ticks and short medium-gray placeholder strokes next to each (not actual text). A few tiny lime emphasis strokes around upper edge. Mature clean editorial product illustration, subtle paper texture, cream white, black, lime palette. Composition fills square canvas with generous transparent margins, whole object visible. Actual TRANSPARENT alpha background, no white or colored rectangle, no drop shadow cloud, no letters, no words, no numbers, no UI, no character, no logo. Match the reference's restrained linework and shape; not 3D, not photorealistic.",
+      "optimization": "Resized with existing Sharp; WebP with alpha. Original PNG preserved."
+    }
+  ]
+}
