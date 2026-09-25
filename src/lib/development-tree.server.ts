@@ -1,4 +1,6 @@
 import "server-only";
+import { programFor, programs } from "./catalog";
+import { collectProfile } from "./profile-context.server";
 import { randomUUID } from "node:crypto";
 import type { User, Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -8,6 +10,7 @@ import { resourceCatalog, json } from "./learning-resources.server";
 import {
   treeNodes,
   treeVersion,
+  treeEvidenceVersion,
   treeStateSchema,
   nodeEvidence,
   type TreeState,
@@ -35,7 +38,7 @@ function resources(c: ResourceCatalog, nodeId: string) {
 }
 export async function treeView(user: User | null) {
   if (user?.role === "STAFF") privateOwner(user);
-  const [catalog, steps, works] = await Promise.all([
+  const [catalog, steps, works, application] = await Promise.all([
     resourceCatalog(),
     user
       ? db.developmentStep.findMany({
@@ -50,7 +53,18 @@ export async function treeView(user: User | null) {
           orderBy: { updatedAt: "desc" },
         })
       : [],
+    user
+      ? db.application.findUnique({
+          where: { userId: user.id },
+          select: { programSlug: true },
+        })
+      : null,
   ]);
+  const preferred =
+    application?.programSlug ||
+    user?.interests.find((slug) => programFor(slug)) ||
+    works[0]?.slug ||
+    "digital-products";
   const nodes = treeNodes.map((n) => {
     const row = steps.find(
       (s) => s.treeNode === n.id && s.treeConfig === treeVersion,
@@ -143,20 +157,51 @@ export async function treeView(user: User | null) {
             older: evidence.revision !== w!.revision,
           }
         : null,
-      basis: failed
-        ? `В сохранённой версии ${w!.revision}: ${failed.label}. ${failed.detail}`
-        : suggested
-          ? `У тебя есть работа этого направления — версия ${suggested.revision}. Можно разобрать выбранный аспект.`
-          : "Этот шаг знакомит с действием в доступной учебной задаче. Предварительные результаты о тебе не предполагаются.",
+      basis: evidence
+        ? `Условие этой практики выполнено в сохранённой версии ${evidence.revision} твоей работы.`
+        : failed
+          ? `В сохранённой версии ${w!.revision}: ${failed.label}. ${failed.detail}`
+          : w
+            ? `К практике прикреплена твоя работа версии ${w.revision}. Проверь условия шага и сохрани результат.`
+            : suggested
+              ? `У тебя есть работа этого направления — версия ${suggested.revision}. Можно разобрать выбранный аспект.`
+              : "Этот шаг знакомит с действием в доступной учебной задаче. Предварительные результаты о тебе не предполагаются.",
     };
   });
   const active = nodes
     .filter((n) => n.step && !n.step.state.skipped)
     .sort((a, b) => b.step!.updatedAt.localeCompare(a.step!.updatedAt));
+  const preferredNodes = nodes.filter((n) => n.slug === preferred);
+  const next =
+    active.find((n) => !n.evidence && n.slug === preferred) ??
+    preferredNodes.find((n) => !n.evidence) ??
+    preferredNodes[0] ??
+    nodes[0];
+  const publicContext = user ? await collectProfile(user, {}) : null;
   return {
     configVersion: treeVersion,
+    evidenceVersion: treeEvidenceVersion,
+    programSlug: preferred,
+    programBasis: application?.programSlug
+      ? "Направление из твоей заявки"
+      : user?.interests.length
+        ? "Твой сохранённый интерес"
+        : works.length
+          ? "Направление последней работы"
+          : "Можно выбрать любое направление",
+    programs: programs.map((p) => ({ slug: p.slug, title: p.shortTitle })),
+    publications:
+      publicContext?.sources
+        .filter((s) => s.group === "publication")
+        .map((s) => ({
+          key: s.key,
+          title: s.title,
+          text: s.text,
+          href: s.href,
+          version: s.version,
+        })) ?? [],
     nodes,
-    currentId: active.find((n) => !n.evidence)?.id ?? active[0]?.id ?? "frame",
+    currentId: next.id,
     lastChange: active[0]?.step?.updatedAt ?? null,
   };
 }
@@ -188,6 +233,7 @@ export async function treeAction(
         { id: sourceId, text },
       ])),
       configVersion: treeVersion,
+      evidenceVersion: treeEvidenceVersion,
       resource: n.resource
         ? {
             url: n.resource.url,

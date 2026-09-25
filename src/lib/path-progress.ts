@@ -1,7 +1,13 @@
+import {
+  nodeEvidence,
+  treeNodes,
+  treeVersion,
+  treeStateSchema,
+} from "./development-tree";
 import { programFor } from "./catalog";
 import { versionCompleted, workHref, type Work } from "./journey";
 import type { DevelopmentRecommendation } from "./profile-contract";
-export const pathProgressRule = "personal-path-v1";
+export const pathProgressRule = "personal-path-v2";
 export const deepeningPrompts: Record<string, string> = {
   "digital-products":
     "Какой шаг маршрута ты изменил и зачем? Назови другой порядок и ситуацию, в которой он удобнее для пользователя.",
@@ -31,6 +37,9 @@ export function pathProgress(
     recommendation: unknown;
     selfCompletedAt: Date | null;
     note: string;
+    treeNode?: string | null;
+    treeConfig?: string | null;
+    treeState?: unknown;
   }[],
 ) {
   const awards: PathAward[] = [];
@@ -110,6 +119,28 @@ export function pathProgress(
           source.revision,
         );
     }
+  }
+  for (const step of steps) {
+    if (
+      step.treeConfig !== treeVersion ||
+      !step.treeNode ||
+      step.treeNode === "context"
+    )
+      continue;
+    const state = treeStateSchema.safeParse(step.treeState),
+      node = treeNodes.find((n) => n.id === step.treeNode);
+    if (!state.success || !node) continue;
+    const work = works.find((w) => w.id === state.data.attemptId);
+    const evidence = work && nodeEvidence(node, work);
+    if (work && evidence)
+      add(
+        `practice:${node.id}`,
+        5,
+        node.title,
+        "Сохранён результат выбранной практики.",
+        work,
+        evidence.revision,
+      );
   }
   return {
     total: awards.reduce((sum, a) => sum + a.points, 0),

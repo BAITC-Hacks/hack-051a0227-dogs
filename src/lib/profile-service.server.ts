@@ -1,4 +1,5 @@
 import "server-only";
+import { learningPolicy } from "./learning-context";
 import { visionCapability } from "./vision-context.server";
 import { visionConsentSchema } from "./vision-contract";
 import {
@@ -42,6 +43,16 @@ import { planSchema } from "./review-contract";
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 const id = z.string().min(1).max(120);
+function visionReadable(row: StoredAnswer, user: User) {
+  if (row.provider !== "openai-vision") return true;
+  const consent = visionConsentSchema.safeParse(user.visionConsent).data;
+  if (consent?.granted) return true;
+  if (consent && consent.revision > 0) return false;
+  return (
+    (row.metadata as { dataPolicy?: string } | null)?.dataPolicy ===
+    learningPolicy
+  );
+}
 function readable(row: StoredAnswer, c: ProfileContext) {
   const parsed = profileAnswerSchema.safeParse(row.answer);
   return (
@@ -92,12 +103,7 @@ async function ownAnswer(user: User, c: ProfileContext, answerId: string) {
       scopeKey: c.scopeKey,
     },
   });
-  if (
-    !row ||
-    (row.provider === "openai-vision" &&
-      !visionConsentSchema.safeParse(user.visionConsent).data?.granted) ||
-    !readable(row, c)
-  )
+  if (!row || !visionReadable(row, user) || !readable(row, c))
     throw new AppError("Ответ или его основания больше недоступны.", 404);
   return row;
 }
@@ -118,8 +124,7 @@ export async function profileView(
     take: 12,
   });
   const interrupted =
-    c.audience === "CANDIDATE" &&
-    visionConsentSchema.safeParse(user.visionConsent).data?.granted
+    c.audience === "CANDIDATE"
       ? await db.profileAnswer.findFirst({
           where: {
             userId: user.id,
@@ -156,12 +161,12 @@ export async function profileView(
     })),
     draftQuestion:
       interrupted &&
+      visionReadable(interrupted, user) &&
       (!history[0] || interrupted.createdAt > history[0].createdAt)
         ? (interrupted.request as { question: string }).question
         : undefined,
     history: history.map((r) =>
-      r.provider === "openai-vision" &&
-      !visionConsentSchema.safeParse(user.visionConsent).data?.granted
+      !visionReadable(r, user)
         ? {
             id: r.id,
             question: "Содержание недоступно",

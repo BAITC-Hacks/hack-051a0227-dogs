@@ -1,16 +1,7 @@
 "use client";
 import { useState } from "react";
-import {
-  ArrowUp,
-  ArrowDown,
-
-  Play,
-  Plug,
-  Monitor,
-  Armchair,
-  Table2,
-  Plus,
-} from "lucide-react";
+import { SortableSequence } from "./sortable-sequence";
+import { Play, Plug, Monitor, Armchair, Table2, Plus } from "lucide-react";
 import { screenNames, fragments, modules, testimonies } from "@/lib/projects";
 import type { ProjectState } from "@/lib/types";
 type BaseProps = {
@@ -30,48 +21,23 @@ const moduleIcons = {
   screen: Monitor,
 };
 
-export function ProductWorkspace({ state, update, reorder }: SortProps) {
+export function ProductWorkspace({ state, update }: SortProps) {
   const [preview, setPreview] = useState(false);
   const [phoneStep, setPhoneStep] = useState(0);
   const [choice, setChoice] = useState("");
   const currentScreen = state.screens[phoneStep];
-  const move: SortProps["reorder"] = (key, i, direction) => {
-    reorder(key, i, direction);
-    setPhoneStep(0);
-  };
   return (
     <div className="editor-grid">
       <div>
         <h3>Последовательность экранов</h3>
-        <p className="subtle" style={{ margin: "10px 0 18px" }}>
-          Используй стрелки, чтобы изменить порядок.
-        </p>
-        <div className="sequence">
-          {state.screens.map((s, i) => (
-            <div className="sequence-item" key={s}>
-              <span className="sequence-index">{i + 1}</span>
-              <span className="sequence-title">{screenNames[s]}</span>
-              <div className="move-controls">
-                <button
-                  className="icon-button"
-                  disabled={i === 0}
-                  onClick={() => move("screens", i, -1)}
-                  aria-label={`Поднять ${screenNames[s]}`}
-                >
-                  <ArrowUp size={15} />
-                </button>
-                <button
-                  className="icon-button"
-                  disabled={i === 2}
-                  onClick={() => move("screens", i, 1)}
-                  aria-label={`Опустить ${screenNames[s]}`}
-                >
-                  <ArrowDown size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <SortableSequence
+          items={state.screens.map((id) => ({ id, label: screenNames[id] }))}
+          value={state.screens}
+          onChange={(value) => {
+            update("screens", value as ProjectState["screens"]);
+            setPhoneStep(0);
+          }}
+        />
         <label className="check-label" style={{ marginTop: 22 }}>
           <input
             type="checkbox"
@@ -141,7 +107,6 @@ export function ProductWorkspace({ state, update, reorder }: SortProps) {
             }}
           >
             {phoneStep === 2 ? "Завершить просмотр" : "Продолжить"}
-
           </button>
         )}
         {preview && currentScreen === "profile" && state.requiredPhone && (
@@ -154,9 +119,8 @@ export function ProductWorkspace({ state, update, reorder }: SortProps) {
   );
 }
 
-export function MediaWorkspace({ state, update, reorder }: SortProps) {
+export function MediaWorkspace({ state, update }: SortProps) {
   const [preview, setPreview] = useState(false);
-  const move = reorder;
   return (
     <>
       <div className="media-strip">
@@ -178,31 +142,16 @@ export function MediaWorkspace({ state, update, reorder }: SortProps) {
           </div>
         ))}
       </div>
-      <div className="sequence">
-        {state.fragments.map((f, i) => (
-          <div className="sequence-item" key={f}>
-            <span className="sequence-title">{fragments[f].title}</span>
-            <div className="move-controls">
-              <button
-                className="icon-button"
-                disabled={i === 0}
-                onClick={() => move("fragments", i, -1)}
-                aria-label={`Поднять фрагмент ${i + 1}`}
-              >
-                <ArrowUp size={15} />
-              </button>
-              <button
-                className="icon-button"
-                disabled={i === state.fragments.length - 1}
-                onClick={() => move("fragments", i, 1)}
-                aria-label={`Опустить фрагмент ${i + 1}`}
-              >
-                <ArrowDown size={15} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      <SortableSequence
+        items={state.fragments.map((id) => ({
+          id,
+          label: fragments[id].title,
+        }))}
+        value={state.fragments}
+        onChange={(value) =>
+          update("fragments", value as ProjectState["fragments"])
+        }
+      />
       <label className="check-label" style={{ margin: "16px 0" }}>
         <input
           type="checkbox"

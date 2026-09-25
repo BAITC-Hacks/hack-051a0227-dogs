@@ -59,8 +59,15 @@ export async function myData() {
       },
     }),
     db.developmentStep.findMany({
-      where: { userId: u.id, treeNode: null },
-      select: { recommendation: true, selfCompletedAt: true, note: true },
+      where: { userId: u.id },
+      select: {
+        recommendation: true,
+        selfCompletedAt: true,
+        note: true,
+        treeNode: true,
+        treeConfig: true,
+        treeState: true,
+      },
     }),
   ]);
   return {

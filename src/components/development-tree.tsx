@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { action, dateLabel } from "@/lib/client";
 import {
   branches,
@@ -12,6 +13,10 @@ import { drive } from "@/lib/profile-contract";
 import { programFor } from "@/lib/catalog";
 import { resourceTypes } from "@/lib/learning-resources";
 import type { TreeView, TreeNodeView } from "@/lib/development-tree.server";
+import { SkillMark } from "./skill-mark";
+import { PathPointMark } from "./path-point-mark";
+import { PersonalDevelopmentPlan } from "./interactive-profile";
+import { Check, Circle, CircleDot } from "lucide-react";
 import { Feedback, useTask } from "./ui";
 export function DevelopmentTree({
   initial,
@@ -24,150 +29,253 @@ export function DevelopmentTree({
   full?: boolean;
   selectedId?: string;
 }) {
+  const router = useRouter();
   const [view, setView] = useState(initial);
   const [selected, setSelected] = useState(selectedId ?? initial.currentId);
+  const [program, setProgram] = useState(
+    initial.nodes.find((n) => n.id === selectedId)?.slug ?? initial.programSlug,
+  );
   const heading = useRef<HTMLHeadingElement>(null);
-  const node = view.nodes.find((n) => n.id === selected) ?? view.nodes[0];
+  const queryNode = useSearchParams().get("node");
+  useEffect(() => {
+    const target = initial.nodes.find((n) => n.id === queryNode);
+    if (!target) return;
+    const frame = requestAnimationFrame(() => {
+      setSelected(target.id);
+      setProgram(target.slug);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [queryNode, initial.nodes]);
+
+  const visible = view.nodes.filter((n) => n.slug === program);
+  const node = visible.find((n) => n.id === selected) ?? visible[0];
+  const availableBranches = branches.filter((b) =>
+    visible.some((n) => n.branch === b.id),
+  );
+  const [showAll, setShowAll] = useState(true);
+  const done = visible.filter((n) => n.evidence).length;
   async function reload() {
-    const v = await action<TreeView>("tree.view");
-    setView(v);
+    setView(await action<TreeView>("tree.view"));
+    router.refresh();
   }
-  if (!full) {
-    const current = view.nodes.find((n) => n.id === view.currentId)!;
+  function choose(id: string) {
+    setSelected(id);
+    window.history.replaceState(null, "", treeHref(id));
+  }
+  if (!full)
     return (
-      <section className="tree-summary" aria-label="Дерево развития">
+      <section className="tree-summary">
         <div>
-          <p className="eyebrow">Личная практика</p>
-          <h2>{current.step ? current.title : "Дерево развития"}</h2>
-          <p>
-            {current.step
-              ? `${treeStatus[current.status]}. ${current.purpose}`
-              : "Пять веток по реальным работам. Выбери материал, попробуй принцип и сохрани результат."}
-          </p>
-          {view.lastChange && (
-            <p>Последнее действие · {dateLabel(view.lastChange)}</p>
-          )}
+          <p className="eyebrow">Древо навыков</p>
+          <h2>{node.title}</h2>
+          <p>{node.purpose}</p>
         </div>
-        <Link className="button secondary" href={treeHref(current.id)}>
-          {current.step ? "Продолжить личный шаг" : "Выбрать практику"}
+        <Link className="button secondary" href={treeHref(node.id)}>
+          Открыть практику
         </Link>
       </section>
     );
-  }
   return (
-    <div className="development-tree">
+    <div className="development-tree skills-layout">
       {!embedded && (
         <Link className="text-link" href="/my">
           Мой путь
         </Link>
       )}
-      <header className="tree-heading">
-        <p className="eyebrow">Личный маршрут</p>
-        {embedded ? (
-          <h2>Развитие через работу</h2>
-        ) : (
-          <h1>Развитие через работу</h1>
+      <section className="skills-map-panel">
+        <header className="skills-heading">
+          <div>
+            <h2>Древо навыков</h2>
+            <p>Выбери навык, выполни практику и сохрани результат.</p>
+          </div>
+          <details>
+            <summary>Как это работает</summary>
+            <p>
+              Ветки связаны с учебными задачами выбранного направления. Отметки
+              подтверждают выполненные действия, а не уровень владения навыком.
+              Рекомендации комиссии появляются после публикации.
+            </p>
+          </details>
+        </header>
+        <div className="skills-program">
+          <label>
+            Направление
+            <select
+              value={program}
+              onChange={(e) => {
+                setProgram(e.target.value);
+                const n =
+                  view.nodes.find(
+                    (n) => n.slug === e.target.value && !n.evidence,
+                  ) ?? view.nodes.find((n) => n.slug === e.target.value)!;
+                choose(n.id);
+              }}
+            >
+              {view.programs.map((p) => (
+                <option key={p.slug} value={p.slug}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <strong>
+              {done} из {visible.length}
+            </strong>
+            <span>практик с результатом</span>
+          </div>
+        </div>
+        <p className="subtle">
+          {program === view.programSlug
+            ? view.programBasis
+            : "Ты просматриваешь другое направление. Программа заявки сохраняется."}
+        </p>
+        <div className="skill-branch-tabs" aria-label="Ветки навыков">
+          <button
+            type="button"
+            aria-pressed={showAll}
+            onClick={() => setShowAll(true)}
+          >
+            Все навыки
+          </button>
+          {availableBranches.map((b) => (
+            <button
+              type="button"
+              key={b.id}
+              aria-pressed={!showAll && node.branch === b.id}
+              onClick={() => {
+                setShowAll(false);
+                choose(
+                  visible.find((n) => n.branch === b.id && !n.evidence)?.id ??
+                    visible.find((n) => n.branch === b.id)!.id,
+                );
+              }}
+            >
+              <SkillMark branch={b.id} />
+              <span>{b.title}</span>
+            </button>
+          ))}
+        </div>
+        <div className="skill-tree-map">
+          {availableBranches
+            .filter((b) => showAll || b.id === node.branch)
+            .map((branch) => (
+              <section className="skill-tree-branch" key={branch.id}>
+                <div className="skill-branch-heading">
+                  <SkillMark branch={branch.id} />
+                  <div>
+                    <h3>{branch.title}</h3>
+                    <p>{branch.intro}</p>
+                  </div>
+                </div>
+                <ol className="skill-path">
+                  {visible
+                    .filter((n) => n.branch === branch.id)
+                    .map((n, index) => (
+                      <li key={n.id} className={n.evidence ? "complete" : ""}>
+                        <span className="skill-path-step">
+                          {index === 0
+                            ? "Основа"
+                            : n.id === "context"
+                              ? "Новый контекст"
+                              : "Практика"}
+                        </span>
+                        <button
+                          id={`skill-node-${n.id}`}
+                          className={`skill-node ${n.id === node.id ? "selected" : ""}`}
+                          aria-pressed={n.id === node.id}
+                          onClick={() => {
+                            choose(n.id);
+                            requestAnimationFrame(() => {
+                              heading.current?.focus({ preventScroll: true });
+                              if (
+                                window.matchMedia("(max-width:1180px)").matches
+                              )
+                                heading.current?.scrollIntoView({
+                                  block: "start",
+                                  behavior: "instant",
+                                });
+                            });
+                          }}
+                        >
+                          <span className="skill-node-state">
+                            {n.evidence ? (
+                              <Check size={18} />
+                            ) : n.step ? (
+                              <CircleDot size={18} />
+                            ) : (
+                              <Circle size={18} />
+                            )}{" "}
+                            {n.evidence
+                              ? "Выполнено"
+                              : n.step
+                                ? "В работе"
+                                : "Можно начать"}
+                          </span>
+                          <strong>{n.title}</strong>
+                          <span className="path-points">
+                            <PathPointMark />
+                            {n.evidence
+                              ? "Результат сохранён"
+                              : "+5 за практику"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                </ol>
+              </section>
+            ))}
+        </div>
+        <p className="skills-legend">
+          <Check size={16} /> Выполнено <CircleDot size={16} /> В работе{" "}
+          <Circle size={16} /> Доступно
+        </p>
+        {!!view.publications.length && (
+          <section className="skills-publication">
+            <p className="eyebrow">Опубликовано комиссией</p>
+            <h3>Продолжение по твоей заявке</h3>
+            <p>Разбери рекомендацию и сохрани личную подготовку.</p>
+            <Link
+              className="text-link"
+              href="/my?view=university#published-feedback"
+            >
+              Открыть обратную связь
+            </Link>
+            <PersonalDevelopmentPlan
+              feedbackId={view.publications[0].key.replace("publication:", "")}
+            />
+          </section>
         )}
-        <p>
-          Выбери то, что хочется попробовать. Материал помогает разобраться,
-          практика оставляет результат.
-        </p>
-        <p className="tree-boundary">
-          Это виды практики, а не шкалы личности. Они не влияют на поступление.{" "}
-          <Link href="/apply" className="text-link">
-            Перейти к заявке
-          </Link>
-        </p>
-      </header>
-      <label className="tree-mobile-choice">
-        Ветка практики
-        <select
-          value={node.branch}
-          onChange={(e) => {
-            const next = view.nodes.find((n) => n.branch === e.target.value)!;
-            setSelected(next.id);
-            window.history.replaceState(null, "", treeHref(next.id));
+      </section>
+      <aside className="skills-detail">
+        <button
+          className="text-link skills-back"
+          onClick={() => {
+            const item = document.getElementById(`skill-node-${node.id}`);
+            item?.focus({ preventScroll: true });
+            item?.scrollIntoView({ block: "center", behavior: "instant" });
           }}
         >
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <a className="text-link tree-jump" href="#selected-practice">
-        Открыть выбранный шаг: {node.title}
-      </a>
-      <div className="tree-map" aria-label="Пять веток практики">
-        {branches.map((b, index) => (
-          <section
-            key={b.id}
-            className={`tree-branch ${b.id === node.branch ? "current-branch" : ""}`}
-          >
-            <header>
-              <span aria-hidden="true">0{index + 1}</span>
-              <h2>{b.title}</h2>
-              <p>{b.intro}</p>
-            </header>
-            <ol>
-              {view.nodes
-                .filter((n) => n.branch === b.id)
-                .map((n) => (
-                  <li key={n.id}>
-                    <button
-                      type="button"
-                      className={`tree-node ${n.id === node.id ? "selected" : ""}`}
-                      aria-pressed={n.id === node.id}
-                      onClick={() => {
-                        setSelected(n.id);
-                        window.history.replaceState(null, "", treeHref(n.id));
-                        requestAnimationFrame(() => heading.current?.focus());
-                      }}
-                    >
-                      <span>{n.title}</span>
-                      <small>
-                        {n.step?.state.skipped
-                          ? "Отложено · можно вернуться"
-                          : treeStatus[n.status]}
-                      </small>
-                    </button>
-                  </li>
-                ))}
-            </ol>
-          </section>
-        ))}
-      </div>
-      <h2
-        id="selected-practice"
-        className="tree-panel-title"
-        tabIndex={-1}
-        ref={heading}
-      >
-        {node.title}
-      </h2>
-      <NodePanel
-        key={`${node.id}:${node.resource?.version}:${node.work?.revision}`}
-        node={node}
-        reload={reload}
-      />
-      <details className="tree-method">
-        <summary>Как устроен маршрут и кто видит прогресс</summary>
-        <p>
-          Работы, чтение и личные заметки доступны только тебе. Передача версии
-          в заявку по-прежнему требует отдельного подтверждения. Просмотр не
-          измеряет навык; «изучено» — твоя отметка. Практика определяется
-          сохранёнными действиями в упражнении.
-        </p>
-        <p>
-          Связь упражнений с программами и D.R.I.V.E. — наша конфигурация{" "}
-          {view.configVersion}. Это не официальная формула университета. Разница
-          версий не доказывает обучаемость.
-        </p>
-      </details>
+          К дереву навыков
+        </button>
+        <h2
+          id="selected-practice"
+          className="tree-panel-title"
+          tabIndex={-1}
+          ref={heading}
+        >
+          {node.title}
+        </h2>
+        <NodePanel
+          key={`${node.id}:${node.resource?.version}:${node.work?.revision}`}
+          node={node}
+          reload={reload}
+        />
+      </aside>
     </div>
   );
 }
+
 function NodePanel({
   node: n,
   reload,
@@ -248,7 +356,8 @@ function NodePanel({
         <p>
           {n.id === "context"
             ? "Нужен сохранённый результат сервиса: из него создаётся отдельная задача бронирования."
-            : n.previous
+            : n.previous &&
+                treeNodes.find((x) => x.id === n.previous)?.slug === n.slug
               ? `Перед этим можно попробовать «${treeNodes.find((x) => x.id === n.previous)?.title}». Если уже знакомо — начни сразу с практики.`
               : "Предварительная подготовка не нужна. Материал можно прочитать до или после практики."}
         </p>
@@ -329,16 +438,24 @@ function NodePanel({
             <Link className="text-link" href={n.evidence.href}>
               Открыть версии и сравнение
             </Link>
-            {treeNodes.find((x) => x.previous === n.id) && (
+            {treeNodes.find(
+              (x) => x.previous === n.id && x.slug === n.slug,
+            ) && (
               <p>
                 Можно продолжить:{" "}
                 <Link
                   className="text-link"
                   href={treeHref(
-                    treeNodes.find((x) => x.previous === n.id)!.id,
+                    treeNodes.find(
+                      (x) => x.previous === n.id && x.slug === n.slug,
+                    )!.id,
                   )}
                 >
-                  {treeNodes.find((x) => x.previous === n.id)!.title}
+                  {
+                    treeNodes.find(
+                      (x) => x.previous === n.id && x.slug === n.slug,
+                    )!.title
+                  }
                 </Link>
               </p>
             )}
@@ -354,7 +471,7 @@ function NodePanel({
         <p>{n.drive.map((k) => `${k} — ${drive[k].title}`).join(" · ")}</p>
       </div>
       <div className="tree-resource">
-        <p className="eyebrow">Материал для этого шага</p>
+        <p className="eyebrow">Что почитать и изучить</p>
         {n.resource ? (
           <>
             <p>

@@ -1,4 +1,5 @@
 import "server-only";
+import { learningFacts } from "./learning-context";
 import { resourceCatalog } from "./learning-resources.server";
 import type { User } from "@prisma/client";
 import { db } from "./db";
@@ -177,6 +178,20 @@ export async function collectProfile(
             text,
             "work",
             "Авторская учебная работа и проверка условий",
+            {
+              kind: "Учебное упражнение",
+              href: workHref(w, v.revision),
+              current: v.revision === w.revision,
+            },
+          ),
+        );
+        add(
+          profileSource(
+            `learning:${v.id}`,
+            `${workTitle(w, p.action)} · версия ${v.revision}`,
+            learningFacts(w.slug, v.state, v.revision, versionCompleted(w, v)),
+            "work",
+            "Структурированные действия учебной практики",
             {
               kind: "Учебное упражнение",
               href: workHref(w, v.revision),

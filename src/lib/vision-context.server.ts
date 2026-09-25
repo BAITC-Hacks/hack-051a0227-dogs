@@ -1,4 +1,5 @@
 import "server-only";
+import { learningPolicy } from "./learning-context";
 import type { User } from "@prisma/client";
 import { db } from "./db";
 import { AppError } from "./security";
@@ -45,7 +46,27 @@ export async function visionContext(
       "Подтверди передачу выбранного учебного контекста Vision.",
       403,
     );
+  if (
+    !requireConsent &&
+    consent.success &&
+    !consent.data.granted &&
+    consent.data.revision > 0
+  )
+    throw new AppError("Диалог остановлен настройками доступа.", 403);
   const c = await collectProfile(fresh, scope);
+  c.works = c.works.map((w) => ({
+    ...w,
+    sourceKey: `learning:${w.versionId}`,
+    beforeKey: w.beforeKey?.replace("work:", "learning:"),
+  }));
+  c.works = c.works.map((w) => ({
+    ...w,
+    feedback: {
+      ...w.feedback,
+      summary: c.sources.find((s) => s.key === w.sourceKey)?.text ?? "",
+      checks: [],
+    },
+  }));
   const work = c.works[0];
   const keys = [
     work?.sourceKey,
@@ -57,12 +78,12 @@ export async function visionContext(
   const sources = c.sources
     .filter(
       (s) =>
-        keys.includes(s.key) ||
-        s.group === "resource" ||
-        (s.group === "publication" &&
-          (!scope.attemptId || !!scope.feedbackId)) ||
-        (s.key.startsWith("personal-plan:") &&
-          s.dependencies.some((d) => keys.includes(d.key))),
+        (s.group === "program" ||
+          s.group === "resource" ||
+          s.key.startsWith("learning:")) &&
+        (keys.includes(s.key) ||
+          s.group === "resource" ||
+          (!work && s.group === "program")),
     )
     .sort(
       (a, b) => Number(a.group === "resource") - Number(b.group === "resource"),
@@ -70,6 +91,16 @@ export async function visionContext(
     .slice(0, 12)
     .map((s) => ({ ...s, text: s.text.slice(0, 8000) }));
   const recommendations = developmentRecommendations(c)
+    .map((r) => {
+      const source = c.sources.find((s) => s.key === r.source.key);
+      return {
+        ...r,
+        basis: source?.text ?? "Учебная практика",
+        source: source
+          ? { key: source.key, version: source.version, quote: source.text }
+          : r.source,
+      };
+    })
     .filter((r) => sources.some((s) => s.key === r.source.key))
     .slice(0, 4);
   const actions = [
@@ -92,11 +123,12 @@ export async function visionContext(
   const revision = consent.success ? consent.data.revision : 0;
   const hash = digest({
     version: visionVersion,
+    dataPolicy: learningPolicy,
     scope,
     sources,
     work,
     recommendations,
-    consentRevision: revision,
+    consentRevision: requireConsent ? revision : 0,
   });
   return {
     c,
@@ -105,7 +137,7 @@ export async function visionContext(
     recommendations,
     actions,
     hash,
-    consentRevision: revision,
+    consentRevision: requireConsent ? revision : 0,
   };
 }
 export type VisionContext = Awaited<ReturnType<typeof visionContext>>;

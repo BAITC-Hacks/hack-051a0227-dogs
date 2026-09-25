@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { SortableSequence } from "./sortable-sequence";
 import {
   equipmentNames,
   equipmentHints,
@@ -31,42 +31,17 @@ export function EquipmentWorkspace({
     occupied =
       (device === "camera" && hour === "16") ||
       (device === "recorder" && hour === "17");
-  const move = (i: number, d: number) => {
-    const screens = [...s.screens];
-    [screens[i], screens[i + d]] = [screens[i + d], screens[i]];
-    setState({ ...s, screens });
-    setTesting(false);
-  };
   return (
     <div className="equipment-workspace">
       <h3>Маршрут бронирования</h3>
-      <ol className="screen-order">
-        {s.screens.map((k, i) => (
-          <li key={k}>
-            <span>
-              {i + 1}. {equipmentNames[k]}
-            </span>
-            <div className="row">
-              <button
-                className="icon-button"
-                disabled={i === 0}
-                aria-label={`${equipmentNames[k]}: выше`}
-                onClick={() => move(i, -1)}
-              >
-                <ArrowUp size={17} />
-              </button>
-              <button
-                className="icon-button"
-                disabled={i === 3}
-                aria-label={`${equipmentNames[k]}: ниже`}
-                onClick={() => move(i, 1)}
-              >
-                <ArrowDown size={17} />
-              </button>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <SortableSequence
+        items={s.screens.map((k) => ({ id: k, label: equipmentNames[k] }))}
+        value={s.screens}
+        onChange={(screens) => {
+          setState({ ...s, screens: screens as EquipmentState["screens"] });
+          setTesting(false);
+        }}
+      />
       <label className="check-label">
         <input
           type="checkbox"
@@ -108,8 +83,8 @@ export function EquipmentWorkspace({
       <section className="booking-simulator">
         <h3>Пройди путь посетителя</h3>
         <p>
-          У посетителя есть почта, но нет телефона. Бронь здесь является частью учебного
-          упражнения.
+          У посетителя есть почта, но нет телефона. Бронь здесь является частью
+          учебного упражнения.
         </p>
         <button
           className="button secondary"

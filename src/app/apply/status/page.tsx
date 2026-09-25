@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {   FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { myData } from "@/lib/data";
 import { stageLabels, programFor } from "@/lib/catalog";
 import type { ApplicationFields } from "@/lib/types";
@@ -8,8 +8,6 @@ import { dateLabel } from "@/lib/client";
 import { Messages } from "@/components/messages";
 import { Tag } from "@/components/ui";
 import { PublishedFeedback } from "@/components/published-feedback";
-import { DeskConsent } from "@/components/desk-consent";
-import { CorrectionForm } from "@/components/correction-form";
 export default async function Status() {
   const data = await myData();
   if (!data || data.user.role === "GUEST")
@@ -65,7 +63,6 @@ export default async function Status() {
             )}
           </section>
           <PublishedFeedback application={app} />
-          <DeskConsent applicationId={app.id} initial={app.deskConsent} sources={app.sources.map(s=>({id:s.id,title:s.title,kind:s.kind}))} />
           <section id="messages">
             <h2>Переписка с комиссией</h2>
             <Messages
@@ -103,7 +100,6 @@ export default async function Status() {
                 >
                   <FileText size={16} />
                   <span>{m.name}</span>
-
                 </a>
               ))}
             </div>
@@ -124,7 +120,6 @@ export default async function Status() {
                       {c.explanation} · {dateLabel(c.createdAt)}
                     </div>
                   ))}
-                  <CorrectionForm sourceId={s.id} />
                 </details>
               ))}
           </section>

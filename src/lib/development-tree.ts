@@ -6,30 +6,31 @@ import type { Slug } from "./catalog";
 import type { drive } from "./profile-contract";
 
 export const treeVersion = "practice-tree-v1";
+export const treeEvidenceVersion = "practice-evidence-v2";
 export const branches = [
   {
     id: "understand",
-    title: "Понимать задачу",
+    title: "Анализ задачи",
     intro: "Раздели вопрос, сведения и ограничения.",
   },
   {
     id: "people",
-    title: "Работать с людьми",
+    title: "Работа с людьми",
     intro: "Выслушай, договорись и распредели работу.",
   },
   {
     id: "ideas",
-    title: "Проверять идеи",
+    title: "Проверка гипотез",
     intro: "Сделай предположение проверяемым.",
   },
   {
     id: "decide",
-    title: "Принимать решения",
+    title: "Принятие решений",
     intro: "Сравни последствия и пересмотри выбор.",
   },
   {
     id: "finish",
-    title: "Доводить работу до результата",
+    title: "Доведение до результата",
     intro: "Сохрани артефакт и проверь его условия.",
   },
 ] as const;
@@ -172,8 +173,8 @@ export const treeNodes: TreeNode[] = [
     "ideas",
     "Проверить исходный маршрут",
     "Получить конкретную обратную связь о решении.",
-    "В миссии сервиса запусти проверку исходного решения. Прочитай, какие условия выполнены.",
-    "Сохранён результат исходной проверки. Неудачный результат тоже является проведённой проверкой.",
+    "В миссии сервиса опиши наблюдение для проверки и запусти проверку исходного решения. Сохрани результат.",
+    "Сохранены описание проверки от 30 символов и результат её запуска. Неудачный результат тоже учитывается.",
     "digital-products",
     ["R"],
     "lean",
@@ -321,7 +322,11 @@ export function nodeEvidence(n: TreeNode, w: Work): AttemptVersion | undefined {
           m.conversations.some((c) => c.phase === "UPDATED") &&
           pass("План команды")
         );
-      if (n.id === "test") return m.tests.some((t) => t.phase === "INITIAL");
+      if (n.id === "test")
+        return m.tests.some(
+          (t) =>
+            t.phase === "INITIAL" && t.plan.verification.trim().length >= 30,
+        );
       if (n.id === "constraints")
         return m.tests.some(
           (t) =>

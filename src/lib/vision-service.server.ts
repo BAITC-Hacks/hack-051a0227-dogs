@@ -1,4 +1,5 @@
 import "server-only";
+import { learningPolicy, learningQuestion } from "./learning-context";
 import { Prisma, type User } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
@@ -33,7 +34,7 @@ export async function visionAsk(
   assertSession?: () => Promise<void>,
 ) {
   const v = visionRequestSchema.parse(raw);
-  const c = await visionContext(user, v.scope);
+  const c = await visionContext(user, v.scope, false);
   await rateLimit("vision:" + user.id, 25);
   const prior = v.previousId
     ? await db.profileAnswer.findFirst({
@@ -50,13 +51,18 @@ export async function visionAsk(
   if (prior) {
     const a = profileAnswerSchema.safeParse(prior.answer);
     if (
+      (prior.metadata as { dataPolicy?: string }).dataPolicy ===
+        learningPolicy &&
       a.success &&
       a.data.dependencies.every((d) =>
         c.sources.some((s) => s.key === d.key && s.version === d.version),
       )
     )
       previous = {
-        question: (prior.request as { question: string }).question,
+        question: learningQuestion(
+          (prior.request as { question: string }).question,
+          [user.name, user.email ?? ""],
+        ),
         answer: a.data.text,
         claims: a.data.claims,
       };
@@ -94,6 +100,7 @@ export async function visionAsk(
           scope: v.scope,
           contextHash: c.hash,
           consentRevision: c.consentRevision,
+          dataPolicy: learningPolicy,
         }),
       },
     });
@@ -105,7 +112,7 @@ export async function visionAsk(
   const authorize = async () => {
     signal.throwIfAborted();
     await assertSession?.();
-    const fresh = await visionContext(user, v.scope);
+    const fresh = await visionContext(user, v.scope, false);
     if (fresh.hash !== c.hash)
       throw new AppError(
         "Работа или разрешение изменились. Повтори вопрос по актуальной версии.",
@@ -115,9 +122,12 @@ export async function visionAsk(
   try {
     const result = await run({
       context: c,
-      question: v.question,
+      question: learningQuestion(v.question, [
+        user.name ?? "",
+        user.email ?? "",
+      ]),
       previous,
-      operation: v.operation,
+      operation: "text",
       requestKey: v.requestKey,
       signal,
       authorize,
@@ -150,6 +160,7 @@ export async function visionAsk(
           scope: v.scope,
           contextHash: c.hash,
           consentRevision: c.consentRevision,
+          dataPolicy: learningPolicy,
           model: result.model,
           operations: result.operations,
           proposal,
@@ -167,6 +178,7 @@ export async function visionAsk(
           scope: v.scope,
           contextHash: c.hash,
           consentRevision: c.consentRevision,
+          dataPolicy: learningPolicy,
           error: visionError(e),
         }),
       },
@@ -227,7 +239,7 @@ export async function visionAction(
     if (!p || b.confirm !== true || p.digest !== b.digest || p.key !== b.key)
       throw new AppError("Подтверди точное предложение.", 409);
     const scope = profileScopeSchema.parse(meta.scope),
-      c = await visionContext(user, scope);
+      c = await visionContext(user, scope, false);
     if (p.applied) return { saved: true };
     if (meta.contextHash !== c.hash || Date.parse(p.expiresAt) < Date.now())
       throw new AppError(
@@ -243,7 +255,7 @@ export async function visionAction(
       });
       if ((stored.metadata as typeof meta).proposal?.applied)
         return { saved: true };
-      const fresh = await visionContext(user, scope);
+      const fresh = await visionContext(user, scope, false);
       if (fresh.hash !== c.hash)
         throw new AppError("Материалы изменились.", 409);
       const step = await tx.developmentStep.upsert({

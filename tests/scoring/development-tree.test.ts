@@ -259,6 +259,9 @@ test("Две ветки, приватность, версии каталога �
             .filter((n) => n.branch === "people")
             .every((n) => n.evidence?.href.includes(digitalId)),
         );
+        for (const n of (await view()).nodes.filter((n) => n.evidence)) {
+          assert.ok(n.basis.includes(`версии ${n.evidence!.revision}`));
+        }
       },
     );
     await t.test(

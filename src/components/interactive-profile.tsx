@@ -18,14 +18,14 @@ import {
   type DevelopmentView,
 } from "@/lib/profile-contract";
 import { VisionMark } from "./user-avatar";
-import { VisionDictation, VisionSpeech } from "./vision-voice";
+
 import { Feedback, useTask } from "./ui";
 export function InteractiveProfile({
   scope = {},
   title = "AI-профиль · объяснить и продолжить",
   initialTopic,
   onFeedback,
-  compact = false,
+  compact: _compact = false,
 }: {
   scope?: ProfileScope;
   title?: string;
@@ -33,8 +33,7 @@ export function InteractiveProfile({
   onFeedback?: (runId: string, result: ScoringResult) => void;
   compact?: boolean;
 }) {
-  const [complex, setComplex] = useState(false),
-    [streamStatus, setStreamStatus] = useState(""),
+  const [streamStatus, setStreamStatus] = useState(""),
     [planConfirm, setPlanConfirm] = useState("");
   const [preview, setPreview] = useState<
     NonNullable<ProfileTurnView["answer"]>["claims"]
@@ -108,8 +107,7 @@ export function InteractiveProfile({
   }, [open, scopeText, receive]);
   async function askLive(text: string, loaded = view) {
     setQuestion(text);
-    if (!loaded?.vision?.granted)
-      throw new Error("Подтверди передачу выбранных учебных материалов ниже.");
+    if (!loaded) throw new Error("Открой выбранную работу ещё раз.");
     const controller = new AbortController();
     streamAbort.current = controller;
     setStreamStatus("Запрос отправляется");
@@ -123,7 +121,7 @@ export function InteractiveProfile({
         body: JSON.stringify({
           scope: activeScope,
           question: text,
-          operation: complex ? "complex" : "text",
+          operation: "text",
           requestKey: crypto.randomUUID(),
           previousId: loaded.history.find((h) => !h.unavailable && !h.stale)
             ?.id,
@@ -215,6 +213,7 @@ export function InteractiveProfile({
       onFeedback(result.runId, result.result);
     else if (result.href) router.push(result.href);
   }
+  void _compact;
   return (
     <section
       className={`interactive-profile ${open ? "is-open" : ""}`}
@@ -347,66 +346,6 @@ export function InteractiveProfile({
                 </button>
               ))}
           </div>
-          {view?.audience === "CANDIDATE" && view.vision && (
-            <div className="vision-permission">
-              {!view.vision.granted ? (
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    disabled={task.busy}
-                    onChange={(e) => {
-                      if (e.target.checked)
-                        void task.run(async () => {
-                          await action("vision.consent", {
-                            granted: true,
-                            revision: view.vision!.revision,
-                          });
-                          await load();
-                        });
-                    }}
-                  />
-                  Разрешаю передавать OpenAI вопрос, выбранную учебную работу и
-                  доступный контекст для диалога Vision. Голос передаётся только
-                  при расшифровке, текст ответа при озвучивании. Это личное
-                  обучение, вне оценки поступления.
-                </label>
-              ) : (
-                <p>
-                  Учебный диалог разрешён.{" "}
-                  <button
-                    type="button"
-                    className="text-link"
-                    disabled={task.busy}
-                    onClick={() =>
-                      task.run(async () => {
-                        await action("vision.consent", {
-                          granted: false,
-                          revision: view.vision!.revision,
-                        });
-                        setSource(null);
-                        await load();
-                      })
-                    }
-                  >
-                    Отозвать разрешение
-                  </button>
-                </p>
-              )}
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={complex}
-                  disabled={task.busy}
-                  onChange={(e) => setComplex(e.target.checked)}
-                />
-                Сложный разбор отдельной настроенной моделью
-              </label>
-              <p>
-                Обычный вопрос использует основную модель. Расходы входят в
-                общий лимит приложения.
-              </p>
-            </div>
-          )}
           {streamStatus && (
             <p role="status">
               {streamStatus}{" "}
@@ -588,14 +527,6 @@ export function InteractiveProfile({
                         )}
                       </div>
                     )}
-                    {view.audience === "CANDIDATE" && h.vision && !h.stale && (
-                      <VisionSpeech
-                        key={h.id}
-                        scope={activeScope}
-                        answerId={h.id}
-                        enabled={!!view.vision?.granted && !task.busy}
-                      />
-                    )}
                     <div className="profile-prompts">
                       {h.answer.actions.map((a) => (
                         <button
@@ -687,44 +618,12 @@ export function InteractiveProfile({
               </button>
             </form>
           )}
-          {view?.audience === "CANDIDATE" && (
-            <VisionDictation
-              key={`${view.ownerKey}:${scopeText}`}
-              scope={activeScope}
-              enabled={!!view.vision?.granted && !task.busy}
-              onText={(text) =>
-                setQuestion((q) => (q.trim() ? q + "\n" + text : text))
-              }
-            />
-          )}
-          {view?.audience === "CANDIDATE" &&
-            !view.history.some(
-              (h) => h.vision && !h.stale && !h.unavailable,
-            ) && (
-              <VisionSpeech
-                scope={activeScope}
-                enabled={!!view.vision?.granted && !task.busy}
-              />
-            )}
-          {view?.audience === "CANDIDATE" &&
-            (compact ? (
-              <details className="vision-personal-plan">
-                <summary>Личный план и продолжения</summary>
-                <DevelopmentArea
-                  view={view}
-                  scope={activeScope}
-                  reload={load}
-                />
-              </details>
-            ) : (
-              <DevelopmentArea view={view} scope={activeScope} reload={load} />
-            ))}
         </div>
       )}
     </section>
   );
 }
-function DevelopmentArea({
+export function DevelopmentArea({
   view,
   scope,
   reload,
@@ -922,5 +821,40 @@ export function DevelopmentStepCard({
       </p>
       <Feedback task={task} />
     </article>
+  );
+}
+
+export function PersonalDevelopmentPlan({
+  feedbackId,
+}: {
+  feedbackId: string;
+}) {
+  const [view, setView] = useState<ProfileView | null>(null),
+    task = useTask();
+  const scope = { feedbackId };
+  async function load() {
+    const v = await action<ProfileView>("profile.load", { scope });
+    setView(v);
+    return v;
+  }
+  return (
+    <div className="personal-plan-tool">
+      {view ? (
+        <DevelopmentArea view={view} scope={scope} reload={load} />
+      ) : (
+        <button
+          className="button secondary"
+          disabled={task.busy}
+          onClick={() =>
+            task.run(async () => {
+              await load();
+            })
+          }
+        >
+          Подготовить личный ответ
+        </button>
+      )}
+      <Feedback task={task} />
+    </div>
   );
 }

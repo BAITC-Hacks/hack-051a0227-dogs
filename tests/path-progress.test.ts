@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pathProgress } from "../src/lib/path-progress";
+import { initialMission } from "../src/lib/missions";
+import { treeVersion } from "../src/lib/development-tree";
 import { initialState } from "../src/lib/projects";
 import type { Work } from "../src/lib/journey";
 function work(id: string, complete = true): Work {
@@ -75,7 +77,55 @@ test("Личный прогресс: повторения, черновик, в�
   assert.ok(
     pathProgress([a], [step]).awards.every(
       (a) =>
-        a.href.includes("version=1") && a.ruleVersion === "personal-path-v1",
+        a.href.includes("version=1") && a.ruleVersion === "personal-path-v2",
     ),
   );
+});
+
+test("Практика навыка: результат начисляет пять один раз, чужая и удалённая работа не начисляют", () => {
+  const a = work("practice", false);
+  const mission = initialMission("digital-products");
+  mission.plan.verification =
+    "Проверю путь от поиска книги до подтверждения передачи.";
+  mission.tests = [
+    {
+      phase: "INITIAL",
+      plan: structuredClone(mission.plan),
+      checks: [],
+    },
+  ];
+  a.versions[0].state = { ...initialState, mission };
+  a.configVersion = 3;
+  const step = {
+    recommendation: {},
+    selfCompletedAt: null,
+    note: "",
+    treeNode: "test",
+    treeConfig: treeVersion,
+    treeState: {
+      resourceId: "stvp-lean",
+      resourceVersion: 1,
+      attemptId: a.id,
+      events: [],
+    },
+  };
+  assert.equal(pathProgress([a], [step, step]).total, 5);
+  const emptyRun = structuredClone(a);
+  const emptyMission = initialMission("digital-products");
+  emptyMission.tests = [
+    { phase: "INITIAL", plan: structuredClone(emptyMission.plan), checks: [] },
+  ];
+  emptyRun.versions[0].state = { ...initialState, mission: emptyMission };
+  assert.equal(pathProgress([emptyRun], [step]).total, 0);
+  assert.equal(pathProgress([], [step]).total, 0);
+  assert.equal(pathProgress([work("other", false)], [step]).total, 0);
+  assert.equal(
+    pathProgress([a], [{ ...step, treeConfig: "unknown" }]).total,
+    0,
+  );
+  a.versions[0].state = {
+    ...initialState,
+    mission: initialMission("digital-products"),
+  };
+  assert.equal(pathProgress([a], [step]).total, 0);
 });

@@ -1,4 +1,5 @@
 "use client";
+import { SortableSequence } from "./sortable-sequence";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AttemptVersion } from "@prisma/client";
@@ -314,58 +315,13 @@ export function MissionEditor({
                       ? "Расставь материалы в порядке публикации. Лишний фрагмент можно убрать."
                       : "Расставь действия студента от поиска до подтверждения передачи."}
                   </p>
-                  <ol>
-                    {mission.plan.sequence.map((id, i) => (
-                      <li key={id}>
-                        <span>
-                          {d.sequence?.items.find((o) => o.id === id)?.label}
-                        </span>
-                        <div>
-                          <button
-                            className="button quiet"
-                            aria-label={`Выше: ${d.sequence?.items.find((o) => o.id === id)?.label}`}
-                            disabled={i === 0 || task.busy}
-                            onClick={() => {
-                              const a = [...mission.plan.sequence];
-                              [a[i - 1], a[i]] = [a[i], a[i - 1]];
-                              update("sequence", a);
-                            }}
-                          >
-                            Выше
-                          </button>
-                          <button
-                            className="button quiet"
-                            aria-label={`Ниже: ${d.sequence?.items.find((o) => o.id === id)?.label}`}
-                            disabled={
-                              i === mission.plan.sequence.length - 1 ||
-                              task.busy
-                            }
-                            onClick={() => {
-                              const a = [...mission.plan.sequence];
-                              [a[i + 1], a[i]] = [a[i], a[i + 1]];
-                              update("sequence", a);
-                            }}
-                          >
-                            Ниже
-                          </button>
-                          {slug === "digital-media" && (
-                            <button
-                              className="text-link"
-                              disabled={task.busy}
-                              onClick={() =>
-                                update(
-                                  "sequence",
-                                  mission.plan.sequence.filter((k) => k !== id),
-                                )
-                              }
-                            >
-                              Убрать
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
+                  <SortableSequence
+                    items={d.sequence.items}
+                    value={mission.plan.sequence}
+                    onChange={(value) => update("sequence", value)}
+                    disabled={task.busy}
+                    removable={slug === "digital-media"}
+                  />
                   {d.sequence.items
                     .filter((o) => !mission.plan.sequence.includes(o.id))
                     .map((o) => (

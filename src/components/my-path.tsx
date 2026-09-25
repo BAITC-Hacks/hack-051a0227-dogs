@@ -3,7 +3,7 @@ import { PathPointMark } from "./path-point-mark";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Check, Circle } from "lucide-react";
+import { BookOpen, Check, Circle, Flag, Sparkles } from "lucide-react";
 import type { myData } from "@/lib/data";
 import { programFor, stageLabels } from "@/lib/catalog";
 import { unansweredQuestions } from "@/lib/message-state";
@@ -11,7 +11,7 @@ import { dateLabel } from "@/lib/client";
 import { workHref, workTitle, versionCompleted } from "@/lib/journey";
 import { applicationRequirements } from "@/lib/validation";
 import type { ApplicationFields } from "@/lib/types";
-import { treeHref, treeStatus } from "@/lib/development-tree";
+import { branches, treeHref } from "@/lib/development-tree";
 import type { TreeView } from "@/lib/development-tree.server";
 import { PublishedFeedback } from "./published-feedback";
 import { Messages } from "./messages";
@@ -22,12 +22,15 @@ import { InteractiveProfile } from "./interactive-profile";
 import { DevelopmentTree } from "./development-tree";
 import { AvatarEditor } from "./avatar-editor";
 import { UserAvatar } from "./user-avatar";
+import { SkillMark } from "./skill-mark";
+import { resourceTypes } from "@/lib/learning-resources";
+import Image from "next/image";
 import { WorkPreview } from "./work-preview";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
 const sections = {
   overview: "Обзор",
   projects: "Проекты",
-  route: "Маршрут",
+  route: "Древо навыков",
   university: "Университет",
   profile: "Профиль",
 } as const;
@@ -115,10 +118,15 @@ export function MyPath({
     completed.filter((a) => a.context === "WORKSHOP").map((a) => a.slug),
   );
   const routeNode = tree.nodes.find((n) => n.id === tree.currentId)!;
-  const material =
-    tree.nodes.find((n) => n.resource && n.id === tree.currentId) ??
-    tree.nodes.find((n) => n.resource && n.slug === continuation?.slug) ??
-    tree.nodes.find((n) => n.resource);
+  const skillNodes = tree.nodes.filter((n) => n.slug === tree.programSlug);
+  const materials = tree.nodes
+    .filter((n) => n.resource && n.slug === tree.programSlug)
+    .filter(
+      (n, i, all) =>
+        all.findIndex((x) => x.resource?.id === n.resource?.id) === i,
+    )
+    .slice(0, 3);
+  const practiced = skillNodes.filter((n) => n.evidence);
   const requirements = app
     ? [
         { title: "Выбранная программа", complete: !!app.programSlug },
@@ -225,12 +233,25 @@ export function MyPath({
             </p>
           </div>
         </div>
-        <Link
-          className="text-link"
-          href={app?.submittedAt ? "/apply/status" : "/apply"}
-        >
-          {app ? "Моя заявка" : "Сразу подать заявку"}
-        </Link>
+        <aside className="hub-support">
+          <Sparkles size={22} />
+          <div>
+            <strong>Твоё развитие начинается с практики</strong>
+            <p>Пробуй, сохраняй результат и выбирай следующий шаг.</p>
+            <Link
+              className="text-link"
+              href={app?.submittedAt ? "/apply/status" : "/apply"}
+            >
+              {app ? "Моя заявка" : "Сразу подать заявку"}
+            </Link>
+          </div>
+          <Image
+            src="/avatars/character-1.webp"
+            alt=""
+            width={112}
+            height={112}
+          />
+        </aside>
       </header>
       <nav className="hub-navigation" aria-label="Разделы моего пути">
         {Object.entries(sections).map(([key, label]) => (
@@ -263,86 +284,165 @@ export function MyPath({
       )}
       <div className="hub-panels" ref={panel} tabIndex={-1}>
         <section hidden={section !== "overview"} aria-label="Обзор моего пути">
-          <section
-            className={`hub-next ${important ? "important" : ""}`}
-            aria-label="Следующее важное действие"
-          >
-            <div>
-              <p className="eyebrow">
-                {important ? "По твоей заявке" : "Следующий шаг"}
-              </p>
-              <h2>{primary.title}</h2>
+          <div className="hub-summary-grid">
+            <section
+              className={`hub-next ${important ? "important" : ""}`}
+              aria-label="Следующее важное действие"
+            >
+              <div className="hub-next-heading">
+                <span className="hub-section-icon">
+                  <Flag size={25} />
+                </span>
+                <div>
+                  <p className="eyebrow">
+                    {important ? "По твоей заявке" : "Следующий шаг"}
+                  </p>
+                  <h2>{primary.title}</h2>
+                </div>
+              </div>
               <p className={needsAnswer ? "hub-question" : ""}>
                 {primary.body}
               </p>
-            </div>
-            <Link
-              className="button dark"
-              href={primary.href}
-              onClick={(event) => {
-                if (primary.href.startsWith("#")) {
-                  event.preventDefault();
-                  navigate("university", primary.href);
-                }
-              }}
-            >
-              {primary.label}
-            </Link>
-          </section>
-          <div id="my-vision">
-            <InteractiveProfile
-              scope={
-                needsAnswer ||
-                invitation ||
-                languageRequired ||
-                publishedQuestion
-                  ? {}
-                  : continuation
-                    ? { attemptId: continuation.id }
-                    : {}
-              }
-              title={
-                needsAnswer
-                  ? "Разобрать вопрос комиссии"
-                  : languageRequired
-                    ? "Разобрать следующий шаг по языку"
-                    : publishedQuestion
-                      ? "Разобрать опубликованную рекомендацию"
-                      : invitation
-                        ? "Подготовиться к разговору с комиссией"
-                        : continuation
-                          ? "Разобрать эту работу и выбрать следующий шаг"
-                          : "Помочь выбрать первую практику"
-              }
-              compact
-            />
-          </div>
-          {attempts.length ? (
-            <div className="hub-overview-grid">
-              <section className="hub-block hub-current">
-                <div className="hub-block-heading">
-                  <h2>
-                    {important ? "Твоя текущая работа" : "Сохранено у тебя"}
-                  </h2>
-                  <button
-                    className="text-link"
-                    onClick={() => navigate("projects")}
-                  >
-                    Все проекты
-                  </button>
+              <Link
+                className="button primary"
+                href={primary.href}
+                onClick={(e) => {
+                  if (primary.href.startsWith("#")) {
+                    e.preventDefault();
+                    navigate("university", primary.href);
+                  }
+                }}
+              >
+                {primary.label}
+              </Link>
+            </section>
+            <section className="hub-block hub-plan">
+              <div className="hub-block-heading">
+                <h2>Твой план развития</h2>
+                <Link className="text-link" href={treeHref(routeNode.id)}>
+                  Открыть древо
+                </Link>
+              </div>
+              <p>{programFor(tree.programSlug)?.shortTitle}</p>
+              <div className="hub-plan-columns">
+                <div>
+                  <h3>Уже попробовано</h3>
+                  {practiced.length ? (
+                    <ul>
+                      {practiced.slice(0, 2).map((n) => (
+                        <li key={n.id}>
+                          <Check size={16} />
+                          <Link href={n.evidence!.href}>{n.title}</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Сохранённые результаты появятся здесь.</p>
+                  )}
                 </div>
-                {continuation && (
-                  <>
-                    <p className="eyebrow">
-                      {programFor(continuation.slug)?.shortTitle} · версия{" "}
-                      {continuation.revision}
-                    </p>
-                    <h3>
-                      {workTitle(
-                        continuation,
-                        programFor(continuation.slug)!.action,
-                      )}
-                    </h3>
+                <div className="hub-plan-next">
+                  <p className="eyebrow">Рекомендуем сейчас</p>
+                  <Link className="text-link" href={treeHref(routeNode.id)}>
+                    {routeNode.title}
+                  </Link>
+                  <span>Открыть практику</span>
+                </div>
+              </div>
+            </section>
+            <section className="hub-block hub-progress">
+              <div className="hub-block-heading">
+                <h2>Твой прогресс</h2>
+                <button
+                  className="text-link"
+                  onClick={() => navigate("profile")}
+                >
+                  Начисления
+                </button>
+              </div>
+              <div className="hub-coin-total">
+                <PathPointMark />
+                <strong>{data.progress.total}</strong>
+                <span>поинтов</span>
+              </div>
+              <div className="hub-progress-facts">
+                <div>
+                  <strong>{completed.length}</strong>
+                  <span>работ с результатом</span>
+                </div>
+                <div>
+                  <strong>{practiced.length}</strong>
+                  <span>выполненных практик</span>
+                </div>
+              </div>
+              <p>
+                +10 за пробу направления · +5 за практику навыка или объяснение
+                выбора.
+              </p>
+            </section>
+          </div>
+          <div className="hub-work-grid">
+            <section className="hub-block hub-skills-preview">
+              <div className="hub-block-heading">
+                <h2>Древо навыков</h2>
+                <Link className="text-link" href={treeHref()}>
+                  Все ветки
+                </Link>
+              </div>
+              <p>
+                Твои действия в направлении «
+                {programFor(tree.programSlug)?.shortTitle}».
+              </p>
+              <div className="hub-skill-cards">
+                {branches
+                  .filter((b) => skillNodes.some((n) => n.branch === b.id))
+                  .map((b) => {
+                    const nodes = skillNodes.filter((n) => n.branch === b.id),
+                      done = nodes.filter((n) => n.evidence).length;
+                    return (
+                      <Link
+                        key={b.id}
+                        href={treeHref(
+                          nodes.find((n) => !n.evidence)?.id ?? nodes[0].id,
+                        )}
+                        className="hub-skill-card"
+                      >
+                        <SkillMark branch={b.id} />
+                        <div>
+                          <strong>{b.title}</strong>
+                          <span>
+                            {done
+                              ? `${done} из ${nodes.length} практик выполнено`
+                              : "Выбрать первую практику"}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+              </div>
+            </section>
+            <section className="hub-block hub-current">
+              <div className="hub-block-heading">
+                <h2>Текущий проект</h2>
+                <button
+                  className="text-link"
+                  onClick={() => navigate("projects")}
+                >
+                  Все проекты
+                </button>
+              </div>
+              {continuation ? (
+                <>
+                  <p className="eyebrow">
+                    {programFor(continuation.slug)?.shortTitle} · версия{" "}
+                    {continuation.revision}
+                  </p>
+                  <h3>
+                    {workTitle(
+                      continuation,
+                      programFor(continuation.slug)!.action,
+                    )}
+                  </h3>
+                  <div className="hub-work-artifact">
                     <WorkPreview
                       slug={continuation.slug}
                       context={continuation.context}
@@ -351,96 +451,113 @@ export function MyPath({
                       }
                       compact
                     />
-                    <Link className="text-link" href={workHref(continuation)}>
-                      Открыть работу
-                    </Link>
-                  </>
-                )}
-              </section>
-              <div className="hub-side">
-                <section className="hub-block hub-route">
-                  <p className="eyebrow">Шаги развития · добровольно</p>
-                  <h2>
-                    {routeNode.step
-                      ? routeNode.title
-                      : "От решения к пониманию"}
-                  </h2>
-                  <p>
-                    {routeNode.step
-                      ? `${treeStatus[routeNode.status]}. ${routeNode.purpose}`
-                      : "Разбери свой выбор, изучи материал и примени идею в работе. Выбирай только интересные тебе шаги."}
-                  </p>
-                  <Link className="text-link" href={treeHref(routeNode.id)}>
-                    Продолжить маршрут
-                  </Link>
-                </section>
-                <section className="hub-block hub-progress">
-                  <div className="hub-block-heading">
-                    <h2>Личный прогресс</h2>
-                    <span className="path-points">
-                      <PathPointMark />
-                      {data.progress.total} поинтов
-                    </span>
                   </div>
-                  <p>
-                    За сохранённую пробу направления +10. За объяснение своего
-                    выбора +5.
-                  </p>
-                  <button
-                    className="text-link"
-                    onClick={() => navigate("profile")}
+                  <Link
+                    className="button secondary"
+                    href={workHref(continuation)}
                   >
-                    За какие действия
-                  </button>
-                  <p className="subtle">Приватно. Не влияет на поступление.</p>
-                </section>
-              </div>
-            </div>
-          ) : (
-            <WorkshopChoices />
-          )}
-          <div className="hub-bottom-grid">
-            {material?.resource && (
-              <section className="hub-block hub-resource">
-                <p className="eyebrow">Материал к следующему шагу</p>
-                <h2>{material.resource.title}</h2>
-                <p>{material.purpose}</p>
-                <p className="subtle">
-                  Рекомендуем к шагу «{material.title}»
-                  {material.work
-                    ? ` и версии ${material.work.revision} твоей работы`
-                    : ", чтобы применить идею в практике"}
-                  .
-                </p>
-                <Link className="text-link" href={treeHref(material.id)}>
-                  Посмотреть материал и задание
-                </Link>
-              </section>
-            )}
-            <section className="hub-block hub-university">
-              <div className="hub-block-heading">
-                <h2>Университет</h2>
-                {app && <Tag tone="blue">{stageLabels[app.stage]}</Tag>}
+                    Продолжить работу
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Создай небольшой проект и узнай направление через практику.
+                  </p>
+                  <Link
+                    className="button secondary"
+                    href="/projects/digital-products"
+                  >
+                    Начать проект
+                  </Link>
+                </>
+              )}
+            </section>
+            <section className="hub-block hub-vision">
+              <div id="my-vision">
+                <InteractiveProfile
+                  scope={
+                    needsAnswer ||
+                    invitation ||
+                    languageRequired ||
+                    publishedQuestion
+                      ? {}
+                      : continuation
+                        ? { attemptId: continuation.id }
+                        : {}
+                  }
+                  title={
+                    important
+                      ? "Разобрать следующий шаг"
+                      : "Разобрать работу и выбрать продолжение"
+                  }
+                  compact
+                />
               </div>
               <p>
-                {needsAnswer
-                  ? "Есть вопрос, на который нужен твой ответ."
-                  : important
-                    ? "Приглашение, переписка и опубликованные рекомендации собраны здесь."
-                    : app?.feedback[0]
-                      ? app.feedback[0].nextAction
-                      : app?.submittedAt
-                        ? "Отправленная версия сохранена. Опубликованные сообщения появляются здесь."
-                        : "Подать заявку можно сразу. Мастерские и поинты не являются обязательными условиями."}
+                Обсуди идею, сравни версии или попроси подсказку к текущей
+                задаче.
               </p>
-              <button
-                className="text-link"
-                onClick={() => navigate("university")}
-              >
-                {app ? "Сообщения и заявка" : "Что нужно для заявки"}
-              </button>
+              <section className="hub-university">
+                <div className="hub-block-heading">
+                  <h3>Университет</h3>
+                  {app && <Tag tone="blue">{stageLabels[app.stage]}</Tag>}
+                </div>
+                <p>
+                  {needsAnswer
+                    ? "Есть вопрос, на который нужен твой ответ."
+                    : app?.submittedAt
+                      ? "Приглашения и опубликованные рекомендации по твоей заявке."
+                      : "Подать заявку можно без прохождения мастерских."}
+                </p>
+                <button
+                  className="text-link"
+                  onClick={() => navigate("university")}
+                >
+                  {app ? "Сообщения и заявка" : "Что нужно для заявки"}
+                </button>
+              </section>
             </section>
           </div>
+          {!!materials.length && (
+            <section className="hub-block hub-reading">
+              <div className="hub-block-heading">
+                <h2>Что почитать и изучить</h2>
+                <span>Подборка в твоём кабинете inVision U</span>
+              </div>
+              <div className="hub-reading-grid">
+                {materials.map((n) => (
+                  <article key={n.resource!.id}>
+                    <span className="hub-section-icon">
+                      <BookOpen size={22} />
+                    </span>
+                    <p className="eyebrow">
+                      {resourceTypes[n.resource!.type]} ·{" "}
+                      {n.resource!.language.toUpperCase()}
+                    </p>
+                    <h3>{n.resource!.title}</h3>
+                    <p className="subtle">{n.resource!.author}</p>
+                    <p>{n.resource!.description}</p>
+                    <p>
+                      <strong>Зачем читать:</strong> {n.resource!.reason}
+                    </p>
+                    <a
+                      className="text-link"
+                      href={n.resource!.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Открыть материал
+                    </a>
+                    <Link className="text-link" href={treeHref(n.id)}>
+                      Применить в практике
+                    </Link>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+          {!attempts.length && <WorkshopChoices />}
         </section>
         <section hidden={section !== "projects"} aria-label="Мои проекты">
           {attempts.length > 0 && <ProjectPassport data={data} />}
@@ -452,7 +569,7 @@ export function MyPath({
             />
           </details>
         </section>
-        <section hidden={section !== "route"} aria-label="Маршрут развития">
+        <section hidden={section !== "route"} aria-label="Древо навыков">
           <DevelopmentTree initial={tree} selectedId={nodeId} full embedded />
         </section>
         <section
@@ -515,7 +632,7 @@ export function MyPath({
                     application={{ ...app, feedback: app.feedback.slice(0, 1) }}
                   />
                   <Link className="text-link" href="/apply/status">
-                    История заявки и исправление факта
+                    История заявки
                   </Link>
                 </>
               )}
