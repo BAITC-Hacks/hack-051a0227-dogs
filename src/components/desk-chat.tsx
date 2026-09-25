@@ -440,10 +440,12 @@ export function DeskChatLauncher({
   applicationIds = [],
   names = [],
   compact = false,
+  label = "Vision Desk",
 }: {
   applicationIds?: string[];
   names?: string[];
   compact?: boolean;
+  label?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [opened, setOpened] = useState(false);
@@ -468,7 +470,7 @@ export function DeskChatLauncher({
         <VisionMark size={compact ? 30 : 26} />
         {!compact && (
           <>
-            Vision Desk
+            {label}
             {applicationIds.length ? ` · ${applicationIds.length}` : ""}
           </>
         )}

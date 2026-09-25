@@ -1,14 +1,22 @@
 "use client";
+import "./admissions-queue.css";
 import { DeskChatLauncher } from "./desk-chat";
-import { UserAvatar } from "./user-avatar";
+import { UserAvatar, VisionMark } from "./user-avatar";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowDownUp,
+  ArrowRight,
+  BookOpenCheck,
+  CircleCheck,
+  CircleHelp,
+  Clock3,
+  LayoutGrid,
+  List,
   Search,
   SlidersHorizontal,
   Settings2,
   Users,
-  Check,
 } from "lucide-react";
 import type { queueData } from "@/lib/data";
 import { programs, stageLabels, domains } from "@/lib/catalog";
@@ -16,10 +24,102 @@ import { humanComparisonIssue } from "@/lib/comparison";
 import { Tag } from "./ui";
 import { queueQuery, type QueueFilters } from "@/lib/queue-location";
 type Queue = Awaited<ReturnType<typeof queueData>>;
+type Application = Queue[number];
+type Sort = "recent" | "attention" | "name";
+const quickStages = [
+  ["", "Все"],
+  ["REVIEW", "На рассмотрении"],
+  ["CLARIFICATION", "Нужно уточнение"],
+  ["INTERVIEW", "Интервью"],
+  ["DECIDED", "Решения"],
+] as const;
+const allStages = [
+  ...quickStages,
+  ["LANGUAGE", "Языковая проверка"],
+  ["CHECK", "Дополнительная проверка"],
+  ["FINAL_REVIEW", "Итоговое рассмотрение"],
+] as const;
+const attentionOrder: Record<string, number> = {
+  REVIEW: 0,
+  CLARIFICATION: 1,
+  LANGUAGE: 2,
+  INTERVIEW: 3,
+  CHECK: 4,
+  FINAL_REVIEW: 5,
+  DECIDED: 6,
+};
+function shortId(id: string) {
+  return id.slice(-8).toUpperCase();
+}
+function actionHash(stage: string) {
+  if (stage === "DECIDED" || stage === "FINAL_REVIEW") return "#decision";
+  if (stage === "CLARIFICATION") return "#candidate-messages";
+  if (stage === "LANGUAGE") return "#overview";
+  if (stage === "REVIEW" || stage === "CHECK") return "#sources";
+  return "";
+}
+function attention(a: Application) {
+  if (a.stage === "LANGUAGE")
+    return a.language?.status === "PENDING_REVIEW"
+      ? {
+          title: "Проверить языковой ответ",
+          detail: "Ответ ожидает проверки",
+          icon: BookOpenCheck,
+          tone: "amber",
+        }
+      : {
+          title: "Ожидается ответ",
+          detail: "Языковая проверка",
+          icon: Clock3,
+          tone: "muted",
+        };
+  if (a.stage === "CLARIFICATION")
+    return {
+      title: "Нужно уточнение",
+      detail: `Источников: ${a._count.sources}`,
+      icon: CircleHelp,
+      tone: "amber",
+    };
+  if (a.stage === "INTERVIEW")
+    return {
+      title: "Подготовиться к интервью",
+      detail: `Источников: ${a._count.sources}`,
+      icon: BookOpenCheck,
+      tone: "blue",
+    };
+  if (a.stage === "DECIDED")
+    return {
+      title: "Решение сохранено",
+      detail: "Откройте карточку",
+      icon: CircleCheck,
+      tone: "green",
+    };
+  if (a.stage === "REVIEW")
+    return {
+      title: "Проверить основания",
+      detail: `Источников: ${a._count.sources}`,
+      icon: BookOpenCheck,
+      tone: "blue",
+    };
+  return {
+    title: nextAction[a.stage] ?? "Открыть заявку",
+    detail: `Источников: ${a._count.sources}`,
+    icon: BookOpenCheck,
+    tone: "blue",
+  };
+}
+function languageState(a: Application) {
+  if (a.language?.status === "REVIEWED")
+    return { text: "Рассмотрен", tone: "green" };
+  if (a.language?.status === "PENDING_REVIEW")
+    return { text: "На проверке", tone: "amber" };
+  if (a.language) return { text: "Ожидает ответа", tone: "muted" };
+  return { text: "Не начато", tone: "muted" };
+}
 const nextAction: Record<string, string> = {
   REVIEW: "Рассмотреть источники",
   CLARIFICATION: "Проверить уточнение",
-  LANGUAGE: "Проверить языковой ответ",
+  LANGUAGE: "Открыть языковой этап",
   INTERVIEW: "Подготовиться к интервью",
   DECIDED: "Открыть решение",
   CHECK: "Рассмотреть новые сведения",
@@ -48,12 +148,26 @@ export function AdmissionsQueue({
     "/admissions/candidates/" +
     id +
     (query ? "?queue=" + encodeURIComponent(query) : "");
+  const actionHref = (a: Application) =>
+    candidateHref(a.id) + actionHash(a.stage);
   const [selected, setSelected] = useState<string[]>([]);
   const [compare, setCompare] = useState(false);
+  const [sort, setSort] = useState<Sort>("recent");
+  const [layout, setLayout] = useState<"list" | "grid">("list");
+  const [page, setPage] = useState(0);
+  const filterChanged = () => setPage(0);
   const filtered = applications.filter(
     (a) =>
       (!search ||
-        (a.user.name + " " + a.user.email)
+        (
+          a.user.name +
+          " " +
+          a.user.email +
+          " " +
+          a.id +
+          " " +
+          a.program.shortTitle
+        )
           .toLowerCase()
           .includes(search.toLowerCase())) &&
       (!program || a.programSlug === program) &&
@@ -65,104 +179,192 @@ export function AdmissionsQueue({
             ? a.assessments.length === 0
             : a.language?.status === "PENDING_REVIEW")),
   );
+  const sorted = [...filtered].sort((a, b) =>
+    sort === "name"
+      ? a.user.name.localeCompare(b.user.name, "ru")
+      : sort === "attention"
+        ? (attentionOrder[a.stage] ?? 9) - (attentionOrder[b.stage] ?? 9) ||
+          b.updatedAt.getTime() - a.updatedAt.getTime()
+        : b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+  const pageCount = Math.ceil(sorted.length / 8);
+  const currentPage = Math.min(page, Math.max(0, pageCount - 1));
+  const shown = sorted.slice(currentPage * 8, currentPage * 8 + 8);
   const pick = applications.filter((a) => selected.includes(a.id));
   return (
-    <div className="staff-page">
-      <div className="page-title">
+    <div className="staff-page queue-page">
+      <div className="page-title queue-page-head">
         <div>
           <h1>Кандидаты</h1>
           <p>
-            Откройте материалы кандидата и выберите следующий шаг рассмотрения.
+            Все отправленные заявки в одной очереди. Выберите, чьи материалы
+            проверить следующими.
           </p>
         </div>
-        <div className="queue-heading-actions">
+        <div className="queue-vision-card">
+          <span className="queue-vision-mark">
+            <VisionMark size={40} />
+          </span>
+          <div className="queue-vision-copy">
+            <strong>Vision Desk ✦</strong>
+            <span>Вопросы по заявкам и основаниям</span>
+            <small>
+              {selected.length
+                ? `Выбрано заявок: ${selected.length}`
+                : `Отправленных заявок: ${applications.length}`}
+            </small>
+          </div>
           <DeskChatLauncher
             applicationIds={selected}
             names={pick.map((a) => a.user.name)}
+            label="Открыть"
           />
-          <Link className="button secondary small" href="/settings">
-            <Settings2 size={15} />
-            Настройки рассмотрения
-          </Link>
         </div>
       </div>
-      <div className="queue-tabs" role="group" aria-label="Этап рассмотрения">
-        {[
-          ["", "Все заявки"],
-          ["REVIEW", "На рассмотрении"],
-          ["CLARIFICATION", "Нужно уточнение"],
-          ["LANGUAGE", "Язык"],
-          ["INTERVIEW", "Интервью"],
-          ["CHECK", "Дополнительная проверка"],
-          ["FINAL_REVIEW", "Итоговое рассмотрение"],
-          ["DECIDED", "Решения"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            aria-pressed={stage === value}
-            onClick={() => setStage(value)}
-          >
-            {label}
-            <span>
-              {value
-                ? applications.filter((a) => a.stage === value).length
-                : applications.length}
-            </span>
-          </button>
-        ))}
+      <div className="queue-filter-line">
+        <div className="queue-tabs" role="group" aria-label="Этап рассмотрения">
+          {quickStages.map(([value, label]) => (
+            <button
+              key={value}
+              aria-pressed={stage === value}
+              onClick={() => {
+                setStage(value);
+                filterChanged();
+              }}
+            >
+              {label}
+              <span>
+                {value
+                  ? applications.filter((a) => a.stage === value).length
+                  : applications.length}
+              </span>
+            </button>
+          ))}
+        </div>
+        <details className="queue-filter-details">
+          <summary>
+            <SlidersHorizontal size={18} /> Фильтры
+          </summary>
+          <div className="queue-filter-panel">
+            <label className="field">
+              Этап рассмотрения
+              <select
+                value={stage}
+                onChange={(e) => {
+                  setStage(e.target.value);
+                  filterChanged();
+                }}
+              >
+                {allStages.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label === "Все" ? "Все этапы" : label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Программа
+              <select
+                value={program}
+                onChange={(e) => {
+                  setProgram(e.target.value);
+                  filterChanged();
+                }}
+              >
+                <option value="">Все программы</option>
+                {programs.map((p) => (
+                  <option key={p.slug} value={p.slug}>
+                    {p.shortTitle}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Состояние проверки
+              <select
+                value={check}
+                onChange={(e) => {
+                  setCheck(e.target.value);
+                  filterChanged();
+                }}
+              >
+                <option value="">Все состояния</option>
+                <option value="waiting">Без оценки сотрудника</option>
+                <option value="reviewed">Есть оценка сотрудника</option>
+                <option value="language">
+                  Языковой ответ ожидает проверки
+                </option>
+              </select>
+            </label>
+            <button
+              className="button secondary small"
+              onClick={() => {
+                setSearch("");
+                setProgram("");
+                setCheck("");
+                setStage("");
+                filterChanged();
+              }}
+            >
+              Сбросить фильтры
+            </button>
+            <Link className="queue-settings-link" href="/settings">
+              <Settings2 size={17} /> Настройки рассмотрения
+            </Link>
+          </div>
+        </details>
       </div>
       <div className="staff-toolbar">
-        <label className="field search-field">
-          <span className="inline">
-            <Search size={13} />
-            Поиск кандидата
-          </span>
+        <label className="queue-search">
+          <Search size={19} aria-hidden="true" />
+          <span className="screen-reader-only">Поиск кандидата</span>
           <input
             type="search"
-            placeholder="Имя или электронная почта"
+            placeholder="Поиск по имени, программе или ID заявки"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              filterChanged();
+            }}
           />
         </label>
-        <label className="field filter-field">
-          Программа
-          <select value={program} onChange={(e) => setProgram(e.target.value)}>
-            <option value="">Все программы</option>
-            {programs.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.shortTitle}
-              </option>
-            ))}
+        <label className="queue-sort">
+          <ArrowDownUp size={17} aria-hidden="true" />
+          <span className="screen-reader-only">Сортировка</span>
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as Sort);
+              filterChanged();
+            }}
+          >
+            <option value="recent">Сначала изменённые</option>
+            <option value="attention">По этапу рассмотрения</option>
+            <option value="name">По имени</option>
           </select>
         </label>
-        <label className="field filter-field">
-          Состояние проверки
-          <select value={check} onChange={(e) => setCheck(e.target.value)}>
-            <option value="">Все состояния</option>
-            <option value="waiting">Без оценки сотрудника</option>
-            <option value="reviewed">Есть оценка сотрудника</option>
-            <option value="language">Языковой ответ ожидает проверки</option>
-          </select>
-        </label>
-        <button
-          className="button secondary small"
-          style={{ minHeight: 40 }}
-          onClick={() => {
-            setSearch("");
-            setProgram("");
-            setCheck("");
-            setStage("");
-          }}
-        >
-          <SlidersHorizontal size={14} />
-          Сбросить
-        </button>
+        <div className="queue-layout" role="group" aria-label="Вид списка">
+          <button
+            aria-label="Список"
+            aria-pressed={layout === "list"}
+            onClick={() => setLayout("list")}
+          >
+            <List size={20} />
+          </button>
+          <button
+            aria-label="Карточки"
+            aria-pressed={layout === "grid"}
+            onClick={() => setLayout("grid")}
+          >
+            <LayoutGrid size={20} />
+          </button>
+        </div>
       </div>
-      <div className="row between" style={{ marginBottom: 14 }}>
+      <div className="queue-selection-bar">
         <span className="subtle">
           {selected.length
             ? `Выбрано ${selected.length} из 4. Сравните основания или задайте вопрос Vision Desk.`
-            : `${filtered.length} из ${applications.length} заявок. Выберите 2–4 для сравнения оснований.`}
+            : `${filtered.length} из ${applications.length} заявок · Выберите 2–4 для сравнения оснований.`}
         </span>
         <button
           className="button secondary small"
@@ -325,7 +527,9 @@ export function AdmissionsQueue({
           </div>
         </section>
       )}
-      <div className="table-scroll">
+      <div
+        className={`table-scroll queue-results ${layout === "grid" ? "queue-results-grid" : ""}`}
+      >
         <table className="candidate-table queue-table">
           <thead>
             <tr>
@@ -334,40 +538,76 @@ export function AdmissionsQueue({
               </th>
               <th>Кандидат</th>
               <th>Программа</th>
-              <th>Этап</th>
-              <th>Готовность по языку</th>
-              <th>Источники</th>
+              <th>Статус</th>
+              <th>Что проверить</th>
+              <th>Английский</th>
               <th>Следующее действие</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={"Сравнить: " + a.user.name}
-                    checked={selected.includes(a.id)}
-                    disabled={selected.length >= 4 && !selected.includes(a.id)}
-                    onChange={(e) =>
-                      setSelected((s) =>
-                        e.target.checked
-                          ? [...s, a.id]
-                          : s.filter((x) => x !== a.id),
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <Link className="name-cell" href={candidateHref(a.id)}>
-                    <UserAvatar user={a.user} size={44} />
-                    <span>
-                      <span className="candidate-name">{a.user.name}</span>
-                      <span className="candidate-email">{a.user.email}</span>
-                    </span>
-                  </Link>
-                  <div className="mobile-candidate-context">
-                    <span>{a.program.shortTitle}</span>
+            {shown.map((a) => {
+              const focus = attention(a);
+              const language = languageState(a);
+              const FocusIcon = focus.icon;
+              return (
+                <tr key={a.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={"Сравнить: " + a.user.name}
+                      checked={selected.includes(a.id)}
+                      disabled={
+                        selected.length >= 4 && !selected.includes(a.id)
+                      }
+                      onChange={(e) =>
+                        setSelected((s) =>
+                          e.target.checked
+                            ? [...s, a.id]
+                            : s.filter((x) => x !== a.id),
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <Link className="name-cell" href={candidateHref(a.id)}>
+                      <UserAvatar user={a.user} size={44} />
+                      <span>
+                        <span className="candidate-name">{a.user.name}</span>
+                        <span
+                          className="candidate-id"
+                          title={`Полный ID заявки: ${a.id}`}
+                        >
+                          ID · {shortId(a.id)}
+                        </span>
+                      </span>
+                    </Link>
+                    <div className="mobile-candidate-context">
+                      <span>{a.program.shortTitle}</span>
+                      <Tag
+                        tone={
+                          a.stage === "CLARIFICATION"
+                            ? "warning"
+                            : a.stage === "INTERVIEW"
+                              ? "blue"
+                              : a.stage === "DECIDED"
+                                ? "success"
+                                : "neutral"
+                        }
+                      >
+                        {stageLabels[a.stage]}
+                      </Tag>
+                      <span>
+                        Английский: {language.text} · Источников:{" "}
+                        {a._count.sources}
+                      </span>
+                      <Link className="queue-action" href={actionHref(a)}>
+                        {nextAction[a.stage] ?? "Открыть заявку"}
+                        <ArrowRight size={17} />
+                      </Link>
+                    </div>
+                  </td>
+                  <td className="program-cell">{a.program.shortTitle}</td>
+                  <td>
                     <Tag
                       tone={
                         a.stage === "CLARIFICATION"
@@ -381,72 +621,29 @@ export function AdmissionsQueue({
                     >
                       {stageLabels[a.stage]}
                     </Tag>
+                  </td>
+                  <td className="queue-focus-cell">
+                    <span className={`queue-focus-icon ${focus.tone}`}>
+                      <FocusIcon size={20} />
+                    </span>
                     <span>
-                      Язык:{" "}
-                      {a.language?.status === "REVIEWED"
-                        ? "рассмотрено"
-                        : a.language?.status === "PENDING_REVIEW"
-                          ? "ожидает проверки"
-                          : a.language
-                            ? "ожидает ответа"
-                            : "не начато"}{" "}
-                      · Источники: {a._count.sources}
+                      <strong>{focus.title}</strong>
+                      <small>{focus.detail}</small>
                     </span>
-                    <Link className="text-link" href={candidateHref(a.id)}>
-                      {nextAction[a.stage]}
+                  </td>
+                  <td className="queue-language-cell">
+                    <span className={`queue-language-dot ${language.tone}`} />
+                    {language.text}
+                  </td>
+                  <td className="queue-action-cell">
+                    <Link className="queue-action" href={actionHref(a)}>
+                      {nextAction[a.stage] ?? "Открыть заявку"}
+                      <ArrowRight size={17} />
                     </Link>
-                  </div>
-                </td>
-                <td className="program-cell">{a.program.shortTitle}</td>
-                <td>
-                  <Tag
-                    tone={
-                      a.stage === "CLARIFICATION"
-                        ? "warning"
-                        : a.stage === "INTERVIEW"
-                          ? "blue"
-                          : a.stage === "DECIDED"
-                            ? "success"
-                            : "neutral"
-                    }
-                  >
-                    {stageLabels[a.stage]}
-                  </Tag>
-                </td>
-                <td>
-                  {a.language?.status === "REVIEWED" ? (
-                    <span className="inline">
-                      <Check size={13} />
-                      Рассмотрено
-                    </span>
-                  ) : a.language?.status === "PENDING_REVIEW" ? (
-                    "Ожидает проверки"
-                  ) : a.language ? (
-                    "Ожидает ответа"
-                  ) : (
-                    "Не начато"
-                  )}
-                </td>
-                <td>
-                  <span>Источники: {a._count.sources}</span>
-                  <br />
-                  <span className="subtle" style={{ fontSize: 10 }}>
-                    {a.assessments.length
-                      ? "Есть оценка сотрудника"
-                      : "Оценка ещё не выставлена"}
-                  </span>
-                </td>
-                <td>
-                  <Link
-                    className="text-link"
-                    style={{ fontSize: 11 }}
-                    href={candidateHref(a.id)}
-                  >
-                    {nextAction[a.stage]}
-                  </Link>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {!filtered.length && (
@@ -471,9 +668,39 @@ export function AdmissionsQueue({
       </div>
       <div className="queue-caption">
         <span>
-          Порядок: последние изменения. Итоговые решения принимает сотрудник.
+          Показано {shown.length ? currentPage * 8 + 1 : 0}–
+          {currentPage * 8 + shown.length} из {filtered.length} кандидатов
         </span>
-        <span>Готовность · направление и мотивация · опыт</span>
+        {pageCount > 1 && (
+          <nav
+            className="queue-pagination"
+            aria-label="Страницы списка кандидатов"
+          >
+            <button
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+              aria-label="Предыдущая страница"
+            >
+              ‹
+            </button>
+            {Array.from({ length: pageCount }, (_, i) => (
+              <button
+                key={i}
+                aria-current={currentPage === i ? "page" : undefined}
+                onClick={() => setPage(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              disabled={currentPage >= pageCount - 1}
+              onClick={() => setPage(currentPage + 1)}
+              aria-label="Следующая страница"
+            >
+              ›
+            </button>
+          </nav>
+        )}
       </div>
     </div>
   );
