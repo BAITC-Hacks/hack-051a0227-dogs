@@ -127,7 +127,7 @@ export default async function Decisions() {
               return (
                 <article className="decisions-card" key={decision.id}>
                   <div className="decisions-person">
-                    <UserAvatar user={decision.application.user} size={88} />
+                    <UserAvatar user={decision.application.user} size={60} />
                     <div>
                       <h2>{decision.application.user.name}</h2>
                       <p>{decision.application.program.shortTitle}</p>

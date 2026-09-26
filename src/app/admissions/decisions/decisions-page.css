@@ -4,14 +4,14 @@ body:has(.decisions-page) {
 
 body:has(.decisions-page) .site-header {
   min-height: 74px;
-  padding: 12px max(48px, calc((100vw - 1580px) / 2));
+  padding: 12px max(48px, calc((100vw - 1440px) / 2));
   background: #faf9f3;
 }
 
 .staff-page.decisions-page {
-  width: min(1580px, calc(100% - 96px));
+  width: min(1440px, calc(100% - 96px));
   max-width: none;
-  padding: 28px 0 58px;
+  padding: 26px 0 48px;
 }
 
 .decisions-heading {
@@ -19,19 +19,19 @@ body:has(.decisions-page) .site-header {
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin: 14px 0 27px;
+  margin: 12px 0 22px;
 }
 
 .decisions-page .decisions-eyebrow {
   margin: 0 0 4px;
   color: #68717c;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.3;
 }
 
 .decisions-heading h1 {
   margin: 0 0 4px;
-  font-size: clamp(39px, 3.2vw, 52px);
+  font-size: clamp(36px, 3.2vw, 48px);
   font-weight: 650;
   letter-spacing: -0.045em;
   line-height: 1.08;
@@ -40,7 +40,7 @@ body:has(.decisions-page) .site-header {
 .decisions-page .decisions-intro {
   margin: 0;
   color: #6f7782;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -50,12 +50,12 @@ body:has(.decisions-page) .site-header {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 50px;
+  min-height: 44px;
   border: 1px solid #d7d9d2;
   border-radius: 10px;
   background: #fffefa;
   color: #1d241e;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 560;
   line-height: 1.25;
   text-align: center;
@@ -64,9 +64,9 @@ body:has(.decisions-page) .site-header {
 
 .decisions-back {
   flex: 0 0 auto;
-  min-width: 182px;
-  margin-top: 8px;
-  padding: 12px 20px;
+  min-width: 160px;
+  margin-top: 5px;
+  padding: 9px 15px;
 }
 
 .decisions-back:hover,
@@ -78,16 +78,16 @@ body:has(.decisions-page) .site-header {
 .decisions-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  margin-bottom: 23px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .decisions-metric {
   display: flex;
   align-items: center;
-  gap: 20px;
-  min-height: 100px;
-  padding: 18px 26px;
+  gap: 14px;
+  min-height: 82px;
+  padding: 13px 18px;
   border: 1px solid;
   border-radius: 14px;
 }
@@ -109,11 +109,16 @@ body:has(.decisions-page) .site-header {
 
 .decisions-metric-icon {
   display: grid;
-  flex: 0 0 51px;
-  width: 51px;
-  height: 51px;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 17px;
+  border-radius: 12px;
+}
+
+.decisions-metric-icon svg {
+  width: 23px;
+  height: 23px;
 }
 
 .candidates .decisions-metric-icon {
@@ -139,31 +144,31 @@ body:has(.decisions-page) .site-header {
 
 .decisions-metric strong {
   color: #111713;
-  font-size: 29px;
+  font-size: 25px;
   font-weight: 700;
   line-height: 1;
 }
 
 .decisions-metric > span:last-child > span {
   color: #59616b;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .decisions-list {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .decisions-card {
   display: grid;
-  grid-template-columns: minmax(260px, 29%) minmax(0, 1fr) minmax(230px, 18%);
+  grid-template-columns: minmax(230px, 29%) minmax(0, 1fr) minmax(200px, 18%);
   align-items: center;
   gap: 0;
-  min-height: 164px;
-  padding: 22px 30px;
+  min-height: 128px;
+  padding: 16px 20px;
   border: 1px solid #e3e5de;
-  border-radius: 15px;
+  border-radius: 12px;
   background: #fffefa;
   box-shadow: 0 9px 26px rgb(36 42 30 / 3%);
 }
@@ -171,17 +176,17 @@ body:has(.decisions-page) .site-header {
 .decisions-person {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 14px;
   min-width: 0;
-  min-height: 110px;
-  padding-right: 28px;
+  min-height: 88px;
+  padding-right: 18px;
   border-right: 1px solid #e9ebe6;
 }
 
 .decisions-person .person-avatar {
-  flex: 0 0 88px;
-  width: 88px;
-  height: 88px;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -191,9 +196,9 @@ body:has(.decisions-page) .site-header {
 }
 
 .decisions-person h2 {
-  margin: 0 0 5px;
+  margin: 0 0 3px;
   color: #171e1a;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 680;
   letter-spacing: -0.025em;
   line-height: 1.25;
@@ -203,36 +208,36 @@ body:has(.decisions-page) .site-header {
 .decisions-person p {
   margin: 0;
   color: #5c6572;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
 .decisions-detail {
   min-width: 0;
-  padding: 0 30px 0 44px;
+  padding: 0 20px 0 24px;
 }
 
 .decisions-page .decisions-action {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  gap: 8px;
   width: fit-content;
   max-width: 100%;
-  min-height: 38px;
-  margin: 0 0 8px;
-  padding: 7px 13px;
+  min-height: 32px;
+  margin: 0 0 6px;
+  padding: 5px 10px;
   border: 1px solid transparent;
-  border-radius: 11px;
-  font-size: 16px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.25;
 }
 
 .decisions-action svg {
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
-  padding: 3px;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
   border-radius: 50%;
 }
 
@@ -275,9 +280,9 @@ body:has(.decisions-page) .site-header {
 }
 
 .decisions-reason {
-  margin: 0 0 10px;
+  margin: 0 0 7px;
   color: #525c6a;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -290,7 +295,7 @@ body:has(.decisions-page) .site-header {
   gap: 8px 13px;
   margin: 0;
   color: #66707d;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -332,26 +337,26 @@ body:has(.decisions-page) .site-header {
 .decisions-controls {
   display: grid;
   justify-items: end;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
 .decisions-open {
-  width: min(100%, 205px);
-  padding: 10px 14px;
+  width: min(100%, 180px);
+  padding: 8px 11px;
 }
 
 .decisions-publication {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   width: fit-content;
   max-width: 100%;
-  min-height: 36px;
-  padding: 7px 12px;
+  min-height: 30px;
+  padding: 5px 9px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 12px;
   line-height: 1.3;
   text-align: left;
 }
@@ -392,11 +397,11 @@ body:has(.decisions-page) .site-header {
 @media (max-width: 1200px) {
   .decisions-card {
     grid-template-columns: minmax(220px, 31%) minmax(0, 1fr) minmax(180px, 19%);
-    padding: 21px;
+    padding: 16px;
   }
 
   .decisions-detail {
-    padding-inline: 25px;
+    padding-inline: 20px;
   }
 
   .decisions-person {
@@ -404,13 +409,13 @@ body:has(.decisions-page) .site-header {
   }
 
   .decisions-person .person-avatar {
-    flex-basis: 72px;
-    width: 72px;
-    height: 72px;
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
   }
 
   .decisions-person h2 {
-    font-size: 19px;
+    font-size: 18px;
   }
 
   .decisions-publication {
@@ -425,7 +430,7 @@ body:has(.decisions-page) .site-header {
 
   .decisions-metric {
     gap: 12px;
-    min-height: 94px;
+    min-height: 82px;
     padding: 15px;
   }
 
@@ -477,7 +482,7 @@ body:has(.decisions-page) .site-header {
   }
 
   .decisions-heading h1 {
-    font-size: 42px;
+    font-size: 38px;
   }
 
   .decisions-back {
@@ -499,21 +504,21 @@ body:has(.decisions-page) .site-header {
     display: flex;
     flex-direction: column;
     gap: 15px;
-    padding: 18px;
+    padding: 16px;
   }
 
   .decisions-person .person-avatar {
-    flex-basis: 64px;
-    width: 64px;
-    height: 64px;
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
   }
 
   .decisions-person h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .decisions-person p {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .decisions-detail {
