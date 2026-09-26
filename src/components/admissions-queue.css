@@ -1,12 +1,4 @@
 /* Candidate queue: the existing review workflow in a calmer, scannable layout. */
-body:has(.queue-page) {
-  background: #faf9f3;
-}
-body:has(.queue-page) .site-header {
-  min-height: 74px;
-  padding: 12px max(48px, calc((100vw - 1440px) / 2));
-  background: #faf9f3;
-}
 .staff-page.queue-page {
   width: min(1440px, calc(100% - 96px));
   max-width: none;
@@ -626,9 +618,6 @@ body:has(.queue-page) .site-header {
   }
 }
 @media (max-width: 699px) {
-  body:has(.queue-page) .site-header {
-    padding-inline: 16px;
-  }
   .staff-page.queue-page {
     width: calc(100% - 32px);
     padding-top: 22px;
