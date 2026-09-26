@@ -4407,22 +4407,7 @@ video {
 .home-welcome .hero-actions .button { border: 1px solid var(--ink); min-height: 52px; }
 .home-welcome .hero-copy > .eyebrow { margin-bottom: 20px; font-size: 14px; letter-spacing: .07em; }
 
-.decision-overview { display: flex; flex-wrap: wrap; gap: 12px 28px; padding: 18px 22px; background: var(--blue); border-radius: 12px; margin: 0 0 28px; }
-.decision-overview span { display: inline-flex; align-items: baseline; gap: 8px; }
-.decision-overview strong { font-size: 24px; }
-.decision-list { display: grid; gap: 16px; }
-.decision-entry { display: grid; grid-template-columns: minmax(240px,.75fr) minmax(0,1.5fr) auto; gap: 24px; align-items: start; padding: 24px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; }
-.decision-person { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.decision-person h2 { font-size: 20px; margin: 0; overflow-wrap: anywhere; }
-.decision-entry .decision-reason { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 12px 0; }
-.decision-entry h3 { font-size: 18px; }
-.decision-entry .meta { font-size: 14px; }
-.decision-entry details { margin-top: 18px; }
-.decision-entry details article { padding: 16px 0; border-top: 1px solid var(--line); }
-.decision-entry .button { white-space: nowrap; }
 @media(max-width: 900px) {
- .decision-entry { grid-template-columns: 1fr; gap: 18px; }
- .decision-entry > .button { justify-self: start; }
  .home-welcome .hero-copy { width: 65%; }
  .home-welcome .mission-hero { min-height: 620px; }
 }
@@ -4440,8 +4425,6 @@ video {
  .welcome-art { background-size: auto 490px; background-position: right bottom; }
  .home-welcome::before { background: linear-gradient(#f6f3e7 0%, #f6f3e7 54%, rgb(246 243 231 / .95) 62%, transparent 76%); }
  .home-welcome .hero-actions { margin-top: 24px; }
- .decision-entry { padding: 20px; }
- .decision-person h2 { font-size: 19px; }
 }
 .desk-dialog:not(.evidence-dialog)[open] { display: flex; flex-direction: column; height: min(820px, calc(100dvh - 32px)); overflow: hidden; padding: 0; }
 .desk-dialog:not(.evidence-dialog) .desk-dialog-head { margin: 0; padding: 22px 24px; border-bottom: 1px solid var(--line); background: var(--paper); }

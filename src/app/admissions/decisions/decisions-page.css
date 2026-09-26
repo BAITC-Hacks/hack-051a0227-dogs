@@ -1,0 +1,540 @@
+body:has(.decisions-page) {
+  background: #faf9f3;
+}
+
+body:has(.decisions-page) .site-header {
+  min-height: 74px;
+  padding: 12px max(48px, calc((100vw - 1580px) / 2));
+  background: #faf9f3;
+}
+
+.staff-page.decisions-page {
+  width: min(1580px, calc(100% - 96px));
+  max-width: none;
+  padding: 28px 0 58px;
+}
+
+.decisions-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 14px 0 27px;
+}
+
+.decisions-page .decisions-eyebrow {
+  margin: 0 0 4px;
+  color: #68717c;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.decisions-heading h1 {
+  margin: 0 0 4px;
+  font-size: clamp(39px, 3.2vw, 52px);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.decisions-page .decisions-intro {
+  margin: 0;
+  color: #6f7782;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.decisions-back,
+.decisions-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  border: 1px solid #d7d9d2;
+  border-radius: 10px;
+  background: #fffefa;
+  color: #1d241e;
+  font-size: 15px;
+  font-weight: 560;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+}
+
+.decisions-back {
+  flex: 0 0 auto;
+  min-width: 182px;
+  margin-top: 8px;
+  padding: 12px 20px;
+}
+
+.decisions-back:hover,
+.decisions-open:hover {
+  border-color: #abc177;
+  background: #f4f9e9;
+}
+
+.decisions-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 23px;
+}
+
+.decisions-metric {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 100px;
+  padding: 18px 26px;
+  border: 1px solid;
+  border-radius: 14px;
+}
+
+.decisions-metric.candidates {
+  border-color: #cfe1f6;
+  background: #eff6fd;
+}
+
+.decisions-metric.published {
+  border-color: #d7e9dc;
+  background: #eff8f0;
+}
+
+.decisions-metric.pending {
+  border-color: #f4e1b5;
+  background: #fff9ed;
+}
+
+.decisions-metric-icon {
+  display: grid;
+  flex: 0 0 51px;
+  width: 51px;
+  height: 51px;
+  place-items: center;
+  border-radius: 17px;
+}
+
+.candidates .decisions-metric-icon {
+  background: #d9ebff;
+  color: #19559c;
+}
+
+.published .decisions-metric-icon {
+  background: #dcf1e0;
+  color: #246e44;
+}
+
+.pending .decisions-metric-icon {
+  background: #ffedbf;
+  color: #2b2920;
+}
+
+.decisions-metric > span:last-child {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.decisions-metric strong {
+  color: #111713;
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.decisions-metric > span:last-child > span {
+  color: #59616b;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.decisions-list {
+  display: grid;
+  gap: 18px;
+}
+
+.decisions-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 29%) minmax(0, 1fr) minmax(230px, 18%);
+  align-items: center;
+  gap: 0;
+  min-height: 164px;
+  padding: 22px 30px;
+  border: 1px solid #e3e5de;
+  border-radius: 15px;
+  background: #fffefa;
+  box-shadow: 0 9px 26px rgb(36 42 30 / 3%);
+}
+
+.decisions-person {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+  min-height: 110px;
+  padding-right: 28px;
+  border-right: 1px solid #e9ebe6;
+}
+
+.decisions-person .person-avatar {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.decisions-person > div {
+  min-width: 0;
+}
+
+.decisions-person h2 {
+  margin: 0 0 5px;
+  color: #171e1a;
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.decisions-person p {
+  margin: 0;
+  color: #5c6572;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.decisions-detail {
+  min-width: 0;
+  padding: 0 30px 0 44px;
+}
+
+.decisions-page .decisions-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 38px;
+  margin: 0 0 8px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.decisions-action svg {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+}
+
+.decisions-action.interview {
+  border-color: #d6eadb;
+  background: #eef8ef;
+  color: #202a23;
+}
+
+.decisions-action.interview svg {
+  background: #37ad6a;
+  color: white;
+}
+
+.decisions-action.decline {
+  border-color: #f4d7d7;
+  background: #ffebec;
+  color: #2b2022;
+}
+
+.decisions-action.decline svg {
+  background: #ec6064;
+  color: white;
+}
+
+.decisions-action.accept {
+  border-color: #d8e8fa;
+  background: #eaf3ff;
+  color: #225a9a;
+}
+
+.decisions-action.accept svg {
+  color: #2163af;
+}
+
+.decisions-action.other {
+  border-color: #e6e8df;
+  background: #f3f5ee;
+  color: #2d3928;
+}
+
+.decisions-reason {
+  margin: 0 0 10px;
+  color: #525c6a;
+  font-size: 16px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.decisions-author {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 13px;
+  margin: 0;
+  color: #66707d;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.decisions-author svg {
+  flex: 0 0 auto;
+}
+
+.decisions-history {
+  max-width: 650px;
+  margin-top: 11px;
+  color: #4a5b4d;
+  font-size: 14px;
+}
+
+.decisions-history summary {
+  width: fit-content;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.decisions-history-entry {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid #e7e9e2;
+}
+
+.decisions-history-entry p {
+  margin: 5px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.decisions-history-entry small {
+  color: #69716f;
+  font-size: 13px;
+}
+
+.decisions-controls {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.decisions-open {
+  width: min(100%, 205px);
+  padding: 10px 14px;
+}
+
+.decisions-publication {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.decisions-publication svg {
+  flex: 0 0 auto;
+}
+
+.decisions-publication.published {
+  border-color: #d9eadd;
+  background: #edf7ef;
+  color: #214d34;
+}
+
+.decisions-publication.published svg {
+  padding: 3px;
+  border-radius: 50%;
+  background: #3fae70;
+  color: white;
+}
+
+.decisions-publication.unpublished {
+  border-color: #f8e9bf;
+  background: #fff4d6;
+  color: #9b630d;
+}
+
+.decisions-empty {
+  max-width: 740px;
+  margin-inline: auto;
+}
+
+.decisions-page :is(a, summary):focus-visible {
+  outline: 3px solid #93c7fa;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1200px) {
+  .decisions-card {
+    grid-template-columns: minmax(220px, 31%) minmax(0, 1fr) minmax(180px, 19%);
+    padding: 21px;
+  }
+
+  .decisions-detail {
+    padding-inline: 25px;
+  }
+
+  .decisions-person {
+    gap: 14px;
+  }
+
+  .decisions-person .person-avatar {
+    flex-basis: 72px;
+    width: 72px;
+    height: 72px;
+  }
+
+  .decisions-person h2 {
+    font-size: 19px;
+  }
+
+  .decisions-publication {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .decisions-metrics {
+    gap: 10px;
+  }
+
+  .decisions-metric {
+    gap: 12px;
+    min-height: 94px;
+    padding: 15px;
+  }
+
+  .decisions-metric-icon {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .decisions-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 14px 20px;
+  }
+
+  .decisions-person {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .decisions-detail {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 12px 0 0;
+    border-top: 1px solid #e9ebe6;
+  }
+
+  .decisions-controls {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 650px) {
+  body:has(.decisions-page) .site-header {
+    padding-inline: 16px;
+  }
+
+  .staff-page.decisions-page {
+    width: calc(100% - 32px);
+    padding-top: 20px;
+  }
+
+  .decisions-heading {
+    display: grid;
+    gap: 17px;
+    margin: 8px 0 23px;
+  }
+
+  .decisions-heading h1 {
+    font-size: 42px;
+  }
+
+  .decisions-back {
+    min-width: 0;
+    width: fit-content;
+    margin: 0;
+  }
+
+  .decisions-metrics {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .decisions-metric {
+    min-height: 78px;
+  }
+
+  .decisions-card {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 18px;
+  }
+
+  .decisions-person .person-avatar {
+    flex-basis: 64px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .decisions-person h2 {
+    font-size: 20px;
+  }
+
+  .decisions-person p {
+    font-size: 15px;
+  }
+
+  .decisions-detail {
+    width: 100%;
+    padding-top: 15px;
+  }
+
+  .decisions-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .decisions-open {
+    width: 100%;
+    max-width: none;
+  }
+
+  .decisions-publication {
+    font-size: 13px;
+  }
+}
