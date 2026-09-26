@@ -2,6 +2,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  BriefcaseBusiness,
+  Compass,
+  GraduationCap,
+  HeartHandshake,
+  Lightbulb,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 import { action, dateLabel } from "@/lib/client";
 import {
   scoringActions,
@@ -11,6 +22,22 @@ import {
 import { sections, woundedBoundary } from "@/lib/review-contract";
 import { ScoringEvidence } from "./scoring-evidence";
 import { Feedback, Tag, useTask } from "./ui";
+
+const domainIcons = [
+  GraduationCap,
+  Compass,
+  UserRound,
+  UsersRound,
+  HeartHandshake,
+  BriefcaseBusiness,
+  Lightbulb,
+  ShieldCheck,
+  Sparkles,
+];
+function DomainMark({ index }: { index: number }) {
+  const Icon = domainIcons[index % domainIcons.length];
+  return <Icon size={22} aria-hidden="true" />;
+}
 
 export function ScoringPanel({
   applicationId,
@@ -40,6 +67,7 @@ export function ScoringPanel({
     setView(data);
   }
   const run = view.runs.find((r) => r.id === selected) ?? view.runs[0];
+  const shown = run?.reviews[0]?.result ?? run?.result;
   const processing = view.runs.some((r) =>
     ["QUEUED", "RUNNING"].includes(r.status),
   );
@@ -73,68 +101,54 @@ export function ScoringPanel({
           результат пока не подтверждён.
         </p>
       )}
-      <div className="scoring-heading">
-        <div>
-          <h2>AI-скоринг</h2>
-          <p>
-            Предварительная оценка материалов. Решение остаётся за сотрудником.
-          </p>
-        </div>
-        {run?.current && run.status === "COMPLETED" ? (
-          <a className="button primary" href="#scoring-human-review">
-            Проверить рекомендацию
-          </a>
-        ) : (
-          <button
-            className="button primary"
-            disabled={task.busy || processing}
-            onClick={() =>
-              task.run(async () => {
-                const r = await action<{ id: string }>("scoring.launch", {
-                  applicationId,
-                });
-                setSelected(r.id);
-                setView(
-                  await action<ScoringView>("scoring.status", {
+      <div className="scoring-hero">
+        <div className="scoring-heading">
+          <div>
+            <h2>AI-скоринг</h2>
+            <p>
+              Предварительная оценка материалов. Решение остаётся за
+              сотрудником.
+            </p>
+          </div>
+          {run?.current && run.status === "COMPLETED" ? (
+            <a className="button primary" href="#scoring-human-review">
+              Проверить рекомендацию
+            </a>
+          ) : (
+            <button
+              className="button primary"
+              disabled={task.busy || processing}
+              onClick={() =>
+                task.run(async () => {
+                  const r = await action<{ id: string }>("scoring.launch", {
                     applicationId,
-                  }),
-                );
-                router.refresh();
-              })
-            }
-          >
-            {processing
-              ? "Анализ выполняется"
-              : run?.current && run.status === "COMPLETED"
-                ? "Проверить актуальность"
-                : "Запустить анализ"}
-          </button>
+                  });
+                  setSelected(r.id);
+                  setView(
+                    await action<ScoringView>("scoring.status", {
+                      applicationId,
+                    }),
+                  );
+                  router.refresh();
+                })
+              }
+            >
+              {processing
+                ? "Анализ выполняется"
+                : run?.current && run.status === "COMPLETED"
+                  ? "Проверить актуальность"
+                  : "Запустить анализ"}
+            </button>
+          )}
+        </div>
+        <Feedback task={task} />
+        {!run && (
+          <p className="notice info">
+            Запустите анализ, чтобы получить профиль по девяти областям,
+            основания и вопросы к материалам этой заявки.
+          </p>
         )}
-      </div>
-      <Feedback task={task} />
-      <p className="scoring-language">
-        <Link
-          className="text-link"
-          href={`/admissions/candidates/${applicationId}/stability`}
-        >
-          Проверить устойчивость
-        </Link>
-        {" · Контролируемая пара без изменения официального профиля"}
-      </p>
-      <p className="scoring-language">
-        Английский: {language}.{" "}
-        <button className="text-link" onClick={onReadiness}>
-          Отдельная языковая проверка
-        </button>
-      </p>
-      {!run && (
-        <p className="notice info">
-          Запустите анализ, чтобы получить профиль по девяти областям, основания
-          и вопросы к материалам этой заявки.
-        </p>
-      )}
-      {run && (
-        <>
+        {run && (
           <div className="scoring-toolbar">
             <Tag tone={run.current ? "blue" : "warning"}>
               {run.status === "UNAVAILABLE"
@@ -169,6 +183,68 @@ export function ScoringPanel({
               </label>
             </details>
           </div>
+        )}
+        {run && shown && (
+          <div className="scoring-summary">
+            <Tag>
+              {shown.state === "REQUIRES_REVIEW"
+                ? "Требует проверки"
+                : "Предварительная оценка"}
+            </Tag>
+            <p className="interpretation-author">
+              {run.reviews[0]
+                ? `Интерпретация сотрудника: ${run.reviews[0].author} · ${dateLabel(run.reviews[0].createdAt)}`
+                : "Предложение AI по материалам заявки"}
+            </p>
+            <p>{shown.summary}</p>
+            <strong>
+              Рекомендация: {scoringActions[shown.recommendation.action]}
+            </strong>
+            <p>{shown.recommendation.reason}</p>
+            <div className="source-buttons">
+              {shown.recommendation.sourceIds.map((id) => {
+                const evidence = shown.evidence.find((e) => e.sourceId === id);
+                return evidence ? (
+                  <ScoringEvidence
+                    key={id}
+                    evidence={evidence}
+                    applicationId={applicationId}
+                    runId={run.id}
+                    onSource={onSource}
+                  />
+                ) : (
+                  <button
+                    key={id}
+                    className="source-button"
+                    onClick={() => onSource(id)}
+                  >
+                    Открыть материал
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="scoring-context-links">
+        <p className="scoring-language">
+          <Link
+            className="text-link"
+            href={`/admissions/candidates/${applicationId}/stability`}
+          >
+            Проверить устойчивость
+          </Link>
+          {" · Контролируемая пара без изменения официального профиля"}
+        </p>
+        <p className="scoring-language">
+          Английский: {language}.{" "}
+          <button className="text-link" onClick={onReadiness}>
+            Отдельная языковая проверка
+          </button>
+        </p>
+      </div>
+      {run && (
+        <>
           {run.status === "FAILED" && (
             <p role="alert" className="notice error">
               Результат не получен. Повторите запуск; если ошибка сохраняется,
@@ -229,7 +305,8 @@ function ScoringResultPanel({
       human?.rejectedEvidenceIds ?? [],
     ),
     [reason, setReason] = useState(""),
-    [editing, setEditing] = useState(false);
+    [editing, setEditing] = useState(false),
+    [showAllDomains, setShowAllDomains] = useState(false);
   const task = useTask(),
     router = useRouter();
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
@@ -258,45 +335,6 @@ function ScoringResultPanel({
   const shown = editing ? draft : (human?.result ?? result);
   return (
     <>
-      <div className="scoring-summary">
-        <Tag>
-          {result.state === "REQUIRES_REVIEW"
-            ? "Требует проверки"
-            : "Предварительная оценка"}
-        </Tag>
-        <p className="interpretation-author">
-          {human
-            ? `Интерпретация сотрудника: ${human.author} · ${dateLabel(human.createdAt)}`
-            : "Предложение AI по материалам заявки"}
-        </p>
-        <p>{shown.summary}</p>
-        <strong>
-          Рекомендация: {scoringActions[shown.recommendation.action]}
-        </strong>
-        <p>{shown.recommendation.reason}</p>
-        <div className="source-buttons">
-          {shown.recommendation.sourceIds.map((id) => {
-            const evidence = shown.evidence.find((e) => e.sourceId === id);
-            return evidence ? (
-              <ScoringEvidence
-                key={id}
-                evidence={evidence}
-                applicationId={applicationId}
-                runId={run.id}
-                onSource={onSource}
-              />
-            ) : (
-              <button
-                key={id}
-                className="source-button"
-                onClick={() => onSource(id)}
-              >
-                Открыть материал
-              </button>
-            );
-          })}
-        </div>
-      </div>
       <details className="scoring-scale">
         <summary>
           Шкала и границы оценки · критерии {criteria.rubricVersion}
@@ -317,108 +355,145 @@ function ScoringResultPanel({
           Язык и forced-choice рассматриваются отдельно. {woundedBoundary}
         </p>
       </details>
+      <div className="scoring-domain-heading">
+        <div>
+          <h3>Критерии оценки</h3>
+          <p>
+            Уровень, достаточность и противоречия рассматриваются отдельно.
+            Откройте область, чтобы увидеть основания и цитаты.
+          </p>
+        </div>
+        {shown.domains.length > 4 && (
+          <button
+            className="text-link"
+            aria-expanded={showAllDomains}
+            aria-controls="scoring-domain-list"
+            onClick={() => setShowAllDomains((value) => !value)}
+          >
+            {showAllDomains
+              ? "Первые четыре"
+              : `Все области (${shown.domains.length})`}
+          </button>
+        )}
+      </div>
       <div className="scoring-domain-list" id="scoring-domain-list">
-        {shown.domains.map((d, index) => (
-          <details className="scoring-domain" key={d.domain}>
-            <summary>
-              <span>
-                <strong>{d.domain}</strong>
-                <span className="scoring-axes">
-                  <span>Основания: {d.sufficiency.toLowerCase()}</span>
-                  <span>{d.consistency}</span>
+        {shown.domains
+          .slice(0, showAllDomains ? undefined : 4)
+          .map((d, index) => (
+            <details className="scoring-domain" key={d.domain}>
+              <summary>
+                <span className="scoring-domain-identity">
+                  <span className="scoring-domain-mark" aria-hidden="true">
+                    <DomainMark index={index} />
+                  </span>
+                  <span className="scoring-domain-copy">
+                    <strong>{d.domain}</strong>
+                    <span className="scoring-axes">
+                      <span>Основания: {d.sufficiency.toLowerCase()}</span>
+                      <span>{d.consistency}</span>
+                    </span>
+                  </span>
                 </span>
-              </span>
-              <span className="scoring-level">
-                {d.rating
-                  ? `${d.rating.value !== null ? d.rating.value + " · " : ""}${d.rating.label}`
-                  : "Не установлена"}
-                <small>
-                  {human
-                    ? run.current
-                      ? "Проверено сотрудником"
-                      : "Проверено по прежним материалам"
-                    : "Ожидает человеческой проверки"}
-                </small>
-              </span>
-            </summary>
-            <p>
-              <strong>
-                {human ? "Комментарий сотрудника: " : "AI-обоснование: "}
-              </strong>
-              {d.interpretation}
-            </p>
-            {editing && (
-              <>
-                <label className="field">
-                  Оценка: {d.domain}
-                  <select
-                    value={d.rating?.label ?? ""}
-                    onChange={(e) =>
-                      setDraft((r) => ({
-                        ...r,
-                        domains: r.domains.map((v, i) =>
-                          i === index
-                            ? {
-                                ...v,
-                                rating: e.target.value
-                                  ? { label: e.target.value, value: null }
-                                  : null,
-                              }
-                            : v,
-                        ),
-                      }))
-                    }
-                  >
-                    <option value="">Не установлена</option>
-                    {criteria.levels.map((l) => (
-                      <option key={l.label}>{l.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  Интерпретация: {d.domain}
-                  <textarea
-                    value={d.interpretation}
-                    onChange={(e) =>
-                      setDraft((r) => ({
-                        ...r,
-                        domains: r.domains.map((v, i) =>
-                          i === index
-                            ? { ...v, interpretation: e.target.value }
-                            : v,
-                        ),
-                      }))
-                    }
-                  />
-                </label>
-              </>
-            )}
-            {d.evidenceIds.length > 0 && <h4>Основания оценки</h4>}
-            {d.evidenceIds.map((id) => {
-              const e = shown.evidence.find((e) => e.id === id)!;
-              return (
-                <div className="scoring-evidence" key={id}>
-                  <ScoringEvidence
-                    evidence={e}
-                    applicationId={applicationId}
-                    runId={run.id}
-                    onSource={onSource}
-                  />
-                  {editing && (
-                    <button className="button quiet" onClick={() => reject(id)}>
-                      Отклонить основание
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {d.gaps.map((g) => (
-              <p key={g} className="notice info">
-                Уточнить: {g}
+                <span className="scoring-level">
+                  {d.rating
+                    ? `${d.rating.value !== null ? d.rating.value + " · " : ""}${d.rating.label}`
+                    : "Не установлена"}
+                  <small>
+                    {human
+                      ? run.current
+                        ? "Проверено сотрудником"
+                        : "Проверено по прежним материалам"
+                      : "Ожидает человеческой проверки"}
+                  </small>
+                </span>
+              </summary>
+              <p>
+                <strong>
+                  {human ? "Комментарий сотрудника: " : "AI-обоснование: "}
+                </strong>
+                {d.interpretation}
               </p>
-            ))}
-          </details>
-        ))}
+              {editing && (
+                <>
+                  <label className="field">
+                    Оценка: {d.domain}
+                    <select
+                      value={d.rating?.label ?? ""}
+                      onChange={(e) =>
+                        setDraft((r) => ({
+                          ...r,
+                          domains: r.domains.map((v, i) =>
+                            i === index
+                              ? {
+                                  ...v,
+                                  rating: e.target.value
+                                    ? { label: e.target.value, value: null }
+                                    : null,
+                                }
+                              : v,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="">Не установлена</option>
+                      {criteria.levels.map((l) => (
+                        <option key={l.label}>{l.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    Интерпретация: {d.domain}
+                    <textarea
+                      value={d.interpretation}
+                      onChange={(e) =>
+                        setDraft((r) => ({
+                          ...r,
+                          domains: r.domains.map((v, i) =>
+                            i === index
+                              ? { ...v, interpretation: e.target.value }
+                              : v,
+                          ),
+                        }))
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              {d.evidenceIds.length > 0 && <h4>Основания оценки</h4>}
+              {d.evidenceIds.length === 0 && (
+                <p className="subtle">
+                  Для этой области нет проверяемой цитаты. Уровень нельзя
+                  считать установленным.
+                </p>
+              )}
+              {d.evidenceIds.map((id) => {
+                const e = shown.evidence.find((e) => e.id === id)!;
+                return (
+                  <div className="scoring-evidence" key={id}>
+                    <ScoringEvidence
+                      evidence={e}
+                      applicationId={applicationId}
+                      runId={run.id}
+                      onSource={onSource}
+                    />
+                    {editing && (
+                      <button
+                        className="button quiet"
+                        onClick={() => reject(id)}
+                      >
+                        Отклонить основание
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {d.gaps.map((g) => (
+                <p key={g} className="notice info">
+                  Уточнить: {g}
+                </p>
+              ))}
+            </details>
+          ))}
       </div>
       {shown.contradictions.map((c) => (
         <div className="notice warning" key={c.text}>
@@ -480,10 +555,12 @@ function ScoringResultPanel({
           disabled={!run.current}
           onClick={() => {
             setEditing(!editing);
-            if (!editing)
+            if (!editing) {
+              setShowAllDomains(true);
               document
                 .getElementById("scoring-domain-list")
                 ?.scrollIntoView({ block: "start" });
+            }
           }}
         >
           {editing

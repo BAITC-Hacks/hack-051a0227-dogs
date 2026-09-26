@@ -1,10 +1,21 @@
 "use client";
+import "./candidate-review.css";
 import { DeskChatLauncher } from "./desk-chat";
 import { UserAvatar } from "./user-avatar";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Quote, CalendarDays } from "lucide-react";
+import {
+  ArrowLeft,
+  FileText,
+  Quote,
+  CalendarDays,
+  IdCard,
+  Mail,
+  Phone,
+  UserRound,
+  Globe2,
+} from "lucide-react";
 import type { loadCandidate } from "@/lib/data";
 import { unansweredQuestions } from "@/lib/message-state";
 import { action, dateLabel } from "@/lib/client";
@@ -81,7 +92,10 @@ export function CandidateReview({
   const reviewTask = useTask();
   const router = useRouter();
   const source = a.sources.find((s) => s.id === sourceId);
-  const fields = a.fields as unknown as ApplicationFields;
+  const fields = a.fields as unknown as ApplicationFields & {
+    iin?: string;
+    phone?: string;
+  };
   const language = a.language?.state as unknown as LanguageState | undefined;
   const latestAssessment = (d: string) =>
     a.assessments.find((x) => x.domain === d);
@@ -142,7 +156,18 @@ export function CandidateReview({
           />
           <details className="candidate-contact">
             <summary>Контакт</summary>
-            <p>{a.user.email}</p>
+            <div className="candidate-contact-content">
+              <p>
+                <Mail size={16} aria-hidden="true" />{" "}
+                <span>
+                  {a.user.email || fields.email || "Почта не указана"}
+                </span>
+              </p>
+              <p>
+                <Phone size={16} aria-hidden="true" />{" "}
+                <span>{fields.phone?.trim() || "Телефон не указан"}</span>
+              </p>
+            </div>
           </details>
         </div>
       </div>
@@ -171,7 +196,7 @@ export function CandidateReview({
           </button>
         ))}
       </div>
-      {activeInterview && (
+      {activeInterview && mainTab !== "profile" && (
         <div className="current-interview">
           <span>
             Встреча назначена: {dateLabel(activeInterview.scheduledAt)} · Алматы
@@ -185,9 +210,11 @@ export function CandidateReview({
         </div>
       )}
       <div
-        className={`review-layout ${source ? "has-source" : "source-closed"}`}
+        className={`review-layout ${mainTab === "profile" ? "candidate-review-layout" : ""} ${source ? "has-source" : "source-closed"}`}
       >
-        <div className="review-main">
+        <div
+          className={`review-main ${mainTab === "profile" ? "candidate-profile-layout" : ""}`}
+        >
           {mainTab === "profile" && (
             <ScoringPanel
               applicationId={a.id}
@@ -614,6 +641,107 @@ export function CandidateReview({
                 <Feedback task={reviewTask} />
               </section>
             </details>
+          )}
+          {mainTab === "profile" && (
+            <aside
+              className="candidate-profile-aside"
+              aria-label="Сведения о кандидате"
+            >
+              <section className="candidate-profile-card">
+                <h2>Сведения о кандидате</h2>
+                <dl className="candidate-facts">
+                  <div>
+                    <UserRound size={19} aria-hidden="true" />
+                    <dt>ФИО по заявке</dt>
+                    <dd>{fields.name?.trim() || a.user.name}</dd>
+                  </div>
+                  <div>
+                    <IdCard size={19} aria-hidden="true" />
+                    <dt>ИИН</dt>
+                    <dd>
+                      {/^\d{12}$/.test(fields.iin ?? "")
+                        ? fields.iin
+                        : "Не указан в заявке"}
+                    </dd>
+                  </div>
+                  <div>
+                    <Globe2 size={19} aria-hidden="true" />
+                    <dt>Гражданство</dt>
+                    <dd>{fields.citizenship?.trim() || "Не указано"}</dd>
+                  </div>
+                  <div>
+                    <FileText size={19} aria-hidden="true" />
+                    <dt>ID заявки</dt>
+                    <dd className="candidate-application-id">{a.id}</dd>
+                  </div>
+                </dl>
+              </section>
+              <section className="candidate-profile-card">
+                <div className="candidate-card-heading">
+                  <h2>Материалы заявки</h2>
+                  <button
+                    className="text-link"
+                    onClick={() => setTab("sources")}
+                  >
+                    Все источники
+                  </button>
+                </div>
+                {a.sources.length ? (
+                  <ul className="candidate-material-list">
+                    {a.sources.slice(0, 4).map((item) => (
+                      <li key={item.id}>
+                        <FileText size={18} aria-hidden="true" />
+                        <button onClick={() => openSource(item.id)}>
+                          {item.messageId ? "Ответ кандидата" : item.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : a.materials.length ? (
+                  <ul className="candidate-material-list">
+                    {a.materials.slice(0, 4).map((material) => {
+                      const linkedSource = a.sources.find(
+                        (s) => s.materialId === material.id,
+                      );
+                      return (
+                        <li key={material.id}>
+                          <FileText size={18} aria-hidden="true" />
+                          {linkedSource ? (
+                            <button onClick={() => openSource(linkedSource.id)}>
+                              {material.name}
+                            </button>
+                          ) : (
+                            <a
+                              href={`/api/files/${material.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {material.name}
+                            </a>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="subtle">Материалы пока не добавлены.</p>
+                )}
+              </section>
+              {activeInterview && (
+                <section className="candidate-profile-card candidate-interview-card">
+                  <h2>
+                    <CalendarDays size={19} aria-hidden="true" /> Интервью
+                  </h2>
+                  <p>{dateLabel(activeInterview.scheduledAt)} · Алматы</p>
+                  <Link
+                    className="button secondary"
+                    href={`/admissions/interviews/${activeInterview.id}`}
+                  >
+                    Открыть подготовку
+                  </Link>
+                </section>
+              )}
+            </aside>
           )}
           {mainTab === "decision" && (
             <ReviewDecision application={a} scoringDraft={scoringDraft} />
