@@ -250,6 +250,12 @@ export type ScoringView = {
     criteriaVersion: string;
     criteria: ScoringCriteria;
     result: ScoringResult | null;
+    showcaseScore: null | {
+      value: number;
+      maximum: 100;
+      basis: string;
+      evidenceIds: string[];
+    };
     reviews: {
       id: string;
       author: string;

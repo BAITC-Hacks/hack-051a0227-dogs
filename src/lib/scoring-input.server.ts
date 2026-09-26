@@ -22,7 +22,10 @@ export const digest = (v: unknown) =>
     .update(JSON.stringify(canonical(v)))
     .digest("hex");
 /** Allowlist shared by production collection and controlled background-isolation checks. */
-export function assessmentFacts(fields: Record<string, unknown>, program: string) {
+export function assessmentFacts(
+  fields: Record<string, unknown>,
+  program: string,
+) {
   const value = (key: string) =>
     typeof fields[key] === "string" ? (fields[key] as string) : "";
   return {
@@ -157,9 +160,12 @@ export async function scoringInput(
           : s.content;
       const assessable =
         !material &&
-        ["Опыт и личная роль", "Мотивация", "Ответ в переписке"].includes(
+        (["Опыт и личная роль", "Мотивация", "Ответ в переписке"].includes(
           s.title,
-        );
+        ) ||
+          (s.provenance === "SEED_CANDIDATE_ACCOUNT" &&
+            (s.title.startsWith("Опыт · ") ||
+              s.title === "Почему inVision U")));
       return {
         id: s.id,
         version: digest({ content: s.content, corrections, material }),

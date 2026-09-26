@@ -215,6 +215,40 @@ export function CandidateReview({
         <div
           className={`review-main ${mainTab === "profile" ? "candidate-profile-layout" : ""}`}
         >
+          {mainTab === "profile" &&
+            ["ACCEPT", "DECLINE"].includes(a.decisions[0]?.action ?? "") && (
+              <section
+                className="candidate-outcome"
+                aria-label="Решение сотрудника"
+              >
+                <div>
+                  <span className="candidate-outcome-label">
+                    Решение сотрудника
+                  </span>
+                  <h2>{actionLabels[a.decisions[0].action]}</h2>
+                  <p>{a.decisions[0].reason}</p>
+                  <small>
+                    {a.decisions[0].author.name} ·{" "}
+                    {dateLabel(a.decisions[0].createdAt)}
+                  </small>
+                  {a.sources.some(
+                    (source) => source.createdAt > a.decisions[0].createdAt,
+                  ) && (
+                    <p className="candidate-outcome-update">
+                      После решения добавлены материалы. Их нужно сверить
+                      отдельно; сохранённое решение не переписывается
+                      автоматически.
+                    </p>
+                  )}
+                </div>
+                <button
+                  className="button secondary"
+                  onClick={() => setTab("decision")}
+                >
+                  Открыть решение
+                </button>
+              </section>
+            )}
           {mainTab === "profile" && (
             <ScoringPanel
               applicationId={a.id}

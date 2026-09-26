@@ -526,6 +526,9 @@ model ScoringRun {
   scenarioVersion String
   input Json
   result Json?
+  showcaseScore Int?
+  showcaseScoreBasis String?
+  showcaseScoreEvidenceIds String[] @default([])
   status String @default("QUEUED")
   requestedBy String
   leaseToken String?

@@ -18,8 +18,13 @@ export function isolatedAssessmentEnvironment() {
     )
   );
 }
-export function assertPreparedScope(origin: string) {
-  if (!isolatedAssessmentEnvironment() || origin !== "ASSESSMENT_QA")
+export function assertPreparedScope(origin: string, scenarioVersion = "") {
+  const showcase = scenarioVersion === "showcase-scoring-v1";
+  if (
+    !isolatedAssessmentEnvironment() ||
+    (origin !== "ASSESSMENT_QA" &&
+      !(showcase && ["SEED", "QA"].includes(origin)))
+  )
     throw new Error("PREPARED_SCOPE_BLOCKED");
 }
 /** No keyword scoring. Unknown records get only attributed fields and explicit gaps. */
@@ -103,7 +108,7 @@ export class LocalAssessmentProvider implements AssessmentProvider {
     context: { inputHash: string; scenarioVersion: string },
   ) {
     if (!this.prepared) return factualAssessment(input);
-    assertPreparedScope(this.origin);
+    assertPreparedScope(this.origin, context.scenarioVersion);
     if (
       this.prepared.inputHash !== context.inputHash ||
       this.prepared.scenarioVersion !== context.scenarioVersion

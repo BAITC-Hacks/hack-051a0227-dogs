@@ -15,6 +15,7 @@ import {
 import {
   configuredAssessmentProvider,
   assertPreparedScope,
+  isolatedAssessmentEnvironment,
   LocalAssessmentProvider,
   ExternalAssessmentProvider,
 } from "./scoring-provider.server";
@@ -33,7 +34,7 @@ async function lock(tx: Tx, applicationId: string) {
 function scope(origin: string, scenario: string, provider: string) {
   if (provider === "local" && scenario !== "structured-fields-v1") {
     try {
-      assertPreparedScope(origin);
+      assertPreparedScope(origin, scenario);
     } catch {
       throw new AppError(
         "Этот результат недоступен для текущего рассмотрения.",
@@ -79,6 +80,7 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
   if (!runs.length) return { criteria: await scoringCriteria(db), runs: [] };
   const input = await scoringInput(db, applicationId);
   const hash = digest(input);
+  const availableSources = new Map(input.sources.map((s) => [s.id, s.version]));
   const app = await db.application.findUniqueOrThrow({
     where: { id: applicationId },
     select: { origin: true },
@@ -92,9 +94,24 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
         const ownInput = r.input as unknown as ScoringInput;
         if (digest(ownInput) !== r.inputHash)
           throw new Error("INPUT_HASH_MISMATCH");
-        if (r.result) validateScoringResult(r.result, ownInput);
-        for (const review of r.reviews)
-          validateScoringResult(review.result, ownInput, true);
+        const results = [
+          ...(r.result ? [validateScoringResult(r.result, ownInput)] : []),
+          ...r.reviews.map((review) =>
+            validateScoringResult(review.result, ownInput, true),
+          ),
+        ];
+        if (
+          results.some(
+            (result) =>
+              result.evidence.some(
+                (e) => availableSources.get(e.sourceId) !== e.sourceVersion,
+              ) ||
+              result.recommendation.sourceIds.some(
+                (sourceId) => !availableSources.has(sourceId),
+              ),
+          )
+        )
+          throw new Error("SOURCE_UNAVAILABLE_OR_CHANGED");
       } catch {
         allowed = false;
       }
@@ -108,6 +125,31 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
         completedAt: r.completedAt?.toISOString() ?? null,
         result:
           allowed && r.result ? scoringResultSchema.parse(r.result) : null,
+        showcaseScore:
+          allowed &&
+          hash === r.inputHash &&
+          r.status === "COMPLETED" &&
+          r.scenarioVersion === "showcase-scoring-v1" &&
+          isolatedAssessmentEnvironment() &&
+          ["SEED", "QA"].includes(app.origin) &&
+          !r.reviews.length &&
+          r.showcaseScore !== null &&
+          r.showcaseScore >= 0 &&
+          r.showcaseScore <= 100 &&
+          r.showcaseScoreBasis &&
+          r.showcaseScoreEvidenceIds.length > 0 &&
+          r.showcaseScoreEvidenceIds.every((id) =>
+            (
+              r.result as unknown as { evidence?: { id: string }[] }
+            )?.evidence?.some((e) => e.id === id),
+          )
+            ? {
+                value: r.showcaseScore,
+                maximum: 100 as const,
+                basis: r.showcaseScoreBasis,
+                evidenceIds: r.showcaseScoreEvidenceIds,
+              }
+            : null,
         reviews: allowed
           ? r.reviews.map((v) => ({
               id: v.id,

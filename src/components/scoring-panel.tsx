@@ -105,11 +105,124 @@ export function ScoringPanel({
         <div className="scoring-heading">
           <div>
             <h2>AI-скоринг</h2>
-            <p>
-              Предварительная оценка материалов. Решение остаётся за
-              сотрудником.
+          </div>
+          {run && (
+            <Tag tone={run.current ? "blue" : "warning"}>
+              {run.status === "UNAVAILABLE"
+                ? "Требует проверки"
+                : !run.current
+                  ? "Материалы изменились"
+                  : run.status === "COMPLETED"
+                    ? run.reviews.length
+                      ? "Проверено сотрудником"
+                      : "Требует проверки"
+                    : run.status === "FAILED"
+                      ? "Обработка прервалась"
+                      : "Обработка материалов"}
+            </Tag>
+          )}
+        </div>
+        <Feedback task={task} />
+        {!run && (
+          <p className="notice info">
+            Запустите анализ, чтобы получить профиль по девяти областям,
+            основания и вопросы к материалам этой заявки.
+          </p>
+        )}
+        {run && shown && (
+          <div className="scoring-summary">
+            <div className="scoring-result-grid">
+              <div className="scoring-result-copy">
+                <h3>
+                  Предварительная оценка:{" "}
+                  {shown.state === "READY"
+                    ? "есть основания для следующего шага"
+                    : "нужна проверка оснований"}
+                </h3>
+                <p>
+                  {run.showcaseScore
+                    ? (shown.evidence.find((e) => e.id === "episode")?.quote ??
+                      shown.summary)
+                    : shown.summary}
+                </p>
+                <p className="scoring-recommendation">
+                  <strong>{scoringActions[shown.recommendation.action]}</strong>
+                  {shown.recommendation.reason !==
+                    shown.domains[2]?.interpretation && (
+                    <span>{shown.recommendation.reason}</span>
+                  )}
+                </p>
+                {shown.domains[2]?.evidenceIds.length > 0 && (
+                  <p className="scoring-leadership">
+                    <strong>Лидерство: </strong>
+                    {shown.domains[2].interpretation}
+                  </p>
+                )}
+              </div>
+              <div
+                className="scoring-score"
+                aria-label={
+                  run.showcaseScore
+                    ? `Предварительный балл ${run.showcaseScore.value} из 100`
+                    : "Общий балл не установлен"
+                }
+              >
+                <strong>{run.showcaseScore?.value ?? "—"}</strong>
+                <span>
+                  {run.showcaseScore ? "из 100" : "Общий балл не установлен"}
+                </span>
+              </div>
+            </div>
+            {run.showcaseScore && (
+              <details className="scoring-score-basis">
+                <summary>Основание предварительного балла</summary>
+                <p>{run.showcaseScore.basis}</p>
+                <div className="source-buttons">
+                  {run.showcaseScore.evidenceIds.map((id) => {
+                    const evidence = shown.evidence.find((e) => e.id === id);
+                    return evidence ? (
+                      <ScoringEvidence
+                        key={id}
+                        evidence={evidence}
+                        applicationId={applicationId}
+                        runId={run.id}
+                        onSource={onSource}
+                      />
+                    ) : null;
+                  })}
+                </div>
+              </details>
+            )}
+            <div className="source-buttons">
+              {shown.recommendation.sourceIds.map((id) => {
+                const evidence = shown.evidence.find((e) => e.sourceId === id);
+                return evidence ? (
+                  <ScoringEvidence
+                    key={id}
+                    evidence={evidence}
+                    applicationId={applicationId}
+                    runId={run.id}
+                    onSource={onSource}
+                  />
+                ) : (
+                  <button
+                    key={id}
+                    className="source-button"
+                    onClick={() => onSource(id)}
+                  >
+                    Открыть материал
+                  </button>
+                );
+              })}
+            </div>
+            <p className="interpretation-author">
+              {run.reviews[0]
+                ? `Проверено сотрудником: ${run.reviews[0].author} · ${dateLabel(run.reviews[0].createdAt)}`
+                : "Предложение по переданным материалам"}
             </p>
           </div>
+        )}
+        <div className="scoring-toolbar">
           {run?.current && run.status === "COMPLETED" ? (
             <a className="button primary" href="#scoring-human-review">
               Проверить рекомендацию
@@ -133,36 +246,10 @@ export function ScoringPanel({
                 })
               }
             >
-              {processing
-                ? "Анализ выполняется"
-                : run?.current && run.status === "COMPLETED"
-                  ? "Проверить актуальность"
-                  : "Запустить анализ"}
+              {processing ? "Анализ выполняется" : "Запустить анализ"}
             </button>
           )}
-        </div>
-        <Feedback task={task} />
-        {!run && (
-          <p className="notice info">
-            Запустите анализ, чтобы получить профиль по девяти областям,
-            основания и вопросы к материалам этой заявки.
-          </p>
-        )}
-        {run && (
-          <div className="scoring-toolbar">
-            <Tag tone={run.current ? "blue" : "warning"}>
-              {run.status === "UNAVAILABLE"
-                ? "Требует проверки"
-                : !run.current
-                  ? "Материалы изменились"
-                  : run.status === "COMPLETED"
-                    ? "Результат сохранён"
-                    : run.status === "FAILED"
-                      ? "Обработка прервалась"
-                      : run.status === "UNAVAILABLE"
-                        ? "Требует проверки"
-                        : "Обработка материалов"}
-            </Tag>
+          {run && (
             <details className="scoring-history">
               <summary>История анализов</summary>
               <label className="field">
@@ -182,66 +269,8 @@ export function ScoringPanel({
                 </select>
               </label>
             </details>
-          </div>
-        )}
-        {run && shown && (
-          <div className="scoring-summary">
-            <Tag>
-              {shown.state === "REQUIRES_REVIEW"
-                ? "Требует проверки"
-                : "Предварительная оценка"}
-            </Tag>
-            <p className="interpretation-author">
-              {run.reviews[0]
-                ? `Интерпретация сотрудника: ${run.reviews[0].author} · ${dateLabel(run.reviews[0].createdAt)}`
-                : "Предложение AI по материалам заявки"}
-            </p>
-            <p>{shown.summary}</p>
-            <strong>
-              Рекомендация: {scoringActions[shown.recommendation.action]}
-            </strong>
-            <p>{shown.recommendation.reason}</p>
-            <div className="source-buttons">
-              {shown.recommendation.sourceIds.map((id) => {
-                const evidence = shown.evidence.find((e) => e.sourceId === id);
-                return evidence ? (
-                  <ScoringEvidence
-                    key={id}
-                    evidence={evidence}
-                    applicationId={applicationId}
-                    runId={run.id}
-                    onSource={onSource}
-                  />
-                ) : (
-                  <button
-                    key={id}
-                    className="source-button"
-                    onClick={() => onSource(id)}
-                  >
-                    Открыть материал
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="scoring-context-links">
-        <p className="scoring-language">
-          <Link
-            className="text-link"
-            href={`/admissions/candidates/${applicationId}/stability`}
-          >
-            Проверить устойчивость
-          </Link>
-          {" · Контролируемая пара без изменения официального профиля"}
-        </p>
-        <p className="scoring-language">
-          Английский: {language}.{" "}
-          <button className="text-link" onClick={onReadiness}>
-            Отдельная языковая проверка
-          </button>
-        </p>
+          )}
+        </div>
       </div>
       {run && (
         <>
@@ -279,6 +308,24 @@ export function ScoringPanel({
           )}
         </>
       )}
+      <details className="scoring-context-links">
+        <summary>Дополнительные проверки</summary>
+        <p className="scoring-language">
+          <Link
+            className="text-link"
+            href={`/admissions/candidates/${applicationId}/stability`}
+          >
+            Проверить устойчивость
+          </Link>
+          {" · Контролируемая пара без изменения официального профиля"}
+        </p>
+        <p className="scoring-language">
+          Английский: {language}.{" "}
+          <button className="text-link" onClick={onReadiness}>
+            Отдельная языковая проверка
+          </button>
+        </p>
+      </details>
     </section>
   );
 }
@@ -335,33 +382,9 @@ function ScoringResultPanel({
   const shown = editing ? draft : (human?.result ?? result);
   return (
     <>
-      <details className="scoring-scale">
-        <summary>
-          Шкала и границы оценки · критерии {criteria.rubricVersion}
-        </summary>
-        <p>{criteria.guidance}</p>
-        {criteria.levels.map((l) => (
-          <p key={l.label}>
-            <strong>{l.label}:</strong> {l.meaning}
-          </p>
-        ))}
-        {criteria.numeric?.points.map((p) => (
-          <p key={p.value}>
-            {p.value} · {p.label}: {p.meaning}
-          </p>
-        ))}
-        <p>
-          «Не установлена» означает отсутствие оценки, а не низкое проявление.
-          Язык и forced-choice рассматриваются отдельно. {woundedBoundary}
-        </p>
-      </details>
       <div className="scoring-domain-heading">
         <div>
-          <h3>Критерии оценки</h3>
-          <p>
-            Уровень, достаточность и противоречия рассматриваются отдельно.
-            Откройте область, чтобы увидеть основания и цитаты.
-          </p>
+          <h3>Ключевые критерии оценки</h3>
         </div>
         {shown.domains.length > 4 && (
           <button
@@ -372,7 +395,7 @@ function ScoringResultPanel({
           >
             {showAllDomains
               ? "Первые четыре"
-              : `Все области (${shown.domains.length})`}
+              : `Все критерии (${shown.domains.length})`}
           </button>
         )}
       </div>
@@ -398,13 +421,6 @@ function ScoringResultPanel({
                   {d.rating
                     ? `${d.rating.value !== null ? d.rating.value + " · " : ""}${d.rating.label}`
                     : "Не установлена"}
-                  <small>
-                    {human
-                      ? run.current
-                        ? "Проверено сотрудником"
-                        : "Проверено по прежним материалам"
-                      : "Ожидает человеческой проверки"}
-                  </small>
                 </span>
               </summary>
               <p>
@@ -495,6 +511,26 @@ function ScoringResultPanel({
             </details>
           ))}
       </div>
+      <details className="scoring-scale">
+        <summary>
+          Шкала и границы оценки · критерии {criteria.rubricVersion}
+        </summary>
+        <p>{criteria.guidance}</p>
+        {criteria.levels.map((l) => (
+          <p key={l.label}>
+            <strong>{l.label}:</strong> {l.meaning}
+          </p>
+        ))}
+        {criteria.numeric?.points.map((p) => (
+          <p key={p.value}>
+            {p.value} · {p.label}: {p.meaning}
+          </p>
+        ))}
+        <p>
+          «Не установлена» означает отсутствие оценки, а не низкое проявление.
+          Язык и forced-choice рассматриваются отдельно. {woundedBoundary}
+        </p>
+      </details>
       {shown.contradictions.map((c) => (
         <div className="notice warning" key={c.text}>
           <strong>Противоречие</strong>

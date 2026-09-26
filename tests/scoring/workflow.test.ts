@@ -299,9 +299,24 @@ test(
             () => assertPreparedScope("USER"),
             /PREPARED_SCOPE_BLOCKED/,
           );
+          assert.throws(
+            () => assertPreparedScope("SEED"),
+            /PREPARED_SCOPE_BLOCKED/,
+          );
+          assert.throws(
+            () => assertPreparedScope("SEED", "rich-base-test-v1"),
+            /PREPARED_SCOPE_BLOCKED/,
+          );
+          assert.doesNotThrow(() =>
+            assertPreparedScope("SEED", "showcase-scoring-v1"),
+          );
           process.env.ASSESSMENT_ENVIRONMENT = "campaign";
           assert.throws(
             () => assertPreparedScope("ASSESSMENT_QA"),
+            /PREPARED_SCOPE_BLOCKED/,
+          );
+          assert.throws(
+            () => assertPreparedScope("SEED", "showcase-scoring-v1"),
             /PREPARED_SCOPE_BLOCKED/,
           );
           process.env.ASSESSMENT_ENVIRONMENT = "isolated-local";
@@ -649,8 +664,35 @@ test(
             { ...request, applicationId: appIds[2] },
             404,
           );
+          const original = await db.source.findUniqueOrThrow({
+            where: { id: e.sourceId },
+          });
+          await db.source.update({
+            where: { id: e.sourceId },
+            data: { content: `${original.content}\nИсправленная версия.` },
+          });
+          const afterRevision: ScoringView = await staff.call(
+            "scoring.status",
+            { applicationId: appIds[1] },
+          );
+          assert.equal(
+            afterRevision.runs.find((r) => r.id === saved.id)?.result,
+            null,
+          );
+          await db.source.update({
+            where: { id: e.sourceId },
+            data: { content: original.content },
+          });
           await db.source.delete({ where: { id: e.sourceId } });
           await staff.call("scoring.evidence", request, 404);
+          const afterDeletion: ScoringView = await staff.call(
+            "scoring.status",
+            { applicationId: appIds[1] },
+          );
+          const unavailable = afterDeletion.runs.find((r) => r.id === saved.id)!;
+          assert.equal(unavailable.status, "UNAVAILABLE");
+          assert.equal(unavailable.result, null);
+          assert.equal(unavailable.showcaseScore, null);
         },
       );
     } finally {
