@@ -658,3 +658,41 @@ body:has(.candidate-review-layout) .site-header {
     text-align: left;
   }
 }
+
+.candidate-actions {
+  grid-column: 1;
+  margin-top: 16px;
+  padding: 20px 22px;
+  border: 1px solid #dfe5d5;
+  border-radius: 14px;
+  background: #fffefa;
+}
+.candidate-actions-heading h2 { margin: 0; font-size: 19px; }
+.candidate-actions-heading p { margin: 6px 0 16px; color: #5c665a; font-size: 13px; }
+.candidate-action-buttons { display: flex; flex-wrap: wrap; gap: 9px; }
+.candidate-action-buttons .button { min-width: 108px; }
+.candidate-actions > .panel { margin-top: 16px; background: #f7f9ee; }
+.candidate-actions > .stage-action-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
+.candidate-actions > .calendar-form-compact { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
+.candidate-scoring .scoring-hero { padding: 24px; }
+.candidate-scoring-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
+.candidate-scoring-main h3 { margin: 4px 0 9px; font-size: clamp(21px, 2vw, 27px); line-height: 1.2; }
+.candidate-scoring-main p { margin: 0 0 9px; max-width: 66ch; line-height: 1.5; }
+.candidate-scoring-main > div:first-child > p:first-of-type { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.candidate-scoring-note { color: #4d5a4e; font-size: 13px; }
+.candidate-scoring-metrics { display: flex; gap: 8px; }
+.candidate-scoring-metric { display: grid; gap: 4px; min-width: 108px; min-height: 90px; place-content: center; padding: 12px; border: 1px solid #d6eab4; border-radius: 12px; background: #e4f9bb; text-align: center; }
+.candidate-scoring-metric + .candidate-scoring-metric { border-color: #cfe0ed; background: #e9f3fa; }
+.candidate-scoring-metric strong { font-size: 31px; line-height: 1; }
+.candidate-scoring-metric span { max-width: 110px; color: #394636; font-size: 11px; line-height: 1.2; }
+.candidate-scoring-language { margin: 5px 0 17px; color: #54645b; font-size: 12px; }
+@media (max-width: 699px) {
+  .candidate-actions { padding: 17px; }
+  .candidate-action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .candidate-action-buttons .button { min-width: 0; padding-inline: 5px; }
+  .candidate-scoring .scoring-hero { padding: 18px; }
+  .candidate-scoring-main { grid-template-columns: 1fr; gap: 9px; }
+  .candidate-scoring-metrics { width: 100%; }
+  .candidate-scoring-metric { flex: 1; min-width: 0; min-height: 74px; }
+  .candidate-scoring-metric strong { font-size: 26px; }
+}

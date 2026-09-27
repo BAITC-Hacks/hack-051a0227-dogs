@@ -14,10 +14,12 @@ export function ReviewDecision({
   application: a,
   scoringDraft,
   deskDraft,
+  feedbackOnly = false,
 }: {
   application: Candidate;
   deskDraft?: DeskResult["feedback"] | null;
   scoringDraft?: { result: ScoringResult; runId: string } | null;
+  feedbackOnly?: boolean;
 }) {
   const router = useRouter(),
     decisionTask = useTask(),
@@ -70,7 +72,8 @@ export function ReviewDecision({
   }
   return (
     <section className="review-section" id="decision-publication">
-      <h2>Решение и обратная связь</h2>
+      <h2>{feedbackOnly ? "Сообщение кандидату" : "Решение и обратная связь"}</h2>
+      {!feedbackOnly && <>
       <StageActions
         application={{
           id: a.id,
@@ -221,6 +224,7 @@ export function ReviewDecision({
         </button>
         <Feedback task={decisionTask} />
       </form>
+      </>}
       <form
         className="panel feedback-editor"
         onSubmit={(e) => {
@@ -241,7 +245,7 @@ export function ReviewDecision({
           }, "Черновик сохранён. Проверьте точный текст перед публикацией.");
         }}
       >
-        <h3>2. Сообщение кандидату</h3>
+        <h3>{feedbackOnly ? "Подготовить сообщение" : "2. Сообщение кандидату"}</h3>
         {!validDecision && (
           <p className="notice info">
             Сначала сохраните решение по актуальным материалам.
@@ -319,7 +323,7 @@ export function ReviewDecision({
           className="publication-preview"
           aria-label="Предпросмотр для кандидата"
         >
-          <h3>3. Так кандидат увидит сообщение</h3>
+          <h3>{feedbackOnly ? "Так кандидат увидит сообщение" : "3. Так кандидат увидит сообщение"}</h3>
           <p className="publication-body">{preview.body}</p>
           <p className="subtle">
             Связанные материалы:{" "}
@@ -328,24 +332,24 @@ export function ReviewDecision({
               .join("; ")}
             .
           </p>
-          <label className="check-label">
+          {!feedbackOnly && <label className="check-label">
             <input
               type="checkbox"
               checked={confirm}
               onChange={(e) => setConfirm(e.target.checked)}
             />
             Проверил содержание и подтверждаю публикацию в приложении
-          </label>
+          </label>}
           <button
             className="button primary"
-            disabled={!confirm || publishTask.busy}
+            disabled={(!feedbackOnly && !confirm) || publishTask.busy}
             onClick={() =>
               publishTask.run(async () => {
                 await action("feedback.publish", {
                   applicationId: a.id,
                   materialVersion: a.materialVersion,
                   id: preview.id,
-                  confirm,
+                  confirm: feedbackOnly || confirm,
                 });
                 decisionTask.setNotice("");
                 resetPreview();
@@ -358,7 +362,10 @@ export function ReviewDecision({
         </section>
       )}
       <Feedback task={publishTask} />
-      {a.feedback.length > 0 && (
+      {feedbackOnly && a.feedback.some((item) => !item.publishedAt) && (
+        <button className="text-link" type="button" disabled={publishTask.busy} onClick={() => publishTask.run(() => previewSaved(a.feedback.find((item) => !item.publishedAt)!.id))}>Продолжить сохранённый черновик</button>
+      )}
+      {!feedbackOnly && a.feedback.length > 0 && (
         <details className="versions">
           <summary>Черновики и публикации · {a.feedback.length}</summary>
           {a.feedback.map((f) => (

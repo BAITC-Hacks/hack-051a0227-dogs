@@ -153,7 +153,6 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
           r.scenarioVersion === "showcase-scoring-v1" &&
           isolatedAssessmentEnvironment() &&
           ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
-          !r.reviews.length &&
           r.showcaseScore !== null &&
           r.showcaseScore >= 0 &&
           r.showcaseScore <= 100 &&
@@ -170,6 +169,13 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
                 basis: r.showcaseScoreBasis,
                 evidenceIds: r.showcaseScoreEvidenceIds,
               }
+            : null,
+        showcaseEnglishScore:
+          allowed && hash === r.inputHash && r.status === "COMPLETED" &&
+          r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&
+          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
+          r.showcaseEnglishScore !== null && r.showcaseEnglishScore >= 0 && r.showcaseEnglishScore <= 100
+            ? { value: r.showcaseEnglishScore, maximum: 100 as const }
             : null,
         showcaseAxis:
           allowed && hash === r.inputHash && r.status === "COMPLETED" &&

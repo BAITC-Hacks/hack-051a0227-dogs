@@ -268,6 +268,7 @@ export type ScoringView = {
       basis: string;
       evidenceIds: string[];
     };
+    showcaseEnglishScore: null | { value: number; maximum: 100 };
     showcaseAxis: null | {
       criterionId: (typeof domains)[number];
       value: 1 | 2;

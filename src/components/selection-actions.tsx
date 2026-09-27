@@ -28,11 +28,11 @@ type Interview = {
     errorCode: string | null;
   }[];
 };
-export function StageActions({ application: a }: { application: Base }) {
+export function StageActions({ application: a, fixedChoice }: { application: Base; fixedChoice?: "APPROVE_STAGE" | "DECLINE" }) {
   const router = useRouter(),
     task = useTask();
   const [choice, setChoice] = useState<"APPROVE_STAGE" | "DECLINE">(
-      "APPROVE_STAGE",
+      fixedChoice ?? "APPROVE_STAGE",
     ),
     [reason, setReason] = useState(""),
     [preview, setPreview] = useState<{
@@ -51,14 +51,10 @@ export function StageActions({ application: a }: { application: Base }) {
         ? "Одобрить языковой этап"
         : "Одобрить рассмотрение материалов";
   return (
-    <section className="panel stack" id="stage-actions">
-      <h3>Действие по текущему этапу</h3>
-      <p>
-        Одобрение этапа позволяет продолжить рассмотрение и не означает
-        зачисление.
-      </p>
+    <section className={fixedChoice ? "stack stage-action-form" : "panel stack"} id="stage-actions">
+      {!fixedChoice && <><h3>Действие по текущему этапу</h3><p>Одобрение этапа позволяет продолжить рассмотрение и не означает зачисление.</p></>}
       <div className="form-grid two">
-        <label className="field">
+        {!fixedChoice && <label className="field">
           Действие
           <select
             value={choice}
@@ -70,7 +66,7 @@ export function StageActions({ application: a }: { application: Base }) {
             <option value="APPROVE_STAGE">{approveLabel}</option>
             <option value="DECLINE">Отклонить заявку</option>
           </select>
-        </label>
+        </label>}
         <label className="field">
           Основание
           <textarea
@@ -85,7 +81,20 @@ export function StageActions({ application: a }: { application: Base }) {
           />
         </label>
       </div>
-      <button
+      {fixedChoice ? <button
+        type="button"
+        className="button primary"
+        disabled={task.busy || reason.trim().length < 10 || a.stage === "DECIDED"}
+        onClick={() => task.run(async () => {
+          const checked = await action<{ id: string }>("stage.preview", {
+            applicationId: a.id, revision: a.revision, materialVersion: a.materialVersion,
+            action: fixedChoice, reason,
+          });
+          await action("stage.confirm", { previewId: checked.id, confirm: true });
+          setReason("");
+          router.refresh();
+        }, fixedChoice === "DECLINE" ? "Отклонение сохранено." : "Текущий этап одобрен.")}
+      >{fixedChoice === "DECLINE" ? "Отклонить заявку" : "Одобрить этап"}</button> : <button
         type="button"
         className="button secondary"
         disabled={
@@ -104,10 +113,8 @@ export function StageActions({ application: a }: { application: Base }) {
             );
           })
         }
-      >
-        Проверить действие
-      </button>
-      {preview && (
+      >Проверить действие</button>}
+      {!fixedChoice && preview && (
         <div className="calendar-preview">
           <h4>
             {preview.payload.action === "DECLINE"
@@ -159,9 +166,13 @@ const localDate = (time: Date | string, zone: string) => {
 export function CalendarForm({
   application: a,
   interview,
+  initiallyOpen = false,
+  compact = false,
 }: {
   application: Base;
   interview?: Interview;
+  initiallyOpen?: boolean;
+  compact?: boolean;
 }) {
   const router = useRouter(),
     task = useTask(),
@@ -172,7 +183,7 @@ export function CalendarForm({
     interviewers?: { id: string }[];
     recipients?: string[];
   } | null;
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(initiallyOpen),
     [cancel, setCancel] = useState(false),
     [value, setValue] = useState<MeetingInput>({
       localStart: interview
@@ -215,10 +226,10 @@ export function CalendarForm({
     setPreview(null);
   };
   return (
-    <section className="panel stack" id="schedule-interview">
+    <section className={compact ? "stack calendar-form-compact" : "panel stack"} id="schedule-interview">
       <div className="row between">
         <h3>{interview ? "Время и приглашение" : "Назначить интервью"}</h3>
-        <button
+        {!compact && <button
           type="button"
           className="button secondary"
           onClick={() => setOpen(!open)}
@@ -228,7 +239,7 @@ export function CalendarForm({
             : interview
               ? "Изменить встречу"
               : "Назначить интервью"}
-        </button>
+        </button>}
       </div>
       {interview && (
         <>
@@ -364,11 +375,11 @@ export function CalendarForm({
               value={value.recipients.join("\n")}
               onChange={(e) => change("recipients", e.target.value.split("\n"))}
             />
-            <small>
+            {!compact && <small>
               {value.mode === "GOOGLE"
                 ? "Интервьюеры также получат приглашение Google. Проверь каждый адрес перед подтверждением."
                 : "Приглашение будет опубликовано в заявке. Внешние письма не отправляются."}
-            </small>
+            </small>}
           </label>
           <label className="field">
             Основание для комиссии
@@ -378,7 +389,7 @@ export function CalendarForm({
               maxLength={2000}
             />
           </label>
-          <label className="check-label">
+          {!compact && <label className="check-label">
             <input
               type="checkbox"
               checked={value.publish}
@@ -386,7 +397,7 @@ export function CalendarForm({
             />
             Опубликовать кандидату приглашение с временем и ссылкой после
             подтверждения встречи
-          </label>
+          </label>}
           {interview && (
             <label className="check-label">
               <input
@@ -459,14 +470,14 @@ export function CalendarForm({
                   </li>
                 ))}
               </ul>
-              <p>
+              {!compact && <p>
                 {value.publish
                   ? value.mode === "GOOGLE"
                     ? "Кандидат увидит время и подтверждённую Google ссылку."
                     : "Кандидат увидит время и указанную сотрудником ссылку."
                   : "Приглашение в приложении не публикуется."}{" "}
                 Основание остаётся внутри комиссии.
-              </p>
+              </p>}
               <button
                 type="button"
                 className="button primary"

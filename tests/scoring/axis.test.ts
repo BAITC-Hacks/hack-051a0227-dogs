@@ -29,6 +29,7 @@ function run(prepared: boolean): Run {
       feedback: { observation: "Проверить", suggestion: "Проверить", nextAction: "Проверить", sourceIds: [] },
     } as Run["result"],
     showcaseScore: null,
+    showcaseEnglishScore: null,
     showcaseAxis: prepared ? domains.map((criterionId, index) => ({
       criterionId, value: (index % 2 ? 1 : 2) as 1 | 2,
       scaleVersion: "prepared-axis-v1" as const,

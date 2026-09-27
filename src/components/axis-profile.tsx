@@ -1,8 +1,8 @@
 "use client";
 import "./axis-profile.css";
 import { useState } from "react";
-import { action, dateLabel } from "@/lib/client";
-import { axisPoints, comparableAxisRun } from "@/lib/axis-profile";
+import { action } from "@/lib/client";
+import { axisPoints } from "@/lib/axis-profile";
 import type { ScoringResult, ScoringView } from "@/lib/scoring-contract";
 import { Feedback, useTask } from "./ui";
 
@@ -28,19 +28,16 @@ function segments(points: ReturnType<typeof axisPoints>) {
 }
 export function AxisProfile({
   run,
-  runs,
   applicationId,
   onSource,
   onUpdated,
 }: {
   run: Run;
-  runs: Run[];
   applicationId: string;
   onSource: (id: string) => void;
   onUpdated: (view: ScoringView) => void;
 }) {
   const [selected, setSelected] = useState(0);
-  const [compare, setCompare] = useState("none");
   const [editing, setEditing] = useState(false);
   const [score, setScore] = useState("");
   const [sourceId, setSourceId] = useState("");
@@ -49,15 +46,8 @@ export function AxisProfile({
   const [reason, setReason] = useState("");
   const task = useTask();
   const points = axisPoints(run);
-  const former = runs.find((item) => comparableAxisRun(run, item));
-  const comparison = compare === "proposal" && run.reviews.length
-    ? axisPoints({ ...run, reviews: [] })
-    : compare === "previous" && former
-      ? axisPoints(former)
-      : null;
   const result = run.reviews[0]?.result ?? run.result;
   const item = points[selected];
-  const beforeReview = run.reviews.length ? axisPoints({ ...run, reviews: [] })[selected] : null;
   const domain = result?.domains[selected];
   const selectedSource = run.sources.find((source) => source.id === sourceId);
   const sourceEvidence = item.evidenceIds
@@ -126,19 +116,8 @@ export function AxisProfile({
       <div className="axis-heading">
         <div>
           <span className="axis-kicker">AXIS · девять областей</span>
-          <h3 id="axis-title">Профиль по проверяемым основаниям</h3>
-          <p>Шкала 1–2 отражает два уровня действующей рубрики. Пустая область не равна нулю. Подготовленные значения требуют проверки.</p>
+          <h3 id="axis-title">Баллы и основания</h3>
         </div>
-        {(former || run.reviews.length > 0) && (
-          <label className="axis-compare">
-            Сравнить с
-            <select value={compare} onChange={(event) => setCompare(event.target.value)}>
-              <option value="none">Без сравнения</option>
-              {run.reviews.length > 0 && <option value="proposal">Предложение до проверки</option>}
-              {former && <option value="previous">Предыдущая версия</option>}
-            </select>
-          </label>
-        )}
       </div>
       <div className="axis-layout">
         <div className="axis-chart-wrap">
@@ -151,12 +130,9 @@ export function AxisProfile({
               const [lx, ly] = xy(index, 2.38, 2);
               return <g key={index}><line x1={CENTER} y1={CENTER} x2={x} y2={y} className="axis-spoke" /><text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="axis-number">{index + 1}</text></g>;
             })}
-            {comparison && segments(comparison).map((line, index) => <polyline key={`comparison-${index}`} points={line} className="axis-line axis-line-compare" />)}
             {segments(points).map((line, index) => <polyline key={`current-${index}`} points={line} className="axis-line axis-line-current" />)}
-            {comparison?.map((point, index) => point.value !== null ? <circle key={`comparison-dot-${index}`} cx={xy(index, point.value, point.maximum)[0]} cy={xy(index, point.value, point.maximum)[1]} r="4" className="axis-dot-compare" /> : null)}
             {points.map((point, index) => point.value !== null ? <circle key={`current-dot-${index}`} cx={xy(index, point.value, point.maximum)[0]} cy={xy(index, point.value, point.maximum)[1]} r={index === selected ? 7 : 5} className="axis-dot-current" /> : null)}
           </svg>
-          <p className="axis-legend"><span className="axis-legend-current" /> Текущая оценка {comparison && <><span className="axis-legend-compare" /> {compare === "proposal" ? "До проверки" : "Предыдущая версия"}</>}</p>
         </div>
         <div className="axis-list" aria-label="Области AXIS">
           {points.map((point, index) => (
@@ -174,9 +150,6 @@ export function AxisProfile({
           <strong>{item.value === null ? "Не оценено" : `${item.value} из ${item.maximum}`}</strong>
         </div>
         <p>{item.explanation}</p>
-        <p className="subtle">{item.status} · {item.origin} · шкала {item.scaleVersion} · {dateLabel(run.reviews[0]?.createdAt ?? run.completedAt ?? run.createdAt)}</p>
-        {beforeReview && (beforeReview.value !== item.value || beforeReview.explanation !== item.explanation) &&
-          <p className="subtle">До проверки: {beforeReview.value === null ? "не оценено" : `${beforeReview.value} из ${beforeReview.maximum}`}. Сейчас: {item.value === null ? "не оценено" : `${item.value} из ${item.maximum}`}.</p>}
         <div className="source-buttons">
           {sourceEvidence.map((evidence) => (
             <button key={evidence.id} type="button" className="source-button" onClick={() => onSource(evidence.sourceId)} title={`Версия ${evidence.sourceVersion}. ${evidence.quote}`}>
@@ -184,9 +157,8 @@ export function AxisProfile({
             </button>
           ))}
         </div>
-        {item.value !== null && <p className="subtle">Источник и цитату сверяет сотрудник; наличие фрагмента само по себе не подтверждает интерпретацию.</p>}
         {canEdit && !editing && <button type="button" className="button secondary" onClick={startEdit}>Изменить оценку</button>}
-        {editing && <form className="axis-edit" onSubmit={(event) => { event.preventDefault(); task.run(save, "Оценка сохранена. Предыдущее значение осталось в истории."); }}>
+        {editing && <form className="axis-edit" onSubmit={(event) => { event.preventDefault(); task.run(save, "Оценка сохранена."); }}>
           <label className="field">Оценка
             <select value={score} onChange={(event) => setScore(event.target.value)}>
               <option value="">Не оценено</option>
@@ -213,7 +185,6 @@ export function AxisProfile({
           <div className="axis-edit-actions"><button className="button primary" disabled={task.busy || (!!score && !selectedSource) || (score === "2" && episodeCount < 2)}>Сохранить оценку</button><button type="button" className="button quiet" onClick={() => setEditing(false)}>Отмена</button></div>
           <Feedback task={task} />
         </form>}
-        {run.reviews.length > 0 && <details className="axis-history"><summary>История проверок</summary>{run.reviews.map((review) => <p key={review.id}>{dateLabel(review.createdAt)} · {review.author}: {review.reason}</p>)}</details>}
       </div>
     </section>
   );

@@ -13,6 +13,7 @@ const stories = [
     email: "aigerim@candidate.local",
     origin: "SEED",
     score: 68,
+    english: 71,
     axis: [2, 2, 1, 2, 1, 2, 1, 1, 1],
     ready: false,
     quote:
@@ -25,6 +26,7 @@ const stories = [
     email: "timur@candidate.local",
     origin: "SEED",
     score: 62,
+    english: 58,
     axis: [1, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: false,
     quote: "Я собрал датчик влажности вместе с учителем физики.",
@@ -36,6 +38,7 @@ const stories = [
     email: "sofia@candidate.local",
     origin: "SEED",
     score: 72,
+    english: 76,
     axis: [2, 2, 2, 2, 1, 2, 2, 2, 1],
     ready: true,
     quote: "После замечания библиотекаря исправила неверную дату открытия.",
@@ -47,6 +50,7 @@ const stories = [
     email: "alikhan@candidate.local",
     origin: "SEED",
     score: 61,
+    english: 64,
     axis: [1, 2, 1, 1, 1, 2, 2, 1, 1],
     ready: false,
     quote:
@@ -59,6 +63,7 @@ const stories = [
     email: "madina@candidate.local",
     origin: "SEED",
     score: 71,
+    english: 69,
     axis: [2, 2, 2, 1, 2, 2, 2, 1, 1],
     ready: false,
     quote:
@@ -71,6 +76,7 @@ const stories = [
     email: "daniil@candidate.local",
     origin: "SEED",
     score: 82,
+    english: 78,
     axis: [2, 2, 2, 2, 2, 2, 2, 2, 1],
     ready: true,
     quote:
@@ -83,6 +89,7 @@ const stories = [
     email: "aruzhan@candidate.local",
     origin: "SEED",
     score: 65,
+    english: 73,
     axis: [1, 2, 1, 2, 1, 2, 1, 1, 1],
     ready: false,
     quote:
@@ -95,6 +102,7 @@ const stories = [
     email: "nurislam@candidate.local",
     origin: "SEED",
     score: 66,
+    english: 62,
     axis: [1, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: true,
     quote: "Я сравнил два крепления и записал, какое было удобнее собирать.",
@@ -106,6 +114,7 @@ const stories = [
     email: "zhanel@candidate.local",
     origin: "SEED",
     score: 63,
+    english: 67,
     axis: [2, 1, 1, 1, 2, 2, 2, 1, 1],
     ready: false,
     quote: "Вместо общей рекомендации описала три разных потребности.",
@@ -117,6 +126,7 @@ const stories = [
     email: "emir@candidate.local",
     origin: "SEED",
     score: 60,
+    english: 61,
     axis: [1, 2, 1, 1, 1, 2, 1, 1, 1],
     ready: false,
     quote: "Я подготовил сравнительную таблицу запросов.",
@@ -128,6 +138,7 @@ const stories = [
     email: "alina@candidate.local",
     origin: "SEED",
     score: 69,
+    english: 74,
     axis: [2, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: false,
     quote: "После наблюдения изменила названия двух разделов.",
@@ -139,6 +150,7 @@ const stories = [
     email: "ruslan@candidate.local",
     origin: "SEED",
     score: 43,
+    english: 52,
     axis: [1, 2, 1, 1, 1, 1, 1, 1, 1],
     ready: false,
     quote:
@@ -151,6 +163,7 @@ const stories = [
     email: "intake.leya@candidate.local",
     origin: "INTAKE_EXAMPLES_20260927",
     score: 64,
+    english: 59,
     axis: [2, 2, 1, 1, 2, 2, 2, 1, 1],
     ready: false,
     quote: "Я сверила их с журналом и заметила повторы.",
@@ -161,6 +174,7 @@ const stories = [
     email: "intake.amir@candidate.local",
     origin: "INTAKE_EXAMPLES_20260927",
     score: 67,
+    english: 66,
     axis: [2, 2, 1, 1, 1, 2, 2, 1, 1],
     ready: false,
     quote: "Я сравнил два материала и записал положение датчика после пяти запусков.",
@@ -171,6 +185,7 @@ const stories = [
     email: "intake.dana@candidate.local",
     origin: "INTAKE_EXAMPLES_20260927",
     score: 70,
+    english: 72,
     axis: [2, 2, 1, 2, 2, 2, 2, 1, 1],
     ready: false,
     quote: "Я спросила библиотекаря, сохранила обе исходные записи и исправила дату перед публикацией.",
@@ -181,6 +196,7 @@ const stories = [
     email: "intake.browser.20260927@candidate.local",
     origin: "INTAKE_BROWSER_20260927",
     score: 63,
+    english: 57,
     axis: [2, 2, 1, 1, 1, 2, 2, 1, 1],
     ready: false,
     quote: "Я сверила записи выдачи и обнаружила, что обращения повторяются.",
@@ -191,6 +207,7 @@ const stories = [
     email: "vision.desk.20260925@qa.local",
     origin: "QA",
     score: 76,
+    english: 68,
     axis: [2, 2, 2, 2, 2, 2, 2, 2, 1],
     ready: true,
     quote:
@@ -380,6 +397,7 @@ async function main() {
       provider: "local",
       scenarioVersion,
     });
+    const existingRun = await db.scoringRun.findUnique({ where: { identity } });
     await db.scoringRun.upsert({
       where: { identity },
       create: {
@@ -396,11 +414,18 @@ async function main() {
         requestedBy: staff.id,
         completedAt: new Date(),
         showcaseScore: story.score,
+        showcaseEnglishScore: story.english,
         showcaseScoreBasis: story.leadership,
         showcaseScoreEvidenceIds: ["episode"],
         showcaseAxis: json(showcaseAxis),
       },
-      update: { showcaseAxis: json(showcaseAxis) },
+      update: {
+        showcaseAxis: json(showcaseAxis),
+        showcaseScore: existingRun?.showcaseScore ?? story.score,
+        showcaseEnglishScore: existingRun?.showcaseEnglishScore ?? story.english,
+        showcaseScoreBasis: existingRun?.showcaseScoreBasis ?? story.leadership,
+        showcaseScoreEvidenceIds: existingRun?.showcaseScoreEvidenceIds ?? ["episode"],
+      },
     });
     console.log(`${story.email}: ${story.score}/100, ${app.stage}`);
   }
