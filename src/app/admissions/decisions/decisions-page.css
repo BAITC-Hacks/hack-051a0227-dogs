@@ -102,14 +102,14 @@
   color: #3e5969;
 }
 
-.published .decisions-metric-icon {
-  background: #ecf8e9;
-  color: #3d643f;
+.interviews .decisions-metric-icon {
+  background: #e9f3ff;
+  color: #225a9a;
 }
 
-.pending .decisions-metric-icon {
-  background: #fff4e6;
-  color: #765b27;
+.final .decisions-metric-icon {
+  background: #eff3e8;
+  color: #42573a;
 }
 
 .decisions-metric > span:last-child {
@@ -193,68 +193,6 @@
   padding: 0 20px 0 24px;
 }
 
-.decisions-page .decisions-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  max-width: 100%;
-  min-height: 32px;
-  margin: 0 0 6px;
-  padding: 5px 10px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.25;
-}
-
-.decisions-action svg {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  padding: 2px;
-  border-radius: 50%;
-}
-
-.decisions-action.interview {
-  border-color: #d6eadb;
-  background: #eef8ef;
-  color: #202a23;
-}
-
-.decisions-action.interview svg {
-  background: #37ad6a;
-  color: white;
-}
-
-.decisions-action.decline {
-  border-color: #f4d7d7;
-  background: #ffebec;
-  color: #2b2022;
-}
-
-.decisions-action.decline svg {
-  background: #ec6064;
-  color: white;
-}
-
-.decisions-action.accept {
-  border-color: #d8e8fa;
-  background: #eaf3ff;
-  color: #225a9a;
-}
-
-.decisions-action.accept svg {
-  color: #2163af;
-}
-
-.decisions-action.other {
-  border-color: #e6e8df;
-  background: #f3f5ee;
-  color: #2d3928;
-}
-
 .decisions-reason {
   margin: 0 0 7px;
   color: #525c6a;
@@ -322,42 +260,49 @@
   padding: 8px 11px;
 }
 
-.decisions-publication {
+.decisions-status {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   width: fit-content;
   max-width: 100%;
-  min-height: 30px;
-  padding: 5px 9px;
+  min-height: 32px;
+  padding: 6px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
   line-height: 1.3;
-  text-align: left;
+  text-align: center;
 }
 
-.decisions-publication svg {
+.decisions-status svg {
   flex: 0 0 auto;
 }
 
-.decisions-publication.published {
-  border-color: #d9eadd;
-  background: #edf7ef;
-  color: #214d34;
+.decisions-status.interview {
+  border-color: #d8e8fa;
+  background: #e9f3ff;
+  color: #225a9a;
 }
 
-.decisions-publication.published svg {
-  padding: 3px;
-  border-radius: 50%;
-  background: #3fae70;
-  color: white;
+.decisions-status.decline {
+  border-color: #f4d7d7;
+  background: #ffebec;
+  color: #9d2935;
 }
 
-.decisions-publication.unpublished {
-  border-color: #f8e9bf;
-  background: #fff4d6;
-  color: #9b630d;
+.decisions-status.accept {
+  border-color: #d5e8b2;
+  background: #eef8df;
+  color: #3e641d;
+}
+
+.decisions-status.other {
+  border-color: #e6e8df;
+  background: #f3f5ee;
+  color: #2d3928;
 }
 
 .decisions-empty {
@@ -394,7 +339,7 @@
     font-size: 18px;
   }
 
-  .decisions-publication {
+  .decisions-status {
     font-size: 12px;
   }
 }
@@ -511,7 +456,7 @@
     max-width: none;
   }
 
-  .decisions-publication {
+  .decisions-status {
     font-size: 13px;
   }
 }

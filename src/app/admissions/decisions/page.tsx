@@ -2,10 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowLeft,
-  Check,
+  CalendarDays,
   ClipboardCheck,
-  Clock3,
-  MessageSquare,
   UserRound,
   UsersRound,
   X,
@@ -26,7 +24,7 @@ function actionTone(action: string) {
 }
 
 function ActionIcon({ action }: { action: string }) {
-  if (action === "INTERVIEW") return <Check size={19} aria-hidden="true" />;
+  if (action === "INTERVIEW") return <CalendarDays size={19} aria-hidden="true" />;
   if (action === "DECLINE") return <X size={19} aria-hidden="true" />;
   return <ClipboardCheck size={19} aria-hidden="true" />;
 }
@@ -49,7 +47,6 @@ export default async function Decisions() {
         },
       },
       author: { select: { name: true } },
-      feedback: { select: { publishedAt: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -57,8 +54,9 @@ export default async function Decisions() {
     (row, i) =>
       rows.findIndex((item) => item.applicationId === row.applicationId) === i,
   );
-  const published = latest.filter((decision) =>
-    decision.feedback.some((feedback) => feedback.publishedAt),
+  const interviews = latest.filter((decision) => decision.action === "INTERVIEW").length;
+  const finalDecisions = latest.filter((decision) =>
+    decision.action === "ACCEPT" || decision.action === "DECLINE",
   ).length;
 
   return (
@@ -68,8 +66,7 @@ export default async function Decisions() {
           <p className="decisions-eyebrow">Рассмотрение заявок</p>
           <h1>Решения</h1>
           <p className="decisions-intro">
-            Последнее сохранённое действие по каждому кандидату и статус
-            обратной связи.
+            Последнее сохранённое действие по каждому кандидату и его основание.
           </p>
         </div>
         <Link href="/admissions" className="decisions-back">
@@ -93,22 +90,22 @@ export default async function Decisions() {
                 <span>{candidateWord(latest.length)} с решением</span>
               </span>
             </div>
-            <div className="decisions-metric published">
+            <div className="decisions-metric interviews">
               <span className="decisions-metric-icon">
-                <MessageSquare size={27} aria-hidden="true" />
+                <CalendarDays size={27} aria-hidden="true" />
               </span>
               <span>
-                <strong>{published}</strong>
-                <span>с опубликованной обратной связью</span>
+                <strong>{interviews}</strong>
+                <span>приглашены на интервью</span>
               </span>
             </div>
-            <div className="decisions-metric pending">
+            <div className="decisions-metric final">
               <span className="decisions-metric-icon">
-                <Clock3 size={27} aria-hidden="true" />
+                <ClipboardCheck size={27} aria-hidden="true" />
               </span>
               <span>
-                <strong>{latest.length - published}</strong>
-                <span>без публикации по последнему решению</span>
+                <strong>{finalDecisions}</strong>
+                <span>с предложением или отказом</span>
               </span>
             </div>
           </div>
@@ -120,10 +117,6 @@ export default async function Decisions() {
                   row.applicationId === decision.applicationId &&
                   row.id !== decision.id,
               );
-              const isPublished = decision.feedback.some(
-                (feedback) => feedback.publishedAt,
-              );
-              const hasDraft = decision.feedback.length > 0;
               return (
                 <article className="decisions-card" key={decision.id}>
                   <div className="decisions-person">
@@ -135,12 +128,6 @@ export default async function Decisions() {
                   </div>
 
                   <div className="decisions-detail">
-                    <h3
-                      className={`decisions-action ${actionTone(decision.action)}`}
-                    >
-                      <ActionIcon action={decision.action} />
-                      {actionLabels[decision.action] ?? decision.action}
-                    </h3>
                     <p className="decisions-reason">{decision.reason}</p>
                     <p className="decisions-author">
                       <UserRound size={17} aria-hidden="true" />
@@ -180,19 +167,9 @@ export default async function Decisions() {
                     >
                       Открыть решение
                     </Link>
-                    <span
-                      className={`decisions-publication ${isPublished ? "published" : "unpublished"}`}
-                    >
-                      {isPublished ? (
-                        <Check size={17} aria-hidden="true" />
-                      ) : (
-                        <Clock3 size={17} aria-hidden="true" />
-                      )}
-                      {isPublished
-                        ? "Обратная связь опубликована"
-                        : hasDraft
-                          ? "Черновик не опубликован"
-                          : "Обратная связь не подготовлена"}
+                    <span className={`decisions-status ${actionTone(decision.action)}`}>
+                      <ActionIcon action={decision.action} />
+                      {actionLabels[decision.action] ?? decision.action}
                     </span>
                   </div>
                 </article>

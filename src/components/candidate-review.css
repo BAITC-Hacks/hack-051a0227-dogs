@@ -669,8 +669,15 @@ body:has(.candidate-review-layout) .site-header {
 }
 .candidate-actions-heading h2 { margin: 0; font-size: 19px; }
 .candidate-actions-heading p { margin: 6px 0 16px; color: #5c665a; font-size: 13px; }
-.candidate-action-buttons { display: flex; flex-wrap: wrap; gap: 9px; }
-.candidate-action-buttons .button { min-width: 108px; }
+.candidate-action-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.candidate-action-buttons .button { min-width: 108px; border-width: 1px; border-style: solid; font-weight: 600; }
+.candidate-action-buttons .action-approve { border-color: #a4d723; background: #c2f52e; color: #1e2a0b; }
+.candidate-action-buttons .action-approve:hover { background: #b3e522; }
+.candidate-action-buttons .action-decline { border-color: #efb7bb; background: #ffebec; color: #9d2935; }
+.candidate-action-buttons .action-decline:hover { background: #ffdcdf; }
+.candidate-action-buttons .action-interview { border-color: #bad8f3; background: #e9f3ff; color: #225a9a; }
+.candidate-action-buttons .action-interview:hover { background: #daecff; }
+.candidate-action-buttons .button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px currentColor, 0 3px 9px rgb(29 36 30 / 9%); }
 .candidate-actions > .panel { margin-top: 16px; background: #f7f9ee; }
 .candidate-actions > .stage-action-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
 .candidate-actions > .calendar-form-compact { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
@@ -688,7 +695,7 @@ body:has(.candidate-review-layout) .site-header {
 .candidate-scoring-language { margin: 5px 0 17px; color: #54645b; font-size: 12px; }
 @media (max-width: 699px) {
   .candidate-actions { padding: 17px; }
-  .candidate-action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .candidate-action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 15px; }
   .candidate-action-buttons .button { min-width: 0; padding-inline: 5px; }
   .candidate-scoring .scoring-hero { padding: 18px; }
   .candidate-scoring-main { grid-template-columns: 1fr; gap: 9px; }
