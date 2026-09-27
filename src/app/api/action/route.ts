@@ -1,3 +1,20 @@
+import { selectionAction } from "@/lib/selection-actions.server";
+import {
+  startGoogleOAuth,
+  listCalendars,
+  selectCalendar,
+  GoogleCalendarError,
+} from "@/lib/google-calendar.server";
+import {
+  saveApplicationDraft,
+  applicationPreflight,
+} from "@/lib/application-draft.server";
+import {
+  intakeRules,
+  validateIntakeMaterials,
+  saveIntakeRules,
+} from "@/lib/intake.server";
+import { preflight, privatePurposes } from "@/lib/intake-contract";
 import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -59,7 +76,19 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("vision.")) {
+    if (type.startsWith("calendar.") || type.startsWith("stage.")) {
+      result = await selectionAction(type, b, await requireStaff());
+    } else if (type.startsWith("google.")) {
+      const user = await requireStaff();
+      if (type === "google.connect") result = await startGoogleOAuth(user);
+      else if (type === "google.calendars") result = await listCalendars(user);
+      else if (type === "google.select")
+        result = await selectCalendar(
+          user,
+          z.string().max(400).parse(b.calendarId),
+        );
+      else throw new AppError("Действие недоступно.", 404);
+    } else if (type.startsWith("vision.")) {
       result = await visionAction(type, b, await guestActor());
     } else if (type === "desk.consent") {
       result = await deskConsent(await requireUser(), b);
@@ -294,62 +323,51 @@ export async function POST(req: Request) {
       });
       result = { removed: true };
     } else if (type === "application.save") {
-      const u = await requireUser();
-      if (u.role !== "CANDIDATE")
-        throw new AppError("Заявку заполняет кандидат.", 403);
-      const fields = fieldsSchema.parse(b.fields);
-      const slug = z.string().parse(b.programSlug);
-      if (!programFor(slug)) throw new AppError("Выберите программу.");
-      const app = await db.application.findUnique({ where: { userId: u.id } });
-      if (app?.submittedAt)
-        throw new AppError(
-          "Отправленная версия зафиксирована. Уточнения отправьте в переписке.",
-          409,
-        );
-      if (app) {
-        const rev = z.number().int().parse(b.revision);
-        await db.$transaction(async (tx) => {
-          const r = await tx.application.updateMany({
-            where: { id: app.id, revision: rev, submittedAt: null },
-            data: {
-              fields: json(fields),
-              programSlug: slug,
-              revision: { increment: 1 },
-            },
-          });
-          if (!r.count)
-            throw new AppError(
-              "Заявка изменена в другой вкладке. Обновите страницу.",
-              409,
-            );
-          await tx.applicationVersion.create({
-            data: {
-              applicationId: app.id,
-              revision: rev + 1,
-              snapshot: json({ fields, programSlug: slug }),
-              kind: "DRAFT",
-            },
-          });
-        });
-        result = { id: app.id, revision: rev + 1 };
-      } else {
-        const a = await db.application.create({
+      result = await saveApplicationDraft(await requireUser(), b);
+    } else if (type === "application.preflight") {
+      result = await applicationPreflight(await requireUser());
+    } else if (type === "credential.review") {
+      const u = await requireStaff(),
+        applicationId = id.parse(b.applicationId);
+      await assertApplication(applicationId, u);
+      const { materialContext } = await import("@/lib/review-service.server");
+      result = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Application" WHERE id=${applicationId} FOR UPDATE`;
+        const context = await materialContext(tx, applicationId);
+        if (context.version !== b.materialVersion)
+          throw new AppError("Материалы изменились. Повтори проверку.", 409);
+        return tx.credentialReview.create({
           data: {
-            userId: u.id,
-            programSlug: slug,
-            fields: json(fields),
-            revision: 1,
-            versions: {
-              create: {
-                revision: 1,
-                snapshot: json({ fields, programSlug: slug }),
-                kind: "DRAFT",
-              },
-            },
+            applicationId,
+            authorId: u.id,
+            materialVersion: context.version,
+            key: z
+              .enum([
+                "EDUCATION",
+                "GPA",
+                "EXAMS",
+                "LANGUAGE_CERTIFICATE",
+                "VIDEO_LINK",
+              ])
+              .parse(b.key),
+            verdict: z
+              .enum([
+                "VERIFIED",
+                "NEEDS_CLARIFICATION",
+                "UNAVAILABLE",
+                "NOT_APPLICABLE",
+              ])
+              .parse(b.verdict),
+            note: z.string().trim().min(10).max(3000).parse(b.note),
           },
         });
-        result = { id: a.id, revision: 1 };
-      }
+      });
+    } else if (type === "intake.rules") {
+      result = await saveIntakeRules(
+        await requireStaff(),
+        b.rules,
+        String(b.expected),
+      );
     } else if (type === "work.transfer") {
       const u = await requireUser();
       if (b.consent !== true)
@@ -415,22 +433,48 @@ export async function POST(req: Request) {
           include: { materials: true, transfers: true },
         });
         if (!app) throw new AppError("Сначала заполните заявку.");
-        if (app.submittedAt) throw new AppError("Заявка уже отправлена.", 409);
+        if (app.submittedAt) {
+          const submitted = await tx.applicationVersion.findFirst({
+            where: { applicationId: app.id, kind: "SUBMITTED" },
+          });
+          if (submitted?.revision === expectedRevision + 1)
+            return { id: app.id, submitted: true };
+          throw new AppError("Заявка уже отправлена.", 409);
+        }
         if (app.revision !== expectedRevision)
           throw new AppError(
             "Заявка изменилась. Откройте обзор перед отправкой.",
             409,
           );
         const fields = fieldsSchema.parse(app.fields);
-        const issues = submissionIssues(
-          fields,
-          app.materials.map((m) => m.kind),
-        );
+        const rules = fields.intake ? await intakeRules(tx) : null;
+        if (fields.intake)
+          await validateIntakeMaterials(tx, app.id, fields.intake);
+        if (rules && b.rulesVersion !== rules.version)
+          throw new AppError(
+            "Требования обновились. Открой обзор и проверь актуальную версию.",
+            409,
+          );
+        const issues = rules
+          ? preflight(fields, app.materials, rules, app.programSlug)
+              .filter((i) => i.group === "BLOCK")
+              .map((i) => i.text)
+          : submissionIssues(
+              fields,
+              app.materials.map((m) => m.kind),
+            );
         if (issues.length) throw new AppError(issues.join(" "));
         const updated = await tx.application.updateMany({
           where: { id: app.id, revision: app.revision, submittedAt: null },
           data: {
             stage: "REVIEW",
+            ...(rules
+              ? {
+                  intakeRules: json(rules),
+                  preparationEvent: { increment: 1 },
+                  preparationStatus: "PENDING",
+                }
+              : {}),
             submittedAt: new Date(),
             revision: { increment: 1 },
           },
@@ -447,6 +491,9 @@ export async function POST(req: Request) {
               programSlug: app.programSlug,
               materialIds: app.materials.map((m) => m.id),
               transfers: app.transfers,
+              ...(rules
+                ? { intakeRules: rules, essayAnswerVersion: app.revision }
+                : {}),
             }),
           },
         });
@@ -472,12 +519,48 @@ export async function POST(req: Request) {
               kind: "Анкета",
               content: fields.motivation,
             },
-            {
-              applicationId: app.id,
-              title: "Выбор утверждений",
-              kind: "Forced-choice",
-              content: `Больше похоже: ${forcedStatements[Number(fields.most)]}. Меньше похоже: ${forcedStatements[Number(fields.least)]}. Выбор не является оценкой потенциала.`,
-            },
+            ...(fields.most && fields.least
+              ? [
+                  {
+                    applicationId: app.id,
+                    title: "Выбор утверждений",
+                    kind: "Forced-choice",
+                    content: `Больше похоже: ${forcedStatements[Number(fields.most)]}. Меньше похоже: ${forcedStatements[Number(fields.least)]}. Выбор не является оценкой потенциала.`,
+                  },
+                ]
+              : []),
+            ...(fields.intake
+              ? [
+                  ...(fields.intake.essay.text
+                    ? [
+                        {
+                          applicationId: app.id,
+                          title:
+                            "Эссе · вопрос " +
+                            fields.intake.essay.questionVersion +
+                            " · ответ " +
+                            app.revision,
+                          kind: "Эссе",
+                          content: fields.intake.essay.text,
+                        },
+                      ]
+                    : []),
+                  {
+                    applicationId: app.id,
+                    title: "Программа, цели и действия",
+                    kind: "Мотивация",
+                    content: [
+                      fields.intake.universityReason,
+                      fields.intake.goals,
+                      fields.intake.experienceTitle,
+                      fields.intake.experiencePeriod,
+                      fields.intake.experienceResult,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
+                  },
+                ].filter((s) => s.content)
+              : []),
             ...(fields.videoUrl
               ? [
                   {
@@ -502,19 +585,48 @@ export async function POST(req: Request) {
                   (t.snapshot as { context?: string }).context,
                 ),
             })),
-            ...app.materials.map((m) => ({
-              applicationId: app.id,
-              title: m.name,
-              kind:
-                m.kind === "oral" || m.kind === "followup"
-                  ? "Оригинал аудио"
-                  : "Материал кандидата",
-              content:
-                "Материал приложен кандидатом. Содержание проверяется по оригиналу.",
-              materialId: m.id,
-            })),
+            ...app.materials
+              .filter((m) => !privatePurposes.includes(m.purpose))
+              .map((m) => ({
+                applicationId: app.id,
+                title: m.name,
+                kind:
+                  m.kind === "oral" || m.kind === "followup"
+                    ? "Оригинал аудио"
+                    : "Материал кандидата",
+                content:
+                  "Материал приложен кандидатом. Содержание проверяется по оригиналу.",
+                materialId: m.id,
+              })),
           ],
         });
+        await tx.material.updateMany({
+          where: { applicationId: app.id },
+          data: { releasedAt: new Date() },
+        });
+        if (fields.intake?.aiConsent) {
+          const allowed = await tx.source.findMany({
+            where: {
+              applicationId: app.id,
+              kind: {
+                in: ["Анкета", "Мотивация", "Эссе", "Уточнение кандидата"],
+              },
+            },
+            select: { id: true },
+          });
+          await tx.application.update({
+            where: { id: app.id },
+            data: {
+              deskConsent: json({
+                granted: true,
+                revision: 1,
+                sourceIds: allowed.map((s) => s.id),
+                at: new Date().toISOString(),
+                purpose: "INTAKE_FACTS_V1",
+              }),
+            },
+          });
+        }
         await tx.message.create({
           data: {
             applicationId: app.id,
@@ -828,14 +940,29 @@ export async function POST(req: Request) {
         type === "application.submit"
           ? (result as { id: string }).id
           : String(b.applicationId);
-      const queued = await queueDeskEvent(applicationId, event);
-      if (queued) after(() => processDesk(queued.id));
+      after(async () => {
+        try {
+          const queued = await queueDeskEvent(applicationId, event);
+          if (queued) await processDesk(queued.id);
+        } catch {
+          /* The event committed with the application remains pending for the queue worker. */
+        }
+      });
     }
     return NextResponse.json(
       { ok: true, data: result },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (error instanceof GoogleCalendarError)
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Google Calendar не подтвердил операцию. Проверь подключение и повтори; параметры формы сохранены.",
+        },
+        { status: 502 },
+      );
     if (error instanceof AppError)
       return NextResponse.json(
         { ok: false, error: error.message },

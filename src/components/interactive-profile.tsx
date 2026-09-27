@@ -378,6 +378,27 @@ export function InteractiveProfile({
                 </button>
               ))}
           </div>
+          {view?.audience === "CANDIDATE" && (
+            <div className="profile-prompts" aria-label="Спроси inVision">
+              {[
+                "Какие документы требуются?",
+                "Как указать GPA?",
+                "Где добавить эссе?",
+                "Что сейчас с заявкой?",
+                "Как открыть назначенное интервью?",
+              ].map((q) => (
+                <button
+                  type="button"
+                  className="button secondary"
+                  key={q}
+                  disabled={task.busy}
+                  onClick={() => task.run(() => askLive(q))}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
           {streamStatus && (
             <p role="status">
               {streamStatus}{" "}

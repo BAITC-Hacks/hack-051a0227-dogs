@@ -1,3 +1,4 @@
+import { deskView } from "./vision-desk.server";
 import { pathProgress } from "./path-progress";
 import { avatarIdentity, avatarSelect } from "./avatar";
 import { projectMilestones } from "./journey";
@@ -16,6 +17,11 @@ export const materialSelect = {
   mime: true,
   size: true,
   kind: true,
+  purpose: true,
+  section: true,
+  version: true,
+  userId: true,
+  releasedAt: true,
   createdAt: true,
 } as const;
 export async function myData() {
@@ -39,6 +45,18 @@ export async function myData() {
         },
         language: {
           select: { id: true, state: true, revision: true, status: true },
+        },
+        interviews: {
+          where: { invitationPublishedAt: { not: null } },
+          select: {
+            id: true,
+            scheduledAt: true,
+            timezone: true,
+            durationMinutes: true,
+            status: true,
+            calendarStatus: true,
+            meetUrl: true,
+          },
         },
         transfers: true,
         feedback: {
@@ -93,6 +111,7 @@ export async function myData() {
                     CLARIFICATION: "CLARIFICATION",
                     LANGUAGE: "LANGUAGE",
                     INTERVIEW: "INTERVIEW",
+                    INTERVIEW_CANCELLED: "REVIEW",
                     ACCEPT: "DECIDED",
                     DECLINE: "DECIDED",
                     CONTINUE: "REVIEW",
@@ -150,7 +169,10 @@ export async function loadCandidate(id: string) {
         include: { author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
       },
-      interviews: true,
+      interviews: {
+        include: { calendarOperations: { orderBy: { createdAt: "desc" } } },
+      },
+      credentialReviews: { orderBy: { createdAt: "desc" } },
       domainReviews: { orderBy: { createdAt: "desc" } },
       feedback: { orderBy: { createdAt: "desc" } },
       transfers: true,
@@ -183,6 +205,7 @@ export async function loadCandidate(id: string) {
           : undefined,
       };
     }),
+    preparation: await deskView(u, id),
     scoring: await scoringView(id),
     materialVersion: (await materialContext(db, id)).version,
   };
@@ -230,6 +253,7 @@ export async function interviewData(id: string) {
           assessments: { orderBy: { createdAt: "desc" } },
         },
       },
+      calendarOperations: { orderBy: { createdAt: "desc" } },
       revisions: { orderBy: { revision: "desc" } },
     },
   });

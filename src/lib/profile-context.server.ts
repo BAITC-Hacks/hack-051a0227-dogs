@@ -1,4 +1,6 @@
 import "server-only";
+import { intakeKnowledge } from "./intake-knowledge.server";
+import { privatePurposes } from "./intake-contract";
 import { learningFacts } from "./learning-context";
 import { resourceCatalog } from "./learning-resources.server";
 import type { User } from "@prisma/client";
@@ -272,7 +274,14 @@ export async function collectProfile(
           where: { applicationId: app.id, kind: { not: "Forced-choice" } },
           include: {
             material: {
-              select: { id: true, applicationId: true, name: true, mime: true },
+              select: {
+                id: true,
+                applicationId: true,
+                name: true,
+                mime: true,
+                purpose: true,
+                releasedAt: true,
+              },
             },
             corrections: true,
           },
@@ -312,11 +321,14 @@ export async function collectProfile(
       );
     const sourceKeys = new Map<string, string>();
     for (const s of sourceRows) {
+      if (s.material && privatePurposes.includes(s.material.purpose)) continue;
       if (
         s.materialId &&
         (!s.material ||
           s.material.applicationId !== app.id ||
-          (staff && !snap?.materialIds?.includes(s.materialId)))
+          (staff &&
+            !snap?.materialIds?.includes(s.materialId) &&
+            !s.material.releasedAt))
       )
         continue;
       const transfer =
@@ -685,6 +697,18 @@ export async function collectProfile(
       );
     }
   }
+  if (!staff)
+    for (const fact of await intakeKnowledge(user))
+      add(
+        profileSource(
+          fact.key,
+          fact.title,
+          fact.text,
+          "application",
+          "Правило набора и собственная заявка",
+          { href: fact.href },
+        ),
+      );
   // Stable scope and hash exclude viewer names and private data from the opposite audience.
   const unique = [...new Map(sources.map((s) => [s.key, s])).values()];
   const audience = staff ? "STAFF" : "CANDIDATE";

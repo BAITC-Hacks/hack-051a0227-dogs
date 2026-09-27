@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { materialPurposes, privatePurposes } from "@/lib/intake-contract";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AppError, checkOrigin, rateLimit } from "@/lib/security";
@@ -16,6 +19,25 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     const kind = String(form.get("kind"));
+    const purpose = String(
+      form.get("purpose") ?? (kind === "video" ? "VIDEO" : "GENERAL"),
+    );
+    if (!(purpose in materialPurposes))
+      throw new AppError("Выбери назначение материала.");
+    const section =
+      (
+        {
+          EDUCATION: "education",
+          GRADES: "education",
+          EXAM: "education",
+          LANGUAGE: "checks",
+          ESSAY: "essay",
+          IDENTITY: "administration",
+          SUPPORT: "administration",
+        } as Record<string, string>
+      )[purpose] ?? "materials";
+    const released = form.get("release") === "true",
+      previousId = String(form.get("previousId") ?? "");
     if (!(file instanceof File) || !fileTypes[kind])
       throw new AppError("Выберите поддерживаемый файл.");
     const mime = file.type.split(";")[0];
@@ -27,7 +49,7 @@ export async function POST(req: Request) {
       throw new AppError("Проверьте тип и размер файла. Максимум: 25 МБ.");
     const app = await db.application.findUnique({ where: { userId: u.id } });
     if (!app) throw new AppError("Сначала сохраните данные заявки.");
-    if (app.submittedAt && !["oral", "followup"].includes(kind))
+    if (app.submittedAt && !["oral", "followup"].includes(kind) && !released)
       throw new AppError(
         "Материалы отправленной заявки зафиксированы. Для уточнений используйте сообщения.",
         409,
@@ -70,7 +92,11 @@ export async function POST(req: Request) {
       const current = await tx.application.findUniqueOrThrow({
         where: { id: app.id },
       });
-      if (current.submittedAt && !["oral", "followup"].includes(kind))
+      if (
+        current.submittedAt &&
+        !["oral", "followup"].includes(kind) &&
+        !released
+      )
         throw new AppError("Отправленная версия зафиксирована.", 409);
       if (
         ["oral", "followup"].includes(kind) &&
@@ -86,6 +112,33 @@ export async function POST(req: Request) {
       });
       if ((latestSize._sum.size ?? 0) + file.size > 150 * 1024 * 1024)
         throw new AppError("Достигнут предел материалов: 150 МБ.", 413);
+      const uploadKey = ["document", "video"].includes(kind)
+        ? createHash("sha256")
+            .update([u.id, app.id, purpose, previousId].join(":"))
+            .update(bytes)
+            .digest("hex")
+        : null;
+      if (uploadKey) {
+        const prior = await tx.material.findUnique({ where: { uploadKey } });
+        if (prior) return prior;
+      }
+      const previous = previousId
+        ? await tx.material.findFirst({
+            where: {
+              id: previousId,
+              applicationId: app.id,
+              userId: u.id,
+              purpose,
+            },
+          })
+        : null;
+      if (previousId && !previous)
+        throw new AppError("Исходный материал недоступен.", 404);
+      if (previous && (await tx.material.findFirst({ where: { previousId } })))
+        throw new AppError(
+          "У материала уже есть новая версия. Обнови список.",
+          409,
+        );
       const m = await tx.material.create({
         data: {
           userId: u.id,
@@ -95,20 +148,53 @@ export async function POST(req: Request) {
           kind,
           size: bytes.length,
           bytes,
+          purpose,
+          section,
+          uploadKey,
+          previousId: previous?.id,
+          version: (previous?.version ?? 0) + 1,
+          releasedAt: current.submittedAt ? new Date() : null,
           ...audioMetadata,
         },
       });
-      if (current.submittedAt)
+      if (current.submittedAt && !privatePurposes.includes(purpose))
         await tx.source.create({
           data: {
             applicationId: app.id,
             materialId: m.id,
             title: m.name,
-            kind: "Оригинал аудио",
-            content:
-              "Дополнительный устный ответ. Откройте оригинальную запись.",
+            kind: ["oral", "followup"].includes(kind)
+              ? "Оригинал аудио"
+              : "Материал",
+            content: ["oral", "followup"].includes(kind)
+              ? "Дополнительный устный ответ. Откройте оригинальную запись."
+              : `Версия ${m.version}. Назначение: ${materialPurposes[purpose as keyof typeof materialPurposes]}. Файл принят. Текст не извлечён; автоматический анализ содержимого не выполнен.`,
           },
         });
+      if (current.submittedAt && ["document", "video"].includes(kind)) {
+        const updated = await tx.application.update({
+          where: { id: app.id },
+          data: {
+            revision: { increment: 1 },
+            preparationEvent: { increment: 1 },
+            preparationStatus: "PENDING",
+          },
+        });
+        await tx.applicationVersion.create({
+          data: {
+            applicationId: app.id,
+            revision: updated.revision,
+            kind: "MATERIAL_UPDATE",
+            snapshot: {
+              materialId: m.id,
+              previousId: previous?.id ?? null,
+              version: m.version,
+              purpose,
+              consentAt: new Date().toISOString(),
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
       return m;
     });
     return NextResponse.json({
@@ -120,6 +206,11 @@ export async function POST(req: Request) {
         size: material.size,
         kind: material.kind,
         createdAt: material.createdAt,
+        purpose: material.purpose,
+        section: material.section,
+        version: material.version,
+        userId: material.userId,
+        releasedAt: material.releasedAt,
       },
     });
   } catch (e) {

@@ -96,6 +96,7 @@ export const domains = [
   "Wounded leadership",
 ] as const;
 export const stageLabels: Record<string, string> = {
+  APPROVED: "Этап одобрен",
   DRAFT: "Заполняется",
   REVIEW: "На рассмотрении",
   CLARIFICATION: "Нужно уточнение",
@@ -106,6 +107,7 @@ export const stageLabels: Record<string, string> = {
   FINAL_REVIEW: "Итоговое рассмотрение",
 };
 export const actionLabels: Record<string, string> = {
+  APPROVE_STAGE: "Одобрить этап",
   CLARIFICATION: "Запросить уточнение",
   CHECK: "Дополнительная проверка",
   FINAL_REVIEW: "Итоговое рассмотрение",

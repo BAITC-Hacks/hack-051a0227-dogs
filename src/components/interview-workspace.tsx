@@ -1,4 +1,5 @@
 "use client";
+import { CalendarForm } from "./selection-actions";
 import { UserAvatar } from "./user-avatar";
 import { useRef, useState } from "react";
 import Link from "next/link";
@@ -102,6 +103,16 @@ export function InterviewWorkspace({
   }
   return (
     <div className="staff-page">
+      <CalendarForm
+        application={{
+          id: i.applicationId,
+          revision: i.application.revision,
+          stage: i.application.stage,
+          materialVersion: i.currentMaterialVersion,
+          email: (i.application.fields as { email?: string }).email ?? "",
+        }}
+        interview={i}
+      />
       <Link
         className="breadcrumbs"
         href={"/admissions/candidates/" + i.applicationId}
@@ -111,10 +122,17 @@ export function InterviewWorkspace({
       </Link>
       <div className="page-title">
         <div>
-          <h1 className="person-heading"><UserAvatar user={i.application.user} size={48} />Интервью · {i.application.user.name}</h1>
+          <h1 className="person-heading">
+            <UserAvatar user={i.application.user} size={48} />
+            Интервью · {i.application.user.name}
+          </h1>
           <p>
-            {dateLabel(i.scheduledAt)} · Алматы ·{" "}
-            {i.application.program.shortTitle}
+            {new Intl.DateTimeFormat("ru", {
+              timeZone: i.timezone,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(i.scheduledAt))}{" "}
+            · {i.timezone} · {i.application.program.shortTitle}
           </p>
         </div>
         <Tag tone={i.status === "COMPLETED" ? "success" : "blue"}>

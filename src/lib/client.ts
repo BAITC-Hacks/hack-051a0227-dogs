@@ -47,10 +47,15 @@ export async function action<T = Record<string, unknown>>(
     );
   return payload.data as T;
 }
-export async function upload(file: File, kind: string) {
+export async function upload(
+  file: File,
+  kind: string,
+  metadata: Record<string, string> = {},
+) {
   const body = new FormData();
   body.append("file", file);
   body.append("kind", kind);
+  for (const [k, v] of Object.entries(metadata)) body.append(k, v);
   let res: Response;
   try {
     res = await fetch("/api/files", { method: "POST", body });
@@ -69,6 +74,11 @@ export async function upload(file: File, kind: string) {
     kind: string;
     size: number;
     createdAt: Date;
+    purpose: string;
+    section: string;
+    version: number;
+    userId: string;
+    releasedAt: Date | null;
   };
 }
 export const dateLabel = (d: Date | string) =>

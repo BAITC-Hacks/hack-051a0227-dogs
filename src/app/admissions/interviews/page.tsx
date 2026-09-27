@@ -34,6 +34,8 @@ export default async function Interviews() {
         scheduledAt: row.scheduledAt.toISOString(),
         performedAt: row.performedAt?.toISOString() ?? null,
         status: row.status,
+        calendarStatus: row.calendarStatus,
+        timezone: row.timezone,
         hasPlan: row.plan !== null,
       }))}
     />

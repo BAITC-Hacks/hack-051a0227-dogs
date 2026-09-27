@@ -5,5 +5,7 @@ export async function register() {
   ) {
     const { startAudioWorker } = await import("./lib/audio-worker.server");
     startAudioWorker();
+    const { startIntakeWorker } = await import("./lib/intake-worker.server");
+    startIntakeWorker();
   }
 }

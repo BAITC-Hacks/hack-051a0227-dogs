@@ -15,6 +15,8 @@ type InterviewRow = {
   scheduledAt: string;
   performedAt: string | null;
   status: string;
+  calendarStatus: string;
+  timezone: string;
   hasPlan: boolean;
 };
 type Filter = "all" | "today" | "scheduled" | "completed";
@@ -51,9 +53,9 @@ export function InterviewsList({
     all: rows.length,
     today: rows.filter(
       (row) =>
-        row.status !== "COMPLETED" && dayInAlmaty(row.scheduledAt) === today,
+        row.status === "SCHEDULED" && dayInAlmaty(row.scheduledAt) === today,
     ).length,
-    scheduled: rows.filter((row) => row.status !== "COMPLETED").length,
+    scheduled: rows.filter((row) => row.status === "SCHEDULED").length,
     completed: rows.filter((row) => row.status === "COMPLETED").length,
   };
   const visible = rows
@@ -67,9 +69,9 @@ export function InterviewsList({
       const matchesFilter =
         filter === "all" ||
         (filter === "today" &&
-          row.status !== "COMPLETED" &&
+          row.status === "SCHEDULED" &&
           dayInAlmaty(row.scheduledAt) === today) ||
-        (filter === "scheduled" && row.status !== "COMPLETED") ||
+        (filter === "scheduled" && row.status === "SCHEDULED") ||
         (filter === "completed" && row.status === "COMPLETED");
       return matchesSearch && matchesFilter;
     })
@@ -146,6 +148,16 @@ export function InterviewsList({
               <tbody>
                 {visible.map((row) => {
                   const isCompleted = row.status === "COMPLETED";
+                  const stateLabel =
+                    row.status === "CANCELLED"
+                      ? "Отменено"
+                      : row.status === "CANCELLING"
+                        ? "Отменяется"
+                        : row.status === "SCHEDULING"
+                          ? ["FAILED", "STALE"].includes(row.calendarStatus)
+                            ? "Нужно повторить"
+                            : "Создаётся встреча"
+                          : null;
                   const isToday =
                     !isCompleted && dayInAlmaty(row.scheduledAt) === today;
                   const isPast =
@@ -180,7 +192,14 @@ export function InterviewsList({
                         <span className="interview-mobile-label">
                           Дата и время
                         </span>
-                        <strong>{dateLabel(row.scheduledAt)}</strong>
+                        <strong>
+                          {new Intl.DateTimeFormat("ru", {
+                            timeZone: row.timezone,
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(row.scheduledAt))}
+                        </strong>
+                        <small>{row.timezone}</small>
                         <small>
                           {isCompleted
                             ? row.performedAt
@@ -212,11 +231,12 @@ export function InterviewsList({
                         <span
                           className={`interviews-state ${isCompleted ? "completed" : isToday ? "today" : "scheduled"}`}
                         >
-                          {isCompleted
-                            ? "Завершено"
-                            : isToday
-                              ? "Сегодня"
-                              : "Назначено"}
+                          {stateLabel ??
+                            (isCompleted
+                              ? "Завершено"
+                              : isToday
+                                ? "Сегодня"
+                                : "Назначено")}
                         </span>
                       </td>
                       <td>

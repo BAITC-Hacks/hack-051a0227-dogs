@@ -90,6 +90,8 @@ export async function visionContext(
     )
     .slice(0, 12)
     .map((s) => ({ ...s, text: s.text.slice(0, 8000) }));
+  if (!scope.attemptId && !scope.feedbackId)
+    sources.push(...c.sources.filter((s) => s.key.startsWith("admissions:")));
   const recommendations = developmentRecommendations(c)
     .map((r) => {
       const source = c.sources.find((s) => s.key === r.source.key);
@@ -104,6 +106,12 @@ export async function visionContext(
     .filter((r) => sources.some((s) => s.key === r.source.key))
     .slice(0, 4);
   const actions = [
+    { key: "intake", label: "Открыть заявку", href: "/apply" },
+    {
+      key: "admissions-messages",
+      label: "Вопрос комиссии",
+      href: "/apply/status#messages",
+    },
     ...(work
       ? [{ key: "work", label: "Открыть выбранную версию", href: work.href }]
       : []),

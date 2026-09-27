@@ -1,5 +1,10 @@
 "use client";
 import "./candidate-review.css";
+import "./intake.css";
+import { calendarMessages } from "@/lib/calendar-contract";
+import { IntakeSummary } from "./intake-fields";
+import { CredentialReview } from "./credential-review";
+import { preflight, routeFor, type IntakeRules } from "@/lib/intake-contract";
 import { DeskChatLauncher } from "./desk-chat";
 import { UserAvatar } from "./user-avatar";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -76,7 +81,9 @@ export function CandidateReview({
     : tab === "history"
       ? "decision"
       : tab;
-  const activeInterview = a.interviews.find((i) => i.status !== "COMPLETED");
+  const activeInterview = a.interviews.find(
+    (i) => !["COMPLETED", "CANCELLED"].includes(i.status),
+  );
   const waiting = unansweredQuestions(a.messages).length > 0;
   const newAnswer = a.sources.some((s) => s.messageId && !s.views.length);
   const [scoringDraft, setScoringDraft] = useState<{
@@ -165,7 +172,11 @@ export function CandidateReview({
               </p>
               <p>
                 <Phone size={16} aria-hidden="true" />{" "}
-                <span>{fields.phone?.trim() || "Телефон не указан"}</span>
+                <span>
+                  {fields.intake?.phone?.trim() ||
+                    fields.phone?.trim() ||
+                    "Телефон не указан"}
+                </span>
               </p>
             </div>
           </details>
@@ -183,7 +194,17 @@ export function CandidateReview({
             className="tab"
             role="tab"
             aria-selected={mainTab === value}
-            onClick={() => setTab(value)}
+            onClick={() => {
+              setTab(value);
+              window.location.hash = (
+                {
+                  profile: "scoring",
+                  sources: "sources",
+                  messages: "candidate-messages",
+                  decision: "decision",
+                } as Record<string, string>
+              )[value];
+            }}
           >
             {label}
             {value === "messages"
@@ -199,7 +220,13 @@ export function CandidateReview({
       {activeInterview && mainTab !== "profile" && (
         <div className="current-interview">
           <span>
-            Встреча назначена: {dateLabel(activeInterview.scheduledAt)} · Алматы
+            {calendarMessages[activeInterview.calendarStatus]}{" "}
+            {new Intl.DateTimeFormat("ru", {
+              timeZone: activeInterview.timezone,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(activeInterview.scheduledAt))}{" "}
+            · {activeInterview.timezone}
           </span>
           <Link
             className="button secondary"
@@ -270,28 +297,115 @@ export function CandidateReview({
               }}
             />
           )}
+          {mainTab === "profile" && a.intakeRules && (
+            <details className="review-detail">
+              <summary>Фактическая сводка по заявке</summary>
+              {a.preparation.runs.find((r) => r.current && r.result)?.result ? (
+                <>
+                  {a.preparation.runs
+                    .filter((r) => r.current && r.result)
+                    .slice(0, 1)
+                    .map((r) => (
+                      <div key={r.id}>
+                        <p>{r.result!.summary}</p>
+                        {r.result!.grounds.map((g) => (
+                          <button
+                            key={g.key}
+                            className="text-link"
+                            type="button"
+                            onClick={() => openSource(g.sourceId)}
+                          >
+                            {g.title} · «{g.quote}»
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                </>
+              ) : (
+                <>
+                  <p>
+                    {a.preparationStatus === "NO_CONSENT"
+                      ? "Разрешение на внешнюю подготовку не предоставлено. Материалы доступны для человеческого рассмотрения."
+                      : a.preparationStatus === "WAITING_SETTINGS"
+                        ? "Подготовка ожидает настройки подключения OpenAI."
+                        : "Сводка ещё не готова. Состояние последней операции: " +
+                          ((
+                            {
+                              QUEUED: "в очереди",
+                              RUNNING: "обрабатывается",
+                              FAILED: "ошибка, доступен повтор",
+                              PENDING: "ожидает обработки",
+                              NONE: "не запускалась",
+                              WAITING_SOURCES: "нет разрешённых текстов",
+                            } as Record<string, string>
+                          )[
+                            a.preparation.runs[0]?.status ?? a.preparationStatus
+                          ] ?? "требуется проверка настройки")}
+                  </p>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() =>
+                      reviewTask.run(async () => {
+                        await action("desk.event.retry", {
+                          applicationId: a.id,
+                        });
+                        router.refresh();
+                      })
+                    }
+                  >
+                    Повторить подготовку
+                  </button>
+                </>
+              )}
+            </details>
+          )}
           {mainTab === "profile" && (
             <details
               className="review-detail"
               id="overview"
               open={tab === "overview"}
             >
-              <summary>Готовность, мотивация и опыт</summary>
+              <summary>Образование, результаты, эссе и готовность</summary>
               <section
                 className="review-section"
                 style={{ borderTop: 0, paddingTop: 0 }}
               >
+                {fields.intake && (
+                  <>
+                    <IntakeSummary
+                      fields={fields}
+                      rules={a.intakeRules as IntakeRules | null}
+                    />
+                    <CredentialReview
+                      applicationId={a.id}
+                      materialVersion={a.materialVersion}
+                      reviews={a.credentialReviews}
+                    />
+                  </>
+                )}
                 <h2>Готовность</h2>
                 <p className="notice info">
-                  {submissionIssues(
-                    fields,
-                    a.materials.map((m) => m.kind),
-                  ).length
-                    ? submissionIssues(
+                  {fields.intake && a.intakeRules
+                    ? preflight(
                         fields,
-                        a.materials.map((m) => m.kind),
-                      ).join(" ")
-                    : "Условия отправки выполнены. Комплектность проверена по полям формы; достоверность рассказа и доступность ссылок требуют проверки сотрудником."}
+                        a.materials,
+                        a.intakeRules as IntakeRules,
+                        a.programSlug,
+                      )
+                        .filter((i) => i.group === "BLOCK")
+                        .map((i) => i.text)
+                        .join(" ") ||
+                      "Формальные условия отправки выполнены. Содержание и достоверность проверяет сотрудник."
+                    : submissionIssues(
+                          fields,
+                          a.materials.map((m) => m.kind),
+                        ).length
+                      ? submissionIssues(
+                          fields,
+                          a.materials.map((m) => m.kind),
+                        ).join(" ")
+                      : "Условия отправки выполнены. Комплектность проверена по полям формы; достоверность рассказа и доступность ссылок требуют проверки сотрудником."}
                 </p>
                 <p className="section-subtitle">
                   Документы и язык. Отдельно от мотивации и лидерских
@@ -387,7 +501,15 @@ export function CandidateReview({
                   <a
                     className="text-link"
                     style={{ marginTop: 12, fontSize: 11 }}
-                    href="https://www.invisionu.education/ru/undergraduate"
+                    href={
+                      a.intakeRules
+                        ? routeFor(
+                            a.intakeRules as unknown as IntakeRules,
+                            fields.intake?.entryType ?? "BACHELOR",
+                            a.programSlug,
+                          ).source
+                        : "https://www.invisionu.education/ru/undergraduate"
+                    }
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -537,15 +659,27 @@ export function CandidateReview({
                       <div className="row between">
                         <span className="inline">
                           <CalendarDays size={16} />
-                          {dateLabel(
-                            i.status === "COMPLETED" && i.performedAt
-                              ? i.performedAt
-                              : i.scheduledAt,
+                          {new Intl.DateTimeFormat("ru", {
+                            timeZone: i.timezone,
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(
+                            new Date(
+                              i.status === "COMPLETED" && i.performedAt
+                                ? i.performedAt
+                                : i.scheduledAt,
+                            ),
                           )}{" "}
-                          · Алматы
+                          · {i.timezone}
                         </span>
                         <Tag>
-                          {i.status === "COMPLETED" ? "Завершено" : "Назначено"}
+                          {i.status === "COMPLETED"
+                            ? "Завершено"
+                            : i.status === "SCHEDULED"
+                              ? "Назначено"
+                              : i.status === "CANCELLED"
+                                ? "Отменено"
+                                : "Создание встречи"}
                         </Tag>
                       </div>
                       <Link
@@ -766,7 +900,17 @@ export function CandidateReview({
                   <h2>
                     <CalendarDays size={19} aria-hidden="true" /> Интервью
                   </h2>
-                  <p>{dateLabel(activeInterview.scheduledAt)} · Алматы</p>
+                  <p>
+                    {new Intl.DateTimeFormat("ru", {
+                      timeZone: activeInterview.timezone,
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(activeInterview.scheduledAt))}{" "}
+                    · {activeInterview.timezone}
+                  </p>
+                  <p className="subtle">
+                    {calendarMessages[activeInterview.calendarStatus]}
+                  </p>
                   <Link
                     className="button secondary"
                     href={`/admissions/interviews/${activeInterview.id}`}

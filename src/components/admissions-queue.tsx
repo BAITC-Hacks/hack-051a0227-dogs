@@ -35,12 +35,14 @@ const quickStages = [
 ] as const;
 const allStages = [
   ...quickStages,
+  ["APPROVED", "Этап одобрен"],
   ["LANGUAGE", "Языковая проверка"],
   ["CHECK", "Дополнительная проверка"],
   ["FINAL_REVIEW", "Итоговое рассмотрение"],
 ] as const;
 const attentionOrder: Record<string, number> = {
   REVIEW: 0,
+  APPROVED: 3,
   CLARIFICATION: 1,
   LANGUAGE: 2,
   INTERVIEW: 3,
@@ -52,7 +54,8 @@ function shortId(id: string) {
   return id.slice(-8).toUpperCase();
 }
 function actionHash(stage: string) {
-  if (stage === "DECIDED" || stage === "FINAL_REVIEW") return "#decision";
+  if (stage === "APPROVED" || stage === "DECIDED" || stage === "FINAL_REVIEW")
+    return "#decision";
   if (stage === "CLARIFICATION") return "#candidate-messages";
   if (stage === "LANGUAGE") return "#overview";
   if (stage === "REVIEW" || stage === "CHECK") return "#sources";
@@ -118,6 +121,7 @@ function languageState(a: Application) {
 }
 const nextAction: Record<string, string> = {
   REVIEW: "Рассмотреть источники",
+  APPROVED: "Назначить интервью",
   CLARIFICATION: "Проверить уточнение",
   LANGUAGE: "Открыть языковой этап",
   INTERVIEW: "Подготовиться к интервью",
@@ -640,6 +644,18 @@ export function AdmissionsQueue({
                       {nextAction[a.stage] ?? "Открыть заявку"}
                       <ArrowRight size={17} />
                     </Link>
+                    <details className="queue-stage-menu">
+                      <summary>Действия по заявке</summary>
+                      <Link href={candidateHref(a.id) + "#decision"}>
+                        Одобрить этап
+                      </Link>
+                      <Link href={candidateHref(a.id) + "#decision"}>
+                        Назначить интервью
+                      </Link>
+                      <Link href={candidateHref(a.id) + "#decision"}>
+                        Отклонить заявку
+                      </Link>
+                    </details>
                   </td>
                 </tr>
               );

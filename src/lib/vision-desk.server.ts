@@ -93,19 +93,78 @@ export async function queueDeskEvent(
   applicationId: string,
   event: "submitted" | "clarification" | "interview",
 ) {
+  const app = await db.application.findUnique({ where: { id: applicationId } });
+  if (!app) return null;
   const settings = await deskSettings();
-  if (!settings[event]) return null;
-  const user = await db.user.findUnique({ where: { id: settings.staffId } });
-  if (user?.role !== "STAFF") return null;
-  // Called only by new committed events, never a scan of old applications.
-  try {
-    return await enqueueDesk(user, applicationId, settings.provider);
-  } catch (error) {
-    if (error instanceof AppError || error instanceof OpenAIError) return null;
-    throw error;
+  const consent = deskConsentSchema.safeParse(app.deskConsent);
+  const configured = await connection();
+  const modern = !!app.intakeRules;
+  const enabled = modern
+    ? !!configured.deskEnabled && !!configured.secretCipher
+    : settings[event];
+  const userId = modern ? configured.ownerId : settings.staffId;
+  const user = userId
+    ? await db.user.findUnique({ where: { id: userId } })
+    : null;
+  let status = "WAITING_SETTINGS";
+  if (modern && (!consent.success || !consent.data.granted))
+    status = "NO_CONSENT";
+  else if (enabled && user?.role === "STAFF") {
+    try {
+      const run = await enqueueDesk(
+        user,
+        applicationId,
+        modern ? "openai" : settings.provider,
+      );
+      if (modern)
+        await db.application.updateMany({
+          where: { id: app.id, preparationEvent: app.preparationEvent },
+          data: {
+            preparationQueued: app.preparationEvent,
+            preparationStatus: "QUEUED",
+          },
+        });
+      return run;
+    } catch (error) {
+      if (!(error instanceof AppError || error instanceof OpenAIError))
+        throw error;
+      status = error instanceof OpenAIError ? error.code : "WAITING_SOURCES";
+    }
   }
+  if (modern)
+    await db.application.updateMany({
+      where: { id: app.id, preparationEvent: app.preparationEvent },
+      data: { preparationStatus: status },
+    });
+  return null;
 }
-export async function processDesk(runId: string) {
+/** Durable events are counters committed with source changes. Old applications have zero events. */
+export async function runDeskQueueOnce() {
+  const events = await db.application.findMany({
+    where: {
+      preparationStatus: { in: ["PENDING", "WAITING_SETTINGS"] },
+      preparationEvent: { gt: 0 },
+      submittedAt: { not: null },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 3,
+  });
+  for (const app of events) await queueDeskEvent(app.id, "submitted");
+  const run = await db.scoringRun.findFirst({
+    where: {
+      context: "DESK",
+      attempts: { lt: 2 },
+      OR: [
+        { status: "QUEUED" },
+        { status: "RUNNING", leaseUntil: { lt: new Date() } },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  if (run) await processDesk(run.id);
+}
+
+export async function processDesk(runId: string, prepare = prepareDesk) {
   const token = randomUUID(),
     now = new Date();
   const claimed = await db.scoringRun.updateMany({
@@ -152,7 +211,7 @@ export async function processDesk(runId: string) {
     };
     await authorize();
     const result = validDeskResult(
-      await prepareDesk(input, authorize, randomUUID()),
+      await prepare(input, authorize, randomUUID()),
       input,
     );
     await authorize();
@@ -354,6 +413,27 @@ export async function deskAction(
 ) {
   staff(user);
   if (type === "desk.queue") return deskQueue(user);
+  if (type === "desk.event.retry") {
+    const app = await assertApplication(id.parse(b.applicationId), user);
+    const run = await queueDeskEvent(app.id, "submitted");
+    if (run?.status === "FAILED") {
+      if (run.attempts >= 2)
+        throw new AppError(
+          "Две попытки уже выполнены. Проверь причину ошибки; новая версия источника создаст отдельную подготовку.",
+          409,
+        );
+      await db.scoringRun.updateMany({
+        where: { id: run.id, status: "FAILED" },
+        data: {
+          status: "QUEUED",
+          leaseToken: null,
+          leaseUntil: null,
+          errorCode: null,
+        },
+      });
+    }
+    return { queued: true };
+  }
   if (type === "desk.settings") {
     const cfg = deskSettingsSchema.parse(b.settings);
     await cost(cfg.provider);

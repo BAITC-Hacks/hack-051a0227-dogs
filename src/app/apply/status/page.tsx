@@ -1,3 +1,6 @@
+import { IntakeSummary } from "@/components/intake-fields";
+import { ApplicationSupplement } from "@/components/application-supplement";
+import type { IntakeRules } from "@/lib/intake-contract";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { FileText } from "lucide-react";
@@ -62,7 +65,40 @@ export default async function Status() {
               </a>
             )}
           </section>
+          {app.interviews.map((i) => (
+            <section className="notice info" key={i.id}>
+              <h3>
+                {i.status === "CANCELLED"
+                  ? "Интервью отменено"
+                  : "Твоё интервью"}
+              </h3>
+              <p>
+                {new Intl.DateTimeFormat("ru", {
+                  timeZone: i.timezone,
+                  dateStyle: "long",
+                  timeStyle: "short",
+                }).format(new Date(i.scheduledAt))}{" "}
+                · {i.timezone} · {i.durationMinutes} мин.
+              </p>
+              {i.meetUrl && ["READY", "MANUAL"].includes(i.calendarStatus) && (
+                <a
+                  href={i.meetUrl}
+                  className="button secondary"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Открыть встречу
+                </a>
+              )}
+            </section>
+          ))}
           <PublishedFeedback application={app} />
+          <ApplicationSupplement
+            applicationId={app.id}
+            materials={app.materials}
+            consent={app.deskConsent}
+          />
+
           <section id="messages">
             <h2>Переписка с комиссией</h2>
             <Messages
@@ -76,6 +112,10 @@ export default async function Status() {
               Версия зафиксирована {dateLabel(app.submittedAt)}. Уточнения
               сохраняются отдельно.
             </p>
+            <IntakeSummary
+              fields={fields}
+              rules={app.intakeRules as IntakeRules | null}
+            />
             <dl>
               {[
                 ["Кандидат", fields.name],

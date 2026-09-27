@@ -164,6 +164,13 @@ model Application {
   revision Int @default(0)
   origin String @default("USER")
   deskConsent Json?
+  intakeRules Json?
+  formSection Int @default(0)
+  formField String @default("")
+  preparationEvent Int @default(0)
+  preparationQueued Int @default(0)
+  preparationStatus String @default("NONE")
+  credentialReviews CredentialReview[]
   submittedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -257,6 +264,13 @@ model Material {
   size Int
   kind String
   bytes Bytes
+  purpose String @default("GENERAL")
+  section String @default("materials")
+  version Int @default(1)
+  previousId String?
+  uploadKey String? @unique
+  extractedText String?
+  releasedAt DateTime?
   createdAt DateTime @default(now())
   sources Source[]
   sha256 String?
@@ -351,6 +365,15 @@ model Interview {
   applicationId String
   application Application @relation(fields:[applicationId],references:[id])
   scheduledAt DateTime
+  timezone String @default("Asia/Almaty")
+  durationMinutes Int @default(30)
+  attendees Json?
+  calendarConnectionId String?
+  calendarEventId String?
+  meetUrl String?
+  calendarStatus String @default("MANUAL")
+  invitationPublishedAt DateTime?
+  calendarOperations CalendarOperation[]
   status String @default("SCHEDULED")
   notes Json
   revision Int @default(0)
@@ -723,6 +746,13 @@ model VisionMedia {
   dependencies Json
   answerId String?
   bytes Bytes
+  purpose String @default("GENERAL")
+  section String @default("materials")
+  version Int @default(1)
+  previousId String?
+  uploadKey String? @unique
+  extractedText String?
+  releasedAt DateTime?
   mime String
   text String @default("")
   model String
@@ -731,4 +761,68 @@ model VisionMedia {
   job AudioJob? @relation(fields:[jobId],references:[id],onDelete:Cascade)
   createdAt DateTime @default(now())
   @@index([userId])
+}
+
+model CredentialReview {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id],onDelete:Cascade)
+  key String
+  verdict String
+  note String
+  authorId String
+  materialVersion String
+  createdAt DateTime @default(now())
+}
+model GoogleConnection {
+  id String @id @default(cuid())
+  userId String @unique
+  calendarId String
+  calendarName String
+  secretId String
+  secretCipher String
+  scopes String
+  secretStorage String
+  revision Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model GoogleOAuthState {
+  hash String @id
+  userId String
+  sessionHash String
+  browserHash String
+  expiresAt DateTime
+}
+model CalendarOperation {
+  id String @id @default(cuid())
+  interviewId String
+  interview Interview @relation(fields:[interviewId],references:[id],onDelete:Cascade)
+  requestKey String @unique
+  kind String
+  authorId String
+  connectionId String
+  connectionRevision Int
+  eventId String
+  payload Json
+  materialVersion String
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  errorCode String?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  @@index([status, createdAt])
+}
+model ActionPreview {
+  id String @id @default(cuid())
+  authorId String
+  applicationId String
+  kind String
+  payload Json
+  expiresAt DateTime
+  usedAt DateTime?
+  result Json?
+  createdAt DateTime @default(now())
 }

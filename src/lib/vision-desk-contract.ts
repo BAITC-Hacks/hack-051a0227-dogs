@@ -1,8 +1,9 @@
 import { z } from "zod";
-export const deskVersion = "vision-desk-facts-v4";
+export const deskVersion = "vision-desk-facts-v5";
 export const deskSourceKinds = [
   "Анкета",
   "Мотивация",
+  "Эссе",
   "Дневник проекта",
   "Уточнение кандидата",
   "Учебное упражнение",
@@ -35,7 +36,8 @@ export type DeskSettings = z.infer<typeof deskSettingsSchema> & {
 export const deskConsentSchema = z.object({
   granted: z.boolean(),
   revision: z.number().int().nonnegative(),
-  sourceIds: z.array(z.string()).max(30),
+  sourceIds: z.array(z.string()).max(100),
+  purpose: z.literal("INTAKE_FACTS_V1").optional(),
   at: z.string(),
 });
 export const deskSelectionSchema = z

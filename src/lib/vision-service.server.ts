@@ -1,4 +1,9 @@
 import "server-only";
+import { intakeQuestionKey } from "./intake-knowledge.server";
+import {
+  validateProfileAnswer,
+  dependenciesFor,
+} from "./profile-provider.server";
 import { learningPolicy, learningQuestion } from "./learning-context";
 import { Prisma, type User } from "@prisma/client";
 import { z } from "zod";
@@ -120,6 +125,51 @@ export async function visionAsk(
       );
   };
   try {
+    const faqKey = intakeQuestionKey(v.question),
+      fact = faqKey ? c.sources.find((s) => s.key === faqKey) : null;
+    if (fact) {
+      const href = fact.href?.startsWith("/") ? fact.href : "/apply";
+      const answer = validateProfileAnswer(
+        {
+          topic: "application",
+          text: "Спроси inVision",
+          claims: [
+            {
+              text: fact.text,
+              refs: [
+                { key: fact.key, version: fact.version, quote: fact.text },
+              ],
+            },
+          ],
+          actions: [
+            { key: faqKey, kind: "LINK", label: "Открыть нужный раздел", href },
+          ],
+          dependencies: dependenciesFor(c.c, [fact.key]),
+          supported: true,
+        },
+        c.c,
+      );
+      await authorize();
+      const saved = await db.profileAnswer.update({
+        where: { id: row.id },
+        data: {
+          provider: "intake-rules",
+          answer: json(answer),
+          status: "COMPLETED",
+          metadata: json({
+            scope: v.scope,
+            dataPolicy: learningPolicy,
+            contextHash: c.hash,
+            operations: [
+              "read_current_intake_rule",
+              "read_own_application_status",
+            ],
+          }),
+        },
+      });
+      await emit("done", { id: saved.id });
+      return saved;
+    }
     const result = await run({
       context: c,
       question: learningQuestion(v.question, [

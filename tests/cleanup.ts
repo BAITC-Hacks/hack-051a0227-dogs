@@ -20,6 +20,7 @@ export async function cleanupRun(db: PrismaClient, emails: string[]) {
       });
       for (const app of apps) {
         const applicationId = app.id;
+        await tx.actionPreview.deleteMany({ where: { applicationId } });
         await tx.correction.deleteMany({
           where: { source: { applicationId } },
         });
@@ -43,6 +44,9 @@ export async function cleanupRun(db: PrismaClient, emails: string[]) {
       }
       await tx.material.deleteMany({ where: { userId: id } });
       await tx.projectAttempt.deleteMany({ where: { userId: id } });
+      await tx.actionPreview.deleteMany({ where: { authorId: id } });
+      await tx.googleConnection.deleteMany({ where: { userId: id } });
+      await tx.googleOAuthState.deleteMany({ where: { userId: id } });
       await tx.user.delete({ where: { id } });
     });
 }

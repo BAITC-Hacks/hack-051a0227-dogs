@@ -8,7 +8,7 @@
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
-    "test": "tsx --test --test-concurrency=1 tests/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/audio/*.test.ts tests/scoring/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/connection/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/desk/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/vision/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/audio/*.test.ts tests/scoring/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/connection/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/desk/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/vision/*.test.ts && node --conditions=react-server --import tsx --test --test-concurrency=1 tests/intake/*.test.ts",
     "assessment:fixtures": "node --conditions=react-server --import tsx scripts/assessment-fixtures.ts",
     "showcase:scoring": "node --conditions=react-server --import tsx scripts/showcase-scoring.ts --apply",
     "db:start": "bash scripts/db-start.sh",
@@ -19,7 +19,8 @@
     "format": "prettier --write src prisma tests",
     "audio:live": "node --conditions=react-server --import tsx scripts/audio-live.ts",
     "audio:virtual": "tsc src/lib/audio-capture.ts src/lib/microphone.ts --target ES2022 --module ES2022 --outDir .local/virtual-mic --skipLibCheck && node scripts/audio-virtual-server.mjs",
-    "quality:check": "ASSESSMENT_ENVIRONMENT=isolated-local ASSESSMENT_PROVIDER=local PROFILE_PROVIDER=local AUDIO_WORKER_ENABLED=false OPENAI_API_KEY= node --conditions=react-server --import tsx scripts/quality-check.ts"
+    "quality:check": "ASSESSMENT_ENVIRONMENT=isolated-local ASSESSMENT_PROVIDER=local PROFILE_PROVIDER=local AUDIO_WORKER_ENABLED=false OPENAI_API_KEY= node --conditions=react-server --import tsx scripts/quality-check.ts",
+    "intake:examples": "node --conditions=react-server --import tsx scripts/intake-examples.ts --apply"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

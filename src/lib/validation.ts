@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { intakeFieldsSchema } from "./intake-contract";
 export const fieldsSchema = z
   .object({
+    intake: intakeFieldsSchema.optional(),
     name: z.string().max(160),
     email: z.string().max(160),
     city: z.string().max(120),
@@ -8,13 +10,7 @@ export const fieldsSchema = z
     experience: z.string().max(8000),
     personalRole: z.string().max(4000),
     motivation: z.string().max(6000),
-    videoUrl: z
-      .string()
-      .max(1000)
-      .refine(
-        (v) => !v || /^https:\/\//.test(v),
-        "Ссылка должна начинаться с https://",
-      ),
+    videoUrl: z.string().max(1000),
     most: z.string().max(1),
     least: z.string().max(1),
     processing: z.boolean(),
@@ -82,7 +78,8 @@ export function applicationRequirements(
     },
     {
       title: "Видеопрезентация",
-      complete: !!fields.videoUrl || materialKinds.includes("video"),
+      complete:
+        /^https:\/\//.test(fields.videoUrl) || materialKinds.includes("video"),
       issue: "Добавьте видеопрезентацию: файл или ссылку.",
     },
     {

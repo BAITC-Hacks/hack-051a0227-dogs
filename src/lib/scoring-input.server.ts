@@ -1,4 +1,5 @@
 import "server-only";
+import { privatePurposes } from "./intake-contract";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -121,7 +122,13 @@ export async function scoringInput(
         orderBy: { id: "asc" },
         include: {
           material: {
-            select: { id: true, mime: true, sha256: true, bytes: true },
+            select: {
+              id: true,
+              mime: true,
+              sha256: true,
+              bytes: true,
+              purpose: true,
+            },
           },
           corrections: { orderBy: { id: "asc" } },
           episode: { select: { mergedIntoId: true } },
@@ -138,7 +145,11 @@ export async function scoringInput(
     (submitted.snapshot as { fields?: Record<string, unknown> }).fields ?? {};
   // Private milestones, activity, test mappings, bytes and contact data never enter the provider contract.
   const sources = app.sources
-    .filter((s) => s.title !== "Выбор утверждений")
+    .filter(
+      (s) =>
+        s.title !== "Выбор утверждений" &&
+        !(s.material && privatePurposes.includes(s.material.purpose)),
+    )
     .map((s) => {
       const material = s.material
         ? {

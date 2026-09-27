@@ -1,4 +1,5 @@
 "use client";
+import { StageActions, CalendarForm } from "./selection-actions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,12 +22,13 @@ export function ReviewDecision({
   const router = useRouter(),
     decisionTask = useTask(),
     publishTask = useTask();
-  const activeInterview = a.interviews.find((i) => i.status !== "COMPLETED");
+  const activeInterview = a.interviews.find(
+    (i) => !["COMPLETED", "CANCELLED"].includes(i.status),
+  );
   const [decision, setDecision] = useState(
     a.stage === "DECIDED"
       ? "REOPEN"
-      : scoringDraft?.result.recommendation.action === "INTERVIEW" &&
-          activeInterview
+      : scoringDraft?.result.recommendation.action === "INTERVIEW"
         ? "CONTINUE"
         : (scoringDraft?.result.recommendation.action ?? "CONTINUE"),
   );
@@ -69,6 +71,26 @@ export function ReviewDecision({
   return (
     <section className="review-section" id="decision-publication">
       <h2>Решение и обратная связь</h2>
+      <StageActions
+        application={{
+          id: a.id,
+          revision: a.revision,
+          materialVersion: a.materialVersion,
+          stage: a.stage,
+          email: a.user.email ?? "",
+        }}
+      />
+      <CalendarForm
+        application={{
+          id: a.id,
+          revision: a.revision,
+          materialVersion: a.materialVersion,
+          stage: a.stage,
+          email: a.user.email ?? "",
+        }}
+        interview={activeInterview}
+      />
+
       {deskDraft && (
         <details className="notice info" open>
           <summary>Предложение Vision Desk</summary>
@@ -107,7 +129,15 @@ export function ReviewDecision({
       </p>
       {activeInterview && (
         <p className="notice info">
-          Интервью назначено на {dateLabel(activeInterview.scheduledAt)}.{" "}
+          {activeInterview.status === "SCHEDULING"
+            ? "Создаётся встреча на"
+            : "Интервью на"}{" "}
+          {new Intl.DateTimeFormat("ru", {
+            timeZone: activeInterview.timezone,
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(activeInterview.scheduledAt))}{" "}
+          ({activeInterview.timezone}).{" "}
           <Link
             className="text-link"
             href={`/admissions/interviews/${activeInterview.id}`}
@@ -151,8 +181,7 @@ export function ReviewDecision({
                 ([key]) =>
                   (a.stage === "DECIDED"
                     ? key === "REOPEN"
-                    : key !== "REOPEN") &&
-                  !(activeInterview && key === "INTERVIEW"),
+                    : key !== "REOPEN") && key !== "INTERVIEW",
               )
               .map(([v, l]) => (
                 <option key={v} value={v}>

@@ -718,3 +718,14 @@
     font-size: 12px;
   }
 }
+.queue-stage-menu {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.queue-stage-menu summary {
+  cursor: pointer;
+}
+.queue-stage-menu a {
+  display: block;
+  padding: 8px 0;
+}

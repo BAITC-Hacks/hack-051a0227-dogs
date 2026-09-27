@@ -1,36 +1,62 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-
-  ArrowLeft,
-  FileText,
-  Check,
-  Paperclip,
-  Save,
-
-} from "lucide-react";
+import { ArrowLeft, FileText, Check, Paperclip, Save } from "lucide-react";
 import type { myData } from "@/lib/data";
 import { programs, forcedStatements, programFor } from "@/lib/catalog";
 import type { ApplicationFields } from "@/lib/types";
-import { emptyFields, submissionIssues } from "@/lib/validation";
+import { emptyFields } from "@/lib/validation";
 import { action, upload } from "@/lib/client";
 import { Feedback, useTask, Tag } from "./ui";
-const steps = ["Данные", "Опыт", "Мотивация", "Материалы", "Выбор", "Обзор"];
+import {
+  emptyIntake,
+  preflight,
+  routeFor,
+  type IntakeRules,
+  type MaterialPurpose,
+} from "@/lib/intake-contract";
+import {
+  EducationFields,
+  MotivationFields,
+  CertificateFields,
+  IntakeSummary,
+  materialPurposes,
+} from "./intake-fields";
+import "./intake.css";
+const steps = [
+  "О себе",
+  "Образование и результаты",
+  "Программа и опыт",
+  "Материалы",
+  "Проверки",
+  "Обзор и отправка",
+];
 export function ApplicationWizard({
   data,
   selectedProgram,
+  rules,
+  initialSection,
+  initialField,
 }: {
   data: NonNullable<Awaited<ReturnType<typeof myData>>>;
   selectedProgram?: string;
+  rules: IntakeRules;
+  initialSection?: string;
+  initialField?: string;
 }) {
   const app = data.application;
-  const [fields, setFields] = useState<ApplicationFields>(
-    app
-      ? (app.fields as unknown as ApplicationFields)
-      : { ...emptyFields, name: data.user.name, email: data.user.email ?? "" },
-  );
+  const [fields, setFields] = useState<ApplicationFields>({
+    ...emptyFields,
+    name: data.user.name,
+    email: data.user.email ?? "",
+    ...((app?.fields as object) ?? {}),
+    intake: {
+      ...emptyIntake,
+      ...((app?.fields as unknown as ApplicationFields)?.intake ?? {}),
+      intake: rules.intake,
+    },
+  });
   const [programSlug, setProgramSlug] = useState(
     app?.programSlug ??
       (programFor(selectedProgram ?? "")
@@ -39,7 +65,20 @@ export function ApplicationWizard({
   );
   const [revision, setRevision] = useState(app?.revision ?? 0);
   const [applicationId, setApplicationId] = useState(app?.id ?? "");
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(
+    initialSection && /^[0-5]$/.test(initialSection)
+      ? Number(initialSection)
+      : (app?.formSection ?? 0),
+  );
+  const [purpose, setPurpose] = useState<MaterialPurpose>("GENERAL");
+  const [saveState, setSaveState] = useState("Все изменения сохранены");
+  const [saveError, setSaveError] = useState("");
+  const revRef = useRef(app?.revision ?? 0),
+    pending = useRef(
+      Promise.resolve({ id: app?.id ?? "", revision: app?.revision ?? 0 }),
+    );
+  const lastSaved = useRef("");
+  const fieldRef = useRef(app?.formField ?? "");
   const [materials, setMaterials] = useState(app?.materials ?? []);
   const [removing, setRemoving] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -56,19 +95,70 @@ export function ApplicationWizard({
     setFields((s) => ({ ...s, [k]: v }));
     task.setNotice("");
   };
-  async function save() {
-    const res = await action<{ id: string; revision: number }>(
-      "application.save",
-      { fields, programSlug, revision },
-    );
-    setRevision(res.revision);
-    setApplicationId(res.id);
-    return res;
+  const intake = fields.intake!;
+  const intakeProps = {
+    value: intake,
+    onChange: (v: typeof intake) => update("intake", v),
+    materials,
+    rules,
+    program: programSlug,
+  };
+  function save(destination?: number) {
+    const snapshot = {
+      fields,
+      programSlug,
+      section: destination ?? step,
+      field: fieldRef.current,
+    };
+    const signature = JSON.stringify(snapshot);
+    pending.current = pending.current
+      .catch(() => ({ id: applicationId, revision: revRef.current }))
+      .then(async (prior) => {
+        if (signature === lastSaved.current) return prior;
+        setSaveState("Сохраняем…");
+        try {
+          const res = await action<{ id: string; revision: number }>(
+            "application.save",
+            { ...snapshot, revision: revRef.current },
+          );
+          revRef.current = res.revision;
+          setRevision(res.revision);
+          setApplicationId(res.id);
+          lastSaved.current = signature;
+          setSaveState("Все изменения сохранены");
+          setSaveError("");
+          return res;
+        } catch (e) {
+          setSaveState("Изменения пока не сохранены");
+          setSaveError(e instanceof Error ? e.message : "Повтори сохранение.");
+          throw e;
+        }
+      });
+    return pending.current;
   }
-  const issues = submissionIssues(
-    fields,
-    materials.map((m) => m.kind),
-  );
+  useEffect(() => {
+    if (saveError) return;
+    const timer = setTimeout(() => {
+      void save().catch(() => {});
+    }, 1100);
+    return () => clearTimeout(timer);
+    // Saving is serialized and reads the latest server revision through a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, programSlug, step]);
+  useEffect(() => {
+    const field = initialField ?? app?.formField;
+    if (field) document.getElementById(field)?.focus();
+  }, [app?.formField, initialField]);
+  const checks = preflight(fields, materials, rules, programSlug),
+    issues = checks.filter((i) => i.group === "BLOCK");
+  const go = (i: number, field?: string) =>
+    task.run(async () => {
+      await save(i);
+      setStep(i);
+      requestAnimationFrame(() =>
+        document.getElementById(field ?? "")?.focus(),
+      );
+    });
   return (
     <div className="page wrap">
       <div className="page-title">
@@ -81,6 +171,42 @@ export function ApplicationWizard({
         </div>
         <Tag>{revision ? `Заявка · версия ${revision}` : "Твоя заявка"}</Tag>
       </div>
+      <div className="draft-save-state" role="status">
+        {saveState}
+        {saveError && (
+          <>
+            <p role="alert">{saveError}</p>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() =>
+                task.run(async () => {
+                  await save();
+                })
+              }
+            >
+              Повторить сохранение
+            </button>
+            <button
+              type="button"
+              className="button quiet"
+              onClick={() => {
+                const blob = new Blob(
+                  [JSON.stringify({ fields, programSlug }, null, 2)],
+                  { type: "application/json" },
+                );
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "моя-заявка.json";
+                link.click();
+                URL.revokeObjectURL(link.href);
+              }}
+            >
+              Скачать введённый текст
+            </button>
+          </>
+        )}
+      </div>
       <nav className="steps" aria-label="Шаги заявки">
         {steps.map((s, i) => (
           <button
@@ -89,7 +215,7 @@ export function ApplicationWizard({
             disabled={task.busy}
             onClick={() =>
               task.run(async () => {
-                await save();
+                await save(i);
                 setStep(i);
               })
             }
@@ -102,10 +228,14 @@ export function ApplicationWizard({
       <div className="application-layout">
         <div className="form-section">
           <form
+            onFocusCapture={(e) => {
+              if (e.target instanceof HTMLElement && e.target.id)
+                fieldRef.current = e.target.id;
+            }}
             onSubmit={(e) => {
               e.preventDefault();
               task.run(async () => {
-                await save();
+                await save(Math.min(5, step + 1));
                 if (step < 5) setStep(step + 1);
               }, "Данные сохранены.");
             }}
@@ -119,12 +249,52 @@ export function ApplicationWizard({
                 </p>
                 <div className="form-grid two">
                   <label className="field">
+                    Тип поступления
+                    <select
+                      id="entry-type"
+                      value={intake.entryType}
+                      onChange={(e) => {
+                        const entryType = e.target
+                          .value as typeof intake.entryType;
+                        const r = routeFor(rules, entryType, programSlug);
+                        update("intake", {
+                          ...intake,
+                          entryType,
+                          essay: {
+                            ...intake.essay,
+                            questionId: r.essay.id,
+                            questionVersion: r.essay.version,
+                          },
+                        });
+                      }}
+                    >
+                      <option value="BACHELOR">Бакалавриат</option>
+                      <option value="FOUNDATION">Foundation</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    Набор
+                    <input id="intake" value={rules.intake} readOnly />
+                  </label>
+                  <label className="field">
+                    Телефон для связи
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      value={intake.phone}
+                      onChange={(e) =>
+                        update("intake", { ...intake, phone: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="field">
                     Имя и фамилия
                     <input
                       required
                       minLength={3}
                       maxLength={160}
                       autoComplete="name"
+                      id="name"
                       value={fields.name}
                       onChange={(e) => update("name", e.target.value)}
                     />
@@ -172,7 +342,8 @@ export function ApplicationWizard({
                 </label>
               </>
             )}
-            {step === 1 && (
+            {step === 1 && <EducationFields {...intakeProps} />}
+            {step === 2 && (
               <>
                 <h2>Опиши опыт своими словами</h2>
                 <p>
@@ -183,8 +354,7 @@ export function ApplicationWizard({
                   <label className="field">
                     Что произошло и что вы сделали?
                     <textarea
-                      required
-                      minLength={30}
+                      id="experience"
                       maxLength={8000}
                       rows={6}
                       value={fields.experience}
@@ -195,8 +365,7 @@ export function ApplicationWizard({
                   <label className="field">
                     За что отвечал лично ты?
                     <textarea
-                      required
-                      minLength={15}
+                      id="personalRole"
                       maxLength={4000}
                       value={fields.personalRole}
                       onChange={(e) => update("personalRole", e.target.value)}
@@ -212,7 +381,7 @@ export function ApplicationWizard({
             )}
             {step === 2 && (
               <>
-                <h2>Почему это направление?</h2>
+                <h3>Почему это направление?</h3>
                 <p>
                   Свяжи выбор с тем, что хочешь изучать и пробовать. Нам
                   интересны твои основания, а не идеальный ответ.
@@ -220,15 +389,15 @@ export function ApplicationWizard({
                 <label className="field">
                   Мотивация
                   <textarea
-                    required
-                    minLength={30}
+                    id="motivation"
                     maxLength={6000}
                     rows={9}
                     value={fields.motivation}
                     onChange={(e) => update("motivation", e.target.value)}
-                    placeholder="Почему inVision U, почему эта программа и какой вопрос тебе хочется исследовать?"
+                    placeholder="Почему эта программа и какой вопрос тебе хочется исследовать?"
                   />
                 </label>
+                <MotivationFields {...intakeProps} />
                 <Link
                   href={"/programs/" + programSlug}
                   className="text-link"
@@ -246,6 +415,28 @@ export function ApplicationWizard({
                   отправки заявки. Максимум 25 МБ на файл.
                 </p>
                 <div className="stack">
+                  <label className="field">
+                    Назначение документа
+                    <select
+                      id="material-purpose"
+                      value={purpose}
+                      onChange={(e) =>
+                        setPurpose(e.target.value as MaterialPurpose)
+                      }
+                    >
+                      {Object.entries(materialPurposes)
+                        .filter(([k]) => k !== "VIDEO")
+                        .map(([k, l]) => (
+                          <option key={k} value={k}>
+                            {l}
+                          </option>
+                        ))}
+                    </select>
+                    <small>
+                      Удостоверение и сведения о поддержке доступны только для
+                      административной проверки и не передаются AI.
+                    </small>
+                  </label>
                   <label className="upload-zone">
                     Документы · PDF, JPEG, PNG
                     <input
@@ -258,7 +449,10 @@ export function ApplicationWizard({
                         if (file)
                           task.run(async () => {
                             await save();
-                            const m = await upload(file, "document");
+                            const m = await upload(file, "document", {
+                              purpose,
+                              requestKey: crypto.randomUUID(),
+                            });
                             setMaterials((a) => [...a, m]);
                           }, "Документ загружен.");
                       }}
@@ -277,6 +471,7 @@ export function ApplicationWizard({
                     Ссылка на видеопрезентацию
                     <input
                       type="url"
+                      id="videoUrl"
                       value={fields.videoUrl}
                       onChange={(e) => update("videoUrl", e.target.value)}
                       placeholder="https://"
@@ -298,7 +493,10 @@ export function ApplicationWizard({
                         if (file)
                           task.run(async () => {
                             await save();
-                            const m = await upload(file, "video");
+                            const m = await upload(file, "video", {
+                              purpose: "VIDEO",
+                              requestKey: crypto.randomUUID(),
+                            });
                             setMaterials((a) => [...a, m]);
                           }, "Видеопрезентация загружена.");
                       }}
@@ -307,7 +505,18 @@ export function ApplicationWizard({
                 </div>
                 <div className="file-list">
                   {materials.map((m) => (
-                    <div className="material-entry" key={m.id}>
+                    <div
+                      className="material-entry"
+                      id={"material-" + m.id}
+                      tabIndex={-1}
+                      key={m.id}
+                    >
+                      <small>
+                        {materialPurposes[m.purpose as MaterialPurpose] ??
+                          "Материал"}{" "}
+                        · версия {m.version ?? 1} · добавлен тобой{" "}
+                        {new Date(m.createdAt).toLocaleDateString("ru")}
+                      </small>
                       <a
                         className="file-row"
                         href={"/api/files/" + m.id}
@@ -317,11 +526,10 @@ export function ApplicationWizard({
                         <Paperclip size={16} />
                         <span>{m.name}</span>
                         <span className="subtle">
-                        {m.size < 1024 * 1024
-                          ? `${Math.max(1, Math.ceil(m.size / 1024))} КБ`
-                          : `${(m.size / 1024 / 1024).toFixed(1)} МБ`}
+                          {m.size < 1024 * 1024
+                            ? `${Math.max(1, Math.ceil(m.size / 1024))} КБ`
+                            : `${(m.size / 1024 / 1024).toFixed(1)} МБ`}
                         </span>
-
                       </a>
                       {["document", "video"].includes(m.kind) &&
                         (removing === m.id ? (
@@ -449,7 +657,12 @@ export function ApplicationWizard({
             )}
             {step === 4 && (
               <>
+                <CertificateFields {...intakeProps} />
                 <h2>Как ты подходишь к работе?</h2>
+                <p className="subtle">
+                  Дополнительный ответ, если он не включён в обязательные
+                  условия набора.
+                </p>
                 <p>
                   Из четырёх утверждений выбери одно, которое больше похоже на
                   тебя, и одно, которое меньше. Один вариант нельзя выбрать
@@ -506,6 +719,7 @@ export function ApplicationWizard({
                   После отправки эта версия фиксируется. Дополнительные сведения
                   и исправления можно будет передать в переписке.
                 </p>
+                <IntakeSummary fields={fields} rules={rules} />
                 <dl>
                   {[
                     ["Имя", fields.name],
@@ -528,11 +742,11 @@ export function ApplicationWizard({
                         .map((m) => m.name)
                         .join(", ") ||
                         fields.documentNote ||
-                        "Добавь документы или пояснение",
+                        "Не приложены",
                     ],
                     [
                       "Выбор",
-                      `Больше: ${forcedStatements[Number(fields.most)] ?? "не выбрано"}. Меньше: ${forcedStatements[Number(fields.least)] ?? "не выбрано"}.`,
+                      `Больше: ${fields.most ? forcedStatements[Number(fields.most)] : "не выбрано"}. Меньше: ${fields.least ? forcedStatements[Number(fields.least)] : "не выбрано"}.`,
                     ],
                     [
                       "Учебные работы",
@@ -551,12 +765,30 @@ export function ApplicationWizard({
                   <label className="check-label">
                     <input
                       type="checkbox"
+                      id="processing"
                       checked={fields.processing}
                       onChange={(e) => update("processing", e.target.checked)}
                     />
                     Разрешаю обрабатывать данные и материалы этой заявки для
                     рассмотрения приёмной комиссией. Доступ предоставляется
                     уполномоченным сотрудникам.
+                  </label>
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={intake.aiConsent}
+                      onChange={(e) =>
+                        update("intake", {
+                          ...intake,
+                          aiConsent: e.target.checked,
+                        })
+                      }
+                    />
+                    Разрешаю OpenAI подготовить фактическую сводку из
+                    отправленного опыта, мотивации, эссе и последующих уточнений
+                    для комиссии. Удостоверение, контакты и сведения о поддержке
+                    не передаются. Это необязательно; разрешение можно отозвать
+                    после отправки.
                   </label>
                   <label className="check-label">
                     <input
@@ -576,11 +808,35 @@ export function ApplicationWizard({
                     Я просмотрел заявку и подтверждаю отправку этой версии.
                   </label>
                 </div>
-                {issues.length > 0 && (
-                  <div className="notice info" style={{ marginTop: 22 }}>
-                    <InfoText items={issues} />
-                  </div>
-                )}
+                <div className="preflight" aria-live="polite">
+                  {(
+                    [
+                      ["BLOCK", "Обязательно исправить"],
+                      ["SUGGEST", "Можно уточнить"],
+                      ["PENDING", "Ожидает проверки"],
+                    ] as const
+                  ).map(([group, title]) => (
+                    <section key={group}>
+                      <h3>{title}</h3>
+                      {checks.filter((i) => i.group === group).length ? (
+                        checks
+                          .filter((i) => i.group === group)
+                          .map((i) => (
+                            <button
+                              type="button"
+                              key={i.key}
+                              onClick={() => go(i.section, i.field)}
+                              className="preflight-item"
+                            >
+                              {i.text}
+                            </button>
+                          ))
+                      ) : (
+                        <p className="subtle">Замечаний нет</p>
+                      )}
+                    </section>
+                  ))}
+                </div>
                 <button
                   type="button"
                   className="button primary large"
@@ -592,6 +848,7 @@ export function ApplicationWizard({
                       await action("application.submit", {
                         confirm: true,
                         revision: saved.revision,
+                        rulesVersion: rules.version,
                       });
                       router.push("/apply/status");
                       router.refresh();
@@ -648,6 +905,23 @@ export function ApplicationWizard({
           <Feedback task={task} />
         </div>
         <aside className="application-aside">
+          <h3>Условия твоего набора</h3>
+          <p>
+            {intake.entryType === "FOUNDATION" ? "Foundation" : "Бакалавриат"} ·{" "}
+            {rules.intake}
+          </p>
+          <p className="subtle">
+            Сведения проверены {rules.checkedAt}. Это условия указанного набора;
+            будущие сроки и условия уточняются у комиссии.
+          </p>
+          <p>
+            GPA и письменное эссе{" "}
+            {routeFor(rules, intake.entryType, programSlug).gpaRequired ||
+            routeFor(rules, intake.entryType, programSlug).essay.required
+              ? "зависят от правил набора"
+              : "можно добавить по желанию"}
+            .
+          </p>
           <h3>Три отдельных взгляда</h3>
           <p>
             <strong>Готовность</strong>
@@ -670,7 +944,7 @@ export function ApplicationWizard({
             превращаются в скрытый общий балл.
           </p>
           <Link
-            href="https://www.invisionu.education/ru/undergraduate"
+            href={routeFor(rules, intake.entryType, programSlug).source}
             target="_blank"
             className="text-link"
           >
@@ -688,18 +962,6 @@ export function ApplicationWizard({
           </p>
         </aside>
       </div>
-    </div>
-  );
-}
-function InfoText({ items }: { items: string[] }) {
-  return (
-    <div>
-      <strong>Перед отправкой</strong>
-      <ul style={{ paddingLeft: 20, margin: "8px 0" }}>
-        {items.map((i) => (
-          <li key={i}>{i}</li>
-        ))}
-      </ul>
     </div>
   );
 }

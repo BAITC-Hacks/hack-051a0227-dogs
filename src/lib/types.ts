@@ -13,6 +13,7 @@ export type ProjectState = {
   explanation: string;
 };
 export type ApplicationFields = {
+  intake?: import("./intake-contract").IntakeFields;
   name: string;
   email: string;
   city: string;
