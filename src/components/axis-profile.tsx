@@ -144,18 +144,20 @@ export function AxisProfile({
           ))}
         </div>
       </div>
+      <div className="axis-ground-list" aria-label="Основания по девяти критериям">
+        {points.map((point, index) => {
+          const evidence = point.evidenceIds.map((id) => result?.evidence.find((entry) => entry.id === id)).filter((entry): entry is NonNullable<typeof entry> => !!entry);
+          return <article className="axis-ground" key={point.criterionId}>
+            <div className="axis-ground-head"><span className="axis-index">{String(index + 1).padStart(2, "0")}</span><h4>{point.criterionId}</h4><strong>{point.value === null ? "Нет оценки" : `${point.value} / ${point.maximum}`}</strong></div>
+            <p>{point.explanation}</p>
+            {evidence.map((entry) => <button type="button" key={entry.id} className="source-button" onClick={() => onSource(entry.sourceId)}>Источник: «{entry.quote.slice(0, 120)}{entry.quote.length > 120 ? "…" : ""}»</button>)}
+          </article>;
+        })}
+      </div>
       <div className="axis-detail">
         <div className="axis-detail-head">
           <div><span className="axis-kicker">Критерий {selected + 1}</span><h4>{item.criterionId}</h4></div>
           <strong>{item.value === null ? "Не оценено" : `${item.value} из ${item.maximum}`}</strong>
-        </div>
-        <p>{item.explanation}</p>
-        <div className="source-buttons">
-          {sourceEvidence.map((evidence) => (
-            <button key={evidence.id} type="button" className="source-button" onClick={() => onSource(evidence.sourceId)} title={`Версия ${evidence.sourceVersion}. ${evidence.quote}`}>
-              {run.sources.find((source) => source.id === evidence.sourceId)?.title ?? "Источник"} · версия {evidence.sourceVersion.slice(0, 10)}…: «{evidence.quote.slice(0, 96)}{evidence.quote.length > 96 ? "…" : ""}»
-            </button>
-          ))}
         </div>
         {canEdit && !editing && <button type="button" className="button secondary" onClick={startEdit}>Изменить оценку</button>}
         {editing && <form className="axis-edit" onSubmit={(event) => { event.preventDefault(); task.run(save, "Оценка сохранена."); }}>

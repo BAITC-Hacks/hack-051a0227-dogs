@@ -25,7 +25,7 @@ import { Tag } from "./ui";
 import { queueQuery, type QueueFilters } from "@/lib/queue-location";
 type Queue = Awaited<ReturnType<typeof queueData>>;
 type Application = Queue[number];
-type Sort = "recent" | "attention" | "name";
+type Sort = "priority" | "score-desc" | "score-asc" | "recent" | "attention" | "name";
 const quickStages = [
   ["", "Все"],
   ["REVIEW", "На рассмотрении"],
@@ -52,6 +52,9 @@ const attentionOrder: Record<string, number> = {
 };
 function shortId(id: string) {
   return id.slice(-8).toUpperCase();
+}
+function score(a: Application) {
+  return a.scoring.runs.find((run) => run.current && run.status === "COMPLETED")?.showcaseScore?.value ?? null;
 }
 function actionHash(stage: string) {
   if (stage === "APPROVED" || stage === "DECIDED" || stage === "FINAL_REVIEW")
@@ -159,11 +162,10 @@ export function AdmissionsQueue({
     "/admissions/candidates/" +
     id +
     (query ? "?queue=" + encodeURIComponent(query) : "");
-  const actionHref = (a: Application) =>
-    candidateHref(a.id) + (a.reReviewCases.length ? "#review-case" : actionHash(a.stage));
+  const actionHref = (a: Application) => candidateHref(a.id) + actionHash(a.stage);
   const [selected, setSelected] = useState<string[]>([]);
   const [compare, setCompare] = useState(false);
-  const [sort, setSort] = useState<Sort>("recent");
+  const [sort, setSort] = useState<Sort>("priority");
   const [layout, setLayout] = useState<"list" | "grid">("list");
   const [page, setPage] = useState(0);
   const filterChanged = () => setPage(0);
@@ -195,13 +197,20 @@ export function AdmissionsQueue({
             : a.language?.status === "PENDING_REVIEW")),
   );
   const sorted = [...filtered].sort((a, b) =>
-    sort === "name"
+    sort === "priority"
+      ? (a.stage === "DECIDED" ? 1 : 0) - (b.stage === "DECIDED" ? 1 : 0) ||
+        (score(a) === null ? 1 : score(b) === null ? -1 : score(b)! - score(a)!) ||
+        a.user.name.localeCompare(b.user.name, "ru")
+      : sort === "score-desc" || sort === "score-asc"
+      ? (score(a) === null ? 1 : score(b) === null ? -1 : sort === "score-desc" ? score(b)! - score(a)! : score(a)! - score(b)!) || a.user.name.localeCompare(b.user.name, "ru")
+      : sort === "name"
       ? a.user.name.localeCompare(b.user.name, "ru")
       : sort === "attention"
         ? (attentionOrder[a.stage] ?? 9) - (attentionOrder[b.stage] ?? 9) ||
           b.updatedAt.getTime() - a.updatedAt.getTime()
         : b.updatedAt.getTime() - a.updatedAt.getTime(),
   );
+  const ranked = [...filtered].filter((a) => score(a) !== null).sort((a, b) => score(b)! - score(a)! || a.user.name.localeCompare(b.user.name, "ru"));
   const pageCount = Math.ceil(sorted.length / 8);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
   const shown = sorted.slice(currentPage * 8, currentPage * 8 + 8);
@@ -256,9 +265,6 @@ export function AdmissionsQueue({
             </button>
           ))}
         </div>
-        <button className="button secondary small" aria-pressed={check === "re-review"} onClick={() => { setStage(""); setCheck(check === "re-review" ? "" : "re-review"); filterChanged(); }}>
-          Повторное рассмотрение <span>{applications.filter((item) => item.reReviewCases.some((entry) => entry.kind !== "CONTROL_SAMPLE")).length}</span>
-        </button>
         <details className="queue-filter-details">
           <summary>
             <SlidersHorizontal size={18} /> Фильтры
@@ -358,6 +364,9 @@ export function AdmissionsQueue({
               filterChanged();
             }}
           >
+            <option value="priority">В работе: высокий балл</option>
+            <option value="score-desc">AI-балл: высокий сначала</option>
+            <option value="score-asc">AI-балл: низкий сначала</option>
             <option value="recent">Сначала изменённые</option>
             <option value="attention">По этапу рассмотрения</option>
             <option value="name">По имени</option>
@@ -556,7 +565,7 @@ export function AdmissionsQueue({
               <th>
                 <span className="screen-reader-only">Сравнить</span>
               </th>
-              <th>Кандидат</th>
+          <th>Кандидат и место в рейтинге</th>
               <th>Программа</th>
               <th>Статус</th>
               <th>Что проверить</th>
@@ -593,6 +602,7 @@ export function AdmissionsQueue({
                       <UserAvatar user={a.user} size={44} />
                       <span>
                         <span className="candidate-name">{a.user.name}</span>
+                        {score(a) !== null && <span className="queue-rank"><strong>#{ranked.findIndex((item) => item.id === a.id) + 1}</strong> · {score(a)} / 100</span>}
                         <span
                           className="candidate-id"
                           title={`Полный ID заявки: ${a.id}`}
@@ -660,18 +670,6 @@ export function AdmissionsQueue({
                       {nextAction[a.stage] ?? "Открыть заявку"}
                       <ArrowRight size={17} />
                     </Link>
-                    <details className="queue-stage-menu">
-                      <summary>Действия по заявке</summary>
-                      <Link href={candidateHref(a.id) + "#decision"}>
-                        Одобрить этап
-                      </Link>
-                      <Link href={candidateHref(a.id) + "#decision"}>
-                        Назначить интервью
-                      </Link>
-                      <Link href={candidateHref(a.id) + "#decision"}>
-                        Отклонить заявку
-                      </Link>
-                    </details>
                   </td>
                 </tr>
               );

@@ -269,6 +269,7 @@ export type ScoringView = {
       evidenceIds: string[];
     };
     showcaseEnglishScore: null | { value: number; maximum: 100 };
+    showcaseEssaySignal: null | { value: number; maximum: 100; sourceId: string };
     showcaseAxis: null | {
       criterionId: (typeof domains)[number];
       value: 1 | 2;

@@ -8,7 +8,6 @@ import type { IntakeRules } from "@/lib/intake-contract";
 import { DeskChatLauncher } from "./desk-chat";
 import { UserAvatar } from "./user-avatar";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -23,19 +22,15 @@ import {
 } from "lucide-react";
 import type { loadCandidate } from "@/lib/data";
 import { unansweredQuestions } from "@/lib/message-state";
-import { action, dateLabel } from "@/lib/client";
+import { dateLabel } from "@/lib/client";
 import { stageLabels } from "@/lib/catalog";
 import type { ApplicationFields, LanguageState } from "@/lib/types";
 import type { AudioState } from "./audio-processing";
 import { Messages } from "./messages";
-import { Feedback, useTask, Tag } from "./ui";
-import { ReviewDecision } from "./review-decision";
+import { Tag } from "./ui";
 import { SourceContent } from "./review-source";
-import { EpisodeNotes } from "./episode-notes";
 import { ScoringPanel } from "./scoring-panel";
 import { AudioReviewPanel } from "./audio-review";
-import { VerificationPanel } from "./verification-panel";
-import { ReReviewPanel } from "./re-review-panel";
 import { CandidateActions } from "./candidate-actions";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 const subscribeHash = (listener: () => void) => {
@@ -79,11 +74,10 @@ export function CandidateReview({
   const activeInterview = a.interviews.find(
     (i) => !["COMPLETED", "CANCELLED"].includes(i.status),
   );
-  const waiting = unansweredQuestions(a.messages).length > 0;
-  const newAnswer = a.sources.some((s) => s.messageId && !s.views.length);
-  const sourceTask = useTask();
+  const pendingQuestions = unansweredQuestions(a.messages).length;
+  const answerCount = a.messages.filter((message) => message.author.role !== "STAFF" && message.replyToId).length;
+  const messageCount = Math.max(pendingQuestions, answerCount);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const router = useRouter();
   const source = a.sources.find((s) => s.id === sourceId);
   const fields = a.fields as unknown as ApplicationFields & {
     iin?: string;
@@ -93,6 +87,10 @@ export function CandidateReview({
   function openSource(id: string) {
     returnFocus.current = document.activeElement as HTMLElement;
     setSourceId(id);
+  }
+  function openMaterialsTab() {
+    setTab("sources");
+    window.location.hash = "sources";
   }
   useEffect(() => {
     if (sourceId) {
@@ -189,13 +187,7 @@ export function CandidateReview({
             }}
           >
             {label}
-            {value === "messages"
-              ? newAnswer
-                ? " · получен ответ"
-                : waiting
-                  ? " · ожидается ответ"
-                  : ""
-              : ""}
+            {value === "messages" && messageCount > 0 ? <span className="candidate-message-count" aria-label={`${messageCount} сообщений`}>{messageCount}</span> : null}
           </button>
         ))}
       </div>
@@ -210,12 +202,6 @@ export function CandidateReview({
             }).format(new Date(activeInterview.scheduledAt))}{" "}
             · {activeInterview.timezone}
           </span>
-          <Link
-            className="button secondary"
-            href={`/admissions/interviews/${activeInterview.id}`}
-          >
-            Открыть подготовку интервью
-          </Link>
         </div>
       )}
       <div
@@ -225,6 +211,8 @@ export function CandidateReview({
           className={`review-main ${mainTab === "profile" ? "candidate-profile-layout" : ""}`}
         >
           {mainTab === "profile" && (
+            <>
+            <a className="mobile-action-jump" href="#candidate-actions">Действия по заявке</a>
             <ScoringPanel
               applicationId={a.id}
               data={a.scoring}
@@ -235,8 +223,8 @@ export function CandidateReview({
                   : "не начат")
               }
               onSource={openSource}
-              actions={<CandidateActions application={a} />}
             />
+            </>
           )}
           {mainTab === "profile" && (
             <aside
@@ -277,7 +265,7 @@ export function CandidateReview({
                   <h2>Материалы заявки</h2>
                   <button
                     className="text-link"
-                    onClick={() => setTab("sources")}
+                    onClick={openMaterialsTab}
                   >
                     Все источники
                   </button>
@@ -287,7 +275,7 @@ export function CandidateReview({
                     {a.sources.slice(0, 4).map((item) => (
                       <li key={item.id}>
                         <FileText size={18} aria-hidden="true" />
-                        <button onClick={() => openSource(item.id)}>
+                        <button onClick={openMaterialsTab}>
                           {item.messageId ? "Ответ кандидата" : item.title}
                         </button>
                       </li>
@@ -303,7 +291,7 @@ export function CandidateReview({
                         <li key={material.id}>
                           <FileText size={18} aria-hidden="true" />
                           {linkedSource ? (
-                            <button onClick={() => openSource(linkedSource.id)}>
+                            <button onClick={openMaterialsTab}>
                               {material.name}
                             </button>
                           ) : (
@@ -339,18 +327,13 @@ export function CandidateReview({
                   <p className="subtle">
                     {calendarMessages[activeInterview.calendarStatus]}
                   </p>
-                  <Link
-                    className="button secondary"
-                    href={`/admissions/interviews/${activeInterview.id}`}
-                  >
-                    Открыть подготовку
-                  </Link>
                 </section>
               )}
+              <CandidateActions application={a} />
             </aside>
           )}
           {tab === "sources" && (
-            <section>
+            <section id="sources">
               <h2>Источники и материалы</h2>
               <p className="subtle" style={{ margin: "12px 0 22px" }}>
                 Выберите материал. Он откроется рядом; после закрытия вы
@@ -381,7 +364,9 @@ export function CandidateReview({
               ))}
               {fields.intake && <section className="review-section candidate-materials-review">
                 <IntakeSummary fields={fields} rules={a.intakeRules as IntakeRules | null} />
-                {fields.intake.essay.text && <p className="subtle">Проверка текста эссе: {(() => {
+                {fields.intake.essay.text && <p className="subtle">AI-анализ эссе: {(() => {
+                  const signal = a.scoring.runs.find((run) => run.current)?.showcaseEssaySignal;
+                  if (signal) return `${signal.value}% стилистического сходства с образцами AI-текста; авторство не определяется`;
                   const check = a.essayChecks[0];
                   if (!check) return "ещё не запускалась";
                   if (["QUEUED", "RUNNING"].includes(check.status)) return "выполняется";
@@ -389,13 +374,6 @@ export function CandidateReview({
                   return "результат не используется для решения о поступлении";
                 })()}.</p>}
                 <CredentialReview applicationId={a.id} materialVersion={a.materialVersion} reviews={a.credentialReviews} />
-                <VerificationPanel
-                  applicationId={a.id}
-                  sources={a.verificationSources}
-                  requests={a.verificationRequests}
-                  onSource={openSource}
-                />
-                <ReReviewPanel applicationId={a.id} cases={a.reReviewCases} sources={a.sources} reviewers={a.reviewers} onSource={openSource} />
               </section>}
               <section className="review-section candidate-materials-review">
                 <h3>Английский язык</h3>
@@ -425,10 +403,6 @@ export function CandidateReview({
                   if (s) openSource(s.id);
                 }}
               />
-              {a.decisions.length > 0 && <details className="review-detail">
-                <summary>Написать кандидату</summary>
-                <ReviewDecision application={a} feedbackOnly />
-              </details>}
             </section>
           )}
         </div>
@@ -470,36 +444,14 @@ export function CandidateReview({
                       closeSource();
                     }}
                   >
-                    Вернуться к выводу
+                    {mainTab === "profile" ? "Вернуться к оценке" : "Вернуться к материалам"}
                   </button>
-                  <SourceContent source={source} />
-                  <button
-                    className="button secondary small"
-                    disabled={sourceTask.busy}
-                    onClick={() =>
-                      sourceTask.run(async () => {
-                        await action("review.source", {
-                          applicationId: a.id,
-                          materialVersion: a.materialVersion,
-                          sourceId: source.id,
-                        });
-                        router.refresh();
-                      }, "Просмотр этой версии источника отмечен. Это не подтверждение истинности.")
-                    }
-                  >
-                    Отметить просмотр источника
-                  </button>
-                  {source.views[0] && (
-                    <p className="meta">
-                      Просмотр отмечен {dateLabel(source.views[0].createdAt)}
-                    </p>
-                  )}
-                  <Feedback task={sourceTask} />
-                  <EpisodeNotes
-                    key={source.id}
-                    application={a}
-                    sourceId={source.id}
-                  />
+                  <SourceContent source={source} interpretation={(() => {
+                    const run = a.scoring.runs.find((entry) => entry.current && entry.status === "COMPLETED");
+                    const result = run?.reviews[0]?.result ?? run?.result;
+                    const domain = result?.domains.find((entry) => entry.evidenceIds.some((id) => result.evidence.some((evidence) => evidence.id === id && evidence.sourceId === source.id)));
+                    return domain?.interpretation;
+                  })()} />
                 </>
               ) : (
                 <p>Источники появятся после передачи материалов.</p>

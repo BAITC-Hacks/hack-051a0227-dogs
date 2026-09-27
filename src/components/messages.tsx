@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { questionKinds, unansweredQuestions } from "@/lib/message-state";
 import { action, dateLabel, upload } from "@/lib/client";
 import { Feedback, useTask } from "./ui";
+import { ArrowUp } from "lucide-react";
 export type MessageView = {
   id: string;
   body: string;
@@ -154,11 +155,15 @@ export function Messages({
             minLength={3}
             maxLength={5000}
             required
+            onKeyDown={staff ? (event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                if (event.currentTarget.form?.reportValidity()) event.currentTarget.form.requestSubmit();
+              }
+            } : undefined}
           />
         </label>
-        <button className="button secondary" disabled={task.busy}>
-          {staff ? "Опубликовать вопрос" : "Отправить ответ"}
-        </button>
+        {staff ? <button className="message-send" disabled={task.busy} aria-label="Опубликовать вопрос" title="Отправить вопрос, Enter"><ArrowUp size={20} aria-hidden="true" /></button> : <button className="button secondary" disabled={task.busy}>Отправить ответ</button>}
         <p className="subtle">Сообщение будет доступно в приложении.</p>
       </form>
       <Feedback task={task} />

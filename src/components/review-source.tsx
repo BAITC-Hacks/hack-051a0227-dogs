@@ -13,7 +13,7 @@ export type ReviewSource = {
   };
   corrections?: { id: string; explanation: string; createdAt: Date }[];
 };
-export function SourceContent({ source }: { source: ReviewSource }) {
+export function SourceContent({ source, interpretation }: { source: ReviewSource; interpretation?: string }) {
   return (
     <>
       <h3>{source.messageContext ? "Ответ кандидата" : source.title}</h3>
@@ -40,6 +40,7 @@ export function SourceContent({ source }: { source: ReviewSource }) {
           </p>
         </div>
       )}
+      <p className="source-attribution">{source.messageContext ? "Ответ кандидата" : "Кандидат указал в заявке"}</p>
       {source.kind === "Видео (ссылка)" &&
       source.content.startsWith("https://") ? (
         <a
@@ -95,9 +96,8 @@ export function SourceContent({ source }: { source: ReviewSource }) {
           </div>
         </div>
       ))}
-      <p className="source-foot">
-        {source.kind} · просмотр не подтверждает истинность рассказа.
-      </p>
+      <div className="source-interpretation"><strong>Как AI прочитал этот материал</strong><p>{interpretation || "Отдельный вывод по этому источнику пока не подготовлен."}</p></div>
+      <p className="source-foot">{source.kind} · {source.title}</p>
     </>
   );
 }

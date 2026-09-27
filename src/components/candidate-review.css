@@ -1,13 +1,4 @@
 /* The candidate profile shares the commission frame and keeps the source beside the review. */
-body:has(.candidate-review-layout) {
-  background: #faf9f3;
-}
-
-body:has(.candidate-review-layout) .site-header {
-  min-height: 74px;
-  padding: 12px max(48px, calc((100vw - 1440px) / 2));
-  background: #faf9f3;
-}
 
 .candidate-review-layout.source-closed {
   max-width: none;
@@ -667,14 +658,19 @@ body:has(.candidate-review-layout) .site-header {
   border-radius: 14px;
   background: #fffefa;
 }
+.candidate-profile-aside .candidate-actions { grid-column: auto; margin-top: 0; padding: 20px; }
+.candidate-profile-aside .candidate-action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.candidate-profile-aside .candidate-action-buttons .button { min-width: 0; padding-inline: 8px; }
+.candidate-profile-aside .candidate-action-buttons .action-decline { grid-column: 1 / -1; }
+.mobile-action-jump { display: none; }
 .candidate-actions-heading h2 { margin: 0; font-size: 19px; }
 .candidate-actions-heading p { margin: 6px 0 16px; color: #5c665a; font-size: 13px; }
 .candidate-action-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .candidate-action-buttons .button { min-width: 108px; border-width: 1px; border-style: solid; font-weight: 600; }
 .candidate-action-buttons .action-approve { border-color: #a4d723; background: #c2f52e; color: #1e2a0b; }
 .candidate-action-buttons .action-approve:hover { background: #b3e522; }
-.candidate-action-buttons .action-decline { border-color: #efb7bb; background: #ffebec; color: #9d2935; }
-.candidate-action-buttons .action-decline:hover { background: #ffdcdf; }
+.candidate-action-buttons .action-decline { border-color: #aeb7a3; background: #f5f6ed; color: #343d34; }
+.candidate-action-buttons .action-decline:hover { background: #e7ecdc; }
 .candidate-action-buttons .action-interview { border-color: #bad8f3; background: #e9f3ff; color: #225a9a; }
 .candidate-action-buttons .action-interview:hover { background: #daecff; }
 .candidate-action-buttons .button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px currentColor, 0 3px 9px rgb(29 36 30 / 9%); }
@@ -689,11 +685,20 @@ body:has(.candidate-review-layout) .site-header {
 .candidate-scoring-note { color: #4d5a4e; font-size: 13px; }
 .candidate-scoring-metrics { display: flex; gap: 8px; }
 .candidate-scoring-metric { display: grid; gap: 4px; min-width: 108px; min-height: 90px; place-content: center; padding: 12px; border: 1px solid #d6eab4; border-radius: 12px; background: #e4f9bb; text-align: center; }
-.candidate-scoring-metric + .candidate-scoring-metric { border-color: #cfe0ed; background: #e9f3fa; }
+.candidate-scoring-metric + .candidate-scoring-metric { border-color: #9bc5e8; background: #d5eafb; }
 .candidate-scoring-metric strong { font-size: 31px; line-height: 1; }
 .candidate-scoring-metric span { max-width: 110px; color: #394636; font-size: 11px; line-height: 1.2; }
 .candidate-scoring-language { margin: 5px 0 17px; color: #54645b; font-size: 12px; }
+.candidate-scoring-english .metric-label { display: inline-block; width: fit-content; margin-inline: auto; padding: 4px 8px; border-radius: 99px; color: #164d7b; background: #f5fbff; font-size: 11px; font-weight: 800; }
+.candidate-essay-signal { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; margin-top: 16px; padding: 11px 14px; border: 1px solid #bdd9ec; border-radius: 10px; background: #f6fbff; }
+.candidate-essay-signal > div { display: grid; gap: 2px; }
+.candidate-essay-signal span { font-size: 11px; color: #3a6480; }
+.candidate-essay-signal strong { font-size: 21px; }
+.candidate-essay-signal p { margin: 0; font-size: 12px; line-height: 1.4; color: #496273; }
+.candidate-essay-signal .text-link { white-space: nowrap; font-size: 12px; }
+.candidate-message-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 7px; padding-inline: 5px; border-radius: 99px; background: #b9f142; color: #172313; font-size: 11px; font-weight: 800; }
 @media (max-width: 699px) {
+  .mobile-action-jump { display: inline-block; width: fit-content; margin: 0 0 8px; color: #235b89; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .candidate-actions { padding: 17px; }
   .candidate-action-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 15px; }
   .candidate-action-buttons .button { min-width: 0; padding-inline: 5px; }
@@ -702,4 +707,6 @@ body:has(.candidate-review-layout) .site-header {
   .candidate-scoring-metrics { width: 100%; }
   .candidate-scoring-metric { flex: 1; min-width: 0; min-height: 74px; }
   .candidate-scoring-metric strong { font-size: 26px; }
+  .candidate-essay-signal { grid-template-columns: 1fr auto; }
+  .candidate-essay-signal p { grid-column: 1 / -1; grid-row: 2; }
 }

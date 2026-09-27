@@ -3,17 +3,20 @@ import { UserAvatar } from "./user-avatar";
 import { clearUserRecordings } from "@/lib/recording-cache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, LogOut } from "lucide-react";
+import { Bell, ChevronDown, LogOut } from "lucide-react";
 import { action } from "@/lib/client";
 import { useTask, Feedback } from "./ui";
 import type { SafeUser } from "@/lib/types";
 import type { AccessSpace } from "@/lib/access.server";
+import type { StaffAlert } from "@/lib/staff-alerts.server";
 export function Header({
   user,
   space,
+  alerts = [],
 }: {
   user: SafeUser | null;
   space: AccessSpace;
+  alerts?: StaffAlert[];
 }) {
   const path = usePathname();
   const router = useRouter();
@@ -80,6 +83,10 @@ export function Header({
         <div className="header-account">
           {user && user.role !== "GUEST" ? (
             <>
+              {staff && <details className="staff-alerts">
+                <summary aria-label={`Уведомления${alerts.length ? `: ${alerts.length}` : ""}`}><Bell size={19} aria-hidden="true" />{alerts.length > 0 && <span className="staff-alert-count">{alerts.length}</span>}</summary>
+                <div className="staff-alert-panel"><strong>Важное в заявках</strong>{alerts.length ? alerts.map((alert) => <Link key={alert.id} href={alert.href}><span>{alert.title}</span><small>{alert.detail}</small></Link>) : <p>Новых задач нет</p>}</div>
+              </details>}
               <details className="account-menu">
                 <summary aria-label="Меню аккаунта">
                   <UserAvatar user={user} size={34} />

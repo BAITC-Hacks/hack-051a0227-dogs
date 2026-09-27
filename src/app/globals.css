@@ -187,18 +187,20 @@ legend {
   background: var(--cream);
 }
 /* The commission list pages share one header frame and surface. */
-body:has(.queue-page, .interviews-page, .decisions-page) {
+body:has(.staff-header) {
   background: #faf9f3;
 }
-body:has(.queue-page, .interviews-page, .decisions-page) .site-header {
+body:has(.staff-header) .site-header {
   min-height: 74px;
   padding: 12px max(48px, calc((100vw - 1440px) / 2));
   background: #faf9f3;
 }
+body:has(.staff-header) .brand-product { display: block; }
 @media (max-width: 699px) {
-  body:has(.queue-page, .interviews-page, .decisions-page) .site-header {
+  body:has(.staff-header) .site-header {
     padding-inline: 16px;
   }
+  body:has(.staff-header) .brand-product { display: none; }
 }
 .brand {
   font-family: var(--display);
@@ -1890,6 +1892,15 @@ video {
   background: #f1f7fa;
   font-size: 12px;
 }
+.source-attribution { margin: 22px 0 4px; font-size: 12px; font-weight: 800; color: #345a70; }
+.source-panel .source-interpretation { padding: 17px 18px; margin: 18px 0; border: 1px solid #b9d6e9; border-radius: 10px; background: #f7fbff; }
+.source-panel .source-interpretation p { margin: 8px 0 0; font-size: 14px; line-height: 1.65; }
+.source-panel blockquote { padding: 14px 0 14px 16px; border-left: 3px solid #92c6e6; line-height: 1.85; }
+.message-form:has(.message-send) { position: relative; }
+.message-form:has(.message-send) textarea { padding-right: 58px; }
+.message-send { display: grid; place-items: center; width: 40px; height: 40px; margin: 8px 0 0 auto; border: 1px solid #253021; border-radius: 10px; color: #172013; background: var(--lime); cursor: pointer; }
+.message-send:hover { background: #b1e928; }
+.message-send:focus-visible { outline: 3px solid #95c8f2; outline-offset: 3px; }
 .review-aside {
   min-width: 0;
 }
@@ -5320,6 +5331,18 @@ video {
 .account-menu-panel { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: min(250px, calc(100vw - 24px)); display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 36px #1c241c22; }
 .account-menu-panel a, .account-menu-panel button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; font: inherit; text-decoration: none; cursor: pointer; }
 .account-menu-panel a:hover, .account-menu-panel button:hover { background: var(--blue); }
+.staff-alerts { position: relative; }
+.staff-alerts summary { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 9px; cursor: pointer; list-style: none; position: relative; }
+.staff-alerts summary::-webkit-details-marker { display: none; }
+.staff-alerts summary:hover, .staff-alerts[open] summary { background: #e9ebde; }
+.staff-alerts summary:focus-visible { outline: 3px solid #95c8f2; outline-offset: 2px; }
+.staff-alert-count { position: absolute; top: 1px; right: 0; display: grid; place-items: center; min-width: 17px; height: 17px; padding-inline: 3px; border-radius: 99px; background: var(--lime); font-size: 10px; font-weight: 800; }
+.staff-alert-panel { position: absolute; z-index: 80; top: calc(100% + 7px); right: -70px; display: grid; gap: 5px; width: min(310px, calc(100vw - 24px)); max-height: 380px; overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 18px 36px #1c241c22; }
+.staff-alert-panel > strong { padding: 5px 6px; }
+.staff-alert-panel a { display: grid; gap: 2px; padding: 9px; border-radius: 8px; text-decoration: none; }
+.staff-alert-panel a:hover { background: var(--blue); }
+.staff-alert-panel small { color: #687064; }
+.staff-alert-panel p { margin: 4px 6px; color: #687064; }
 .account-profile { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); padding: 22px; }
 .account-profile h2 { margin: 0 0 8px; }
 .account-profile p { margin: 2px 0; overflow-wrap: anywhere; }

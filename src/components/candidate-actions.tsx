@@ -27,8 +27,8 @@ export function CandidateActions({ application: a }: { application: Candidate })
         <>
           <div className="candidate-action-buttons">
             <button type="button" className="button action-approve" aria-pressed={choice === "approve"} onClick={() => setChoice(choice === "approve" ? null : "approve")}>Принять</button>
-            <button type="button" className="button action-decline" aria-pressed={choice === "decline"} onClick={() => setChoice(choice === "decline" ? null : "decline")}>Отклонить</button>
             <button type="button" className="button action-interview" aria-pressed={choice === "interview"} onClick={() => setChoice(choice === "interview" ? null : "interview")}>Интервью</button>
+            <button type="button" className="button action-decline" aria-pressed={choice === "decline"} onClick={() => setChoice(choice === "decline" ? null : "decline")}>Отклонить</button>
           </div>
           {choice === "approve" && <StageActions key="approve" application={base} fixedChoice="APPROVE_STAGE" />}
           {choice === "decline" && <StageActions key="decline" application={base} fixedChoice="DECLINE" />}

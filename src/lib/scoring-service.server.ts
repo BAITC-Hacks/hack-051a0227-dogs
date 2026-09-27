@@ -177,6 +177,15 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
           r.showcaseEnglishScore !== null && r.showcaseEnglishScore >= 0 && r.showcaseEnglishScore <= 100
             ? { value: r.showcaseEnglishScore, maximum: 100 as const }
             : null,
+        showcaseEssaySignal:
+          allowed && hash === r.inputHash && r.status === "COMPLETED" &&
+          r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&
+          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
+          r.showcaseEssaySignal !== null && r.showcaseEssaySignal >= 0 && r.showcaseEssaySignal <= 100 &&
+          !!r.showcaseEssaySourceId &&
+          (r.input as unknown as ScoringInput).sources.some((source) => source.id === r.showcaseEssaySourceId && source.kind === "Эссе" && source.text.length > 0)
+            ? { value: r.showcaseEssaySignal, maximum: 100 as const, sourceId: r.showcaseEssaySourceId }
+            : null,
         showcaseAxis:
           allowed && hash === r.inputHash && r.status === "COMPLETED" &&
           r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&

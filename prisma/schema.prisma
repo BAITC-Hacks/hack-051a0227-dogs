@@ -641,6 +641,8 @@ model ScoringRun {
   showcaseScoreBasis String?
   showcaseScoreEvidenceIds String[] @default([])
   showcaseEnglishScore Int?
+  showcaseEssaySignal Int?
+  showcaseEssaySourceId String?
   showcaseAxis Json?
   status String @default("QUEUED")
   requestedBy String

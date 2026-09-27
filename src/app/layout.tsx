@@ -6,6 +6,7 @@ import { avatarIdentity } from "@/lib/avatar";
 import { actor } from "@/lib/security";
 import { accessFor } from "@/lib/access.server";
 import { Header, Footer } from "@/components/header";
+import { staffAlerts } from "@/lib/staff-alerts.server";
 export const metadata: Metadata = {
   title: { default: "AI Leader ID · inVision U", template: "%s · inVision U" },
   description:
@@ -25,6 +26,7 @@ export default async function RootLayout({
 }) {
   const u = await actor();
   const space = await accessFor(u);
+  const alerts = space === "STAFF" ? await staffAlerts() : [];
   const safe = u
     ? {
         ...avatarIdentity(u),
@@ -40,7 +42,7 @@ export default async function RootLayout({
         <a className="skip-link" href="#main">
           Перейти к содержимому
         </a>
-        <Header user={safe} space={space} />
+        <Header user={safe} space={space} alerts={alerts} />
         <main id="main">{children}</main>
         <Footer />
       </body>
