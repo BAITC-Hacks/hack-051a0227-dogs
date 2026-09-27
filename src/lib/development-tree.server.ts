@@ -6,6 +6,7 @@ import type { User, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
 import { AppError } from "./security";
+import { accessFor } from "./access.server";
 import { resourceCatalog, json } from "./learning-resources.server";
 import {
   treeNodes,
@@ -37,7 +38,7 @@ function resources(c: ResourceCatalog, nodeId: string) {
   });
 }
 export async function treeView(user: User | null) {
-  if (user?.role === "STAFF") privateOwner(user);
+  if (await accessFor(user) !== "FULL") throw new AppError("Древо навыков откроется после подачи заявки.", 403);
   const [catalog, steps, works, application] = await Promise.all([
     resourceCatalog(),
     user
@@ -220,6 +221,7 @@ export async function treeAction(
   actor: User,
 ) {
   const user = privateOwner(actor);
+  if (await accessFor(user) !== "FULL") throw new AppError("Древо навыков недоступно.", 403);
   if (type === "tree.view") return treeView(user);
   const node = treeNodes.find((n) => n.id === b.nodeId);
   if (!node) throw new AppError("Шаг недоступен.", 404);

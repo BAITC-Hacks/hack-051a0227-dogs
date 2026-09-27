@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { initialState } from "../src/lib/projects";
 import { equipmentInitial } from "../src/lib/equipment";
@@ -13,6 +13,7 @@ import {
 } from "../src/lib/journey";
 import { emptyFields, applicationRequirements } from "../src/lib/validation";
 import { cleanupRun } from "./cleanup";
+import { grantQaAccess } from "./qa-access";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
 class Session {
   cookie = "";
@@ -92,6 +93,18 @@ test(
       otherEmail = `journey-other-${suffix}@qa.local`;
     const guestIds: string[] = [];
     try {
+      await guest.call("project.progress", {}, 401);
+      await guest.call(
+        "project.save",
+        { slug: "digital-products", state: valid() },
+        401,
+      );
+      await guest.call("register", {
+        email,
+        name: "Проверка Маршрута",
+        password: "JourneyCandidate2026!",
+      });
+      const owner = await grantQaAccess(db, email);
       assert.deepEqual((await guest.call("project.progress")).milestones, []);
       const key = randomUUID();
       const draft = await guest.call("project.save", {
@@ -100,10 +113,11 @@ test(
         requestKey: key,
         earned: true,
       });
-      const owner = (
-        await db.projectAttempt.findUniqueOrThrow({ where: { id: draft.id } })
-      ).userId;
-      guestIds.push(owner);
+      assert.equal(
+        (await db.projectAttempt.findUniqueOrThrow({ where: { id: draft.id } }))
+          .userId,
+        owner,
+      );
       assert.equal(draft.milestones.length, 0);
       const repeated = await guest.call("project.save", {
         slug: "digital-products",
@@ -186,12 +200,6 @@ test(
         ).feedback,
         parent.feedback,
       );
-      await guest.call("register", {
-        email,
-        name: "Проверка Маршрута",
-        password: "JourneyCandidate2026!",
-      });
-      await db.user.update({ where: { id: owner }, data: { origin: "QA" } });
       assert.equal(
         (
           await db.projectAttempt.findUniqueOrThrow({
@@ -291,10 +299,7 @@ test(
         name: "Другой Кандидат",
         password: "JourneyCandidate2026!",
       });
-      await db.user.update({
-        where: { email: otherEmail },
-        data: { origin: "QA" },
-      });
+      await grantQaAccess(db, otherEmail);
       assert.equal((await other.call("project.progress")).attempts.length, 0);
       await other.call(
         "project.save",
@@ -323,18 +328,44 @@ test(
         },
         403,
       );
-      const mergedWork = await merge.call("project.save", {
-        slug: "digital-products",
-        state: valid(),
-      });
-      const mergedOwner = (
-        await db.projectAttempt.findUniqueOrThrow({
-          where: { id: mergedWork.id },
-        })
-      ).userId;
+      const legacyUser = await db.user.create({ data: { origin: "QA" } });
+      const mergedOwner = legacyUser.id;
       guestIds.push(mergedOwner);
-      const mergedContext = await merge.call("project.context", {
-        versionId: mergedWork.versions[0].id,
+      const token = randomUUID();
+      await db.session.create({
+        data: {
+          tokenHash: createHash("sha256").update(token).digest("hex"),
+          userId: mergedOwner,
+          expiresAt: new Date(Date.now() + 3600000),
+        },
+      });
+      merge.cookie = `leader_session=${token}`;
+      const mergedWork = await db.projectAttempt.create({
+        data: {
+          userId: mergedOwner,
+          slug: "digital-products",
+          state: valid(),
+          revision: 1,
+          versions: {
+            create: {
+              revision: 1,
+              state: valid(),
+              feedback: {},
+              completed: true,
+              ruleVersion: 3,
+            },
+          },
+        },
+        include: { versions: true },
+      });
+      const mergedContext = await db.projectAttempt.create({
+        data: {
+          userId: mergedOwner,
+          slug: "digital-products",
+          context: "EQUIPMENT",
+          parentVersionId: mergedWork.versions[0].id,
+          state: equipmentInitial,
+        },
       });
       await merge.call("login", { email, password: "JourneyCandidate2026!" });
       assert.equal(

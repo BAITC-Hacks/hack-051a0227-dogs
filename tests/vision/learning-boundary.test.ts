@@ -29,6 +29,15 @@ test("Vision text: allowlisted context without a consent switch, explicit revoca
   const other = await db.user.create({
     data: { role: "CANDIDATE", origin: "QA" },
   });
+  const staff = await db.user.findFirstOrThrow({ where: { role: "STAFF" } });
+  await db.candidateAccessGrant.create({
+    data: {
+      userId: user.id,
+      issuedById: staff.id,
+      scope: "FULL_CABINET",
+      reason: "Изолированная проверка доступа к учебному контексту",
+    },
+  });
   const before = await db.openAICall.count();
   try {
     const mission = initialMission("digital-products");

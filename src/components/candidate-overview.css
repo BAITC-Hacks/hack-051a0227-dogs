@@ -1118,17 +1118,20 @@ body:has(.candidate-reference) .site-header .brand {
     display: none;
   }
   .candidate-reference .hub-navigation {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow: visible;
     gap: 4px;
     padding-bottom: 8px;
-    scrollbar-width: thin;
   }
   .candidate-reference .hub-navigation button {
-    flex: 0 0 auto;
+    flex: 1 1 calc(33.333% - 4px);
+    min-width: 0;
     min-height: 44px;
-    font-size: 15px;
-    padding: 9px 14px;
+    font-size: 14px;
+    padding: 9px 6px;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
   }
   .reference-overview {
     gap: 12px;

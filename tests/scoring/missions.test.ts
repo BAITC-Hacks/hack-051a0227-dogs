@@ -18,6 +18,7 @@ import { emptyFields } from "../../src/lib/validation";
 import { describeWork } from "../../src/lib/presentation";
 import { twinSummary, type TwinComparison } from "../../src/lib/twin-contract";
 import { cleanupRun } from "../cleanup";
+import { grantQaAccess } from "../qa-access";
 const state = (mission: Mission) => ({ ...initialState, mission });
 function prepared(slug: string, updated = false) {
   const m = initialMission(slug);
@@ -179,6 +180,12 @@ test(
       email = `missions-${Date.now()}@qa.local`;
     let owner = "";
     try {
+      await guest.call("register", {
+        email,
+        name: "Новая История Миссий",
+        password: "MissionPath2026!",
+      });
+      owner = await grantQaAccess(db, email);
       await guest.call("project.progress");
       let digital;
       for (const slug of Object.keys(missions)) {
@@ -240,7 +247,7 @@ test(
         await stranger.call(
           "project.save",
           { ...save, requestKey: randomUUID() },
-          404,
+          401,
         );
         const rebound = await guest.call("project.save", request);
         assert.equal(
@@ -251,12 +258,6 @@ test(
         if (slug === "digital-products") digital = done;
       }
       const before = (await guest.call("project.progress")).milestones;
-      await guest.call("register", {
-        email,
-        name: "Новая История Миссий",
-        password: "MissionPath2026!",
-      });
-      await db.user.update({ where: { id: owner }, data: { origin: "QA" } });
       assert.deepEqual(
         (await guest.call("project.progress")).milestones,
         before,

@@ -31,7 +31,6 @@ import {
 import type { ProjectState } from "@/lib/types";
 import {
   actor,
-  guestActor,
   requireUser,
   requireStaff,
   setSession,
@@ -44,6 +43,7 @@ import {
   tokenHash,
 } from "@/lib/security";
 import { journeyAction } from "@/lib/journey.server";
+import { accessFor, permittedReturnTo, requireFullCandidate } from "@/lib/access.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
 import { twinAction } from "@/lib/twin-service.server";
@@ -63,6 +63,8 @@ import { treeAction } from "@/lib/development-tree.server";
 import { visionAction } from "@/lib/vision-service.server";
 import { deskChatAction } from "@/lib/desk-chat.server";
 import { saveResource } from "@/lib/learning-resources.server";
+import { accessGrantAction } from "@/lib/access-grants.server";
+import { passkeyAction } from "@/lib/passkeys.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
@@ -76,7 +78,16 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const type = z.string().parse(b.type);
     let result: unknown = {};
-    if (type.startsWith("calendar.") || type.startsWith("stage.")) {
+    if (type === "session.revoke") {
+      const user = await requireUser();
+      const hash = z.string().length(64).parse(b.tokenHash);
+      const removed = await db.session.deleteMany({ where: { userId: user.id, tokenHash: hash } });
+      result = { removed: removed.count > 0 };
+    } else if (type.startsWith("passkey.")) {
+      result = await passkeyAction(type, b, await actor());
+    } else if (type.startsWith("access.")) {
+      result = await accessGrantAction(type, b, await requireStaff());
+    } else if (type.startsWith("calendar.") || type.startsWith("stage.")) {
       result = await selectionAction(type, b, await requireStaff());
     } else if (type.startsWith("google.")) {
       const user = await requireStaff();
@@ -89,7 +100,7 @@ export async function POST(req: Request) {
         );
       else throw new AppError("Действие недоступно.", 404);
     } else if (type.startsWith("vision.")) {
-      result = await visionAction(type, b, await guestActor());
+      result = await visionAction(type, b, await requireUser());
     } else if (type === "desk.consent") {
       result = await deskConsent(await requireUser(), b);
     } else if (type.startsWith("desk.chat")) {
@@ -111,7 +122,7 @@ export async function POST(req: Request) {
             await processDesk(r.id);
         });
     } else if (type.startsWith("tree.")) {
-      result = await treeAction(type, b, await guestActor());
+      result = await treeAction(type, b, await requireFullCandidate());
     } else if (type === "resource.save") {
       result = await saveResource(await requireStaff(), b);
     } else if (type.startsWith("workflow.")) {
@@ -127,6 +138,7 @@ export async function POST(req: Request) {
           "Сначала сохраните работу или войдите в аккаунт.",
           401,
         );
+      if (user.role !== "STAFF" && await accessFor(user) !== "FULL") throw new AppError("Личный профиль откроется после подачи заявки.", 403);
       result = await profileAction(type, b, user);
       return NextResponse.json(
         { ok: true, data: result },
@@ -165,18 +177,21 @@ export async function POST(req: Request) {
       await rateLimit("authentication", 60);
       const v = z
         .object({
-          email: z.email().max(160),
+          identifier: z.string().trim().min(3).max(160).optional(),
+          email: z.email().max(160).optional(),
           password: z
             .string()
             .min(10, "В пароле должно быть не меньше 10 символов.")
             .max(128),
           name: z.string().min(2).max(160).optional(),
+          returnTo: z.string().max(500).optional(),
         })
         .parse(b);
-      const email = v.email.toLowerCase().trim();
+      const email = v.email?.toLowerCase().trim();
       const old = await actor();
-      const existing = await db.user.findUnique({ where: { email } });
       if (type === "register") {
+        if (!email) throw new AppError("Укажите электронную почту.");
+        const existing = await db.user.findUnique({ where: { email } });
         if (existing)
           throw new AppError(
             "Этот адрес уже зарегистрирован. Войдите в аккаунт.",
@@ -193,13 +208,23 @@ export async function POST(req: Request) {
                 data: { email, name: v.name, passwordHash, role: "CANDIDATE" },
               });
         await setSession(u.id);
-        result = { role: u.role };
+        const space = await accessFor(u);
+        result = { role: u.role, destination: permittedReturnTo(v.returnTo, space) };
       } else {
+        const identifier = (v.identifier ?? v.email ?? "").trim();
+        const phone = identifier.startsWith("+") ? identifier.replace(/[\s()-]/g, "") : null;
+        const existing = identifier.includes("@")
+          ? await db.user.findUnique({ where: { email: identifier.toLowerCase() } })
+          : phone && /^\+[1-9]\d{9,14}$/.test(phone)
+            ? await db.user.findFirst({ where: { phoneE164: phone, phoneVerifiedAt: { not: null } } })
+            : /^c[a-z0-9]{15,35}$/i.test(identifier)
+              ? await db.user.findUnique({ where: { id: identifier } })
+              : null;
         if (
           !existing?.passwordHash ||
           !(await verifyPassword(v.password, existing.passwordHash))
         )
-          throw new AppError("Почта или пароль не совпадают.", 401);
+          throw new AppError("Идентификатор или пароль не совпадают.", 401);
         if (old?.role === "GUEST" && existing.role === "CANDIDATE")
           await db.$transaction(async (tx) => {
             // Serialize with project saves, and preserve both owners' explicit interests.
@@ -244,7 +269,8 @@ export async function POST(req: Request) {
             });
           });
         await setSession(existing.id);
-        result = { role: existing.role };
+        const space = await accessFor(existing);
+        result = { role: existing.role, destination: permittedReturnTo(v.returnTo, space) };
       }
     } else if (type === "logout") {
       const jar = await cookies();
@@ -262,7 +288,7 @@ export async function POST(req: Request) {
     ) {
       result = await journeyAction(type, b);
     } else if (type === "interest") {
-      const u = await requireUser();
+      const u = await requireFullCandidate();
       const slug = z.string().parse(b.slug);
       if (!programFor(slug)) throw new AppError("Направление не найдено.");
       const interests = b.enabled
@@ -271,7 +297,7 @@ export async function POST(req: Request) {
       await db.user.update({ where: { id: u.id }, data: { interests } });
       result = { interests };
     } else if (type === "attempt.interest") {
-      const u = await requireUser();
+      const u = await requireFullCandidate();
       const value = z.enum(["MORE", "ANOTHER", "UNDECIDED"]).parse(b.value);
       await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "User" WHERE id=${u.id} FOR UPDATE`;
@@ -369,7 +395,7 @@ export async function POST(req: Request) {
         String(b.expected),
       );
     } else if (type === "work.transfer") {
-      const u = await requireUser();
+      const u = await requireFullCandidate();
       if (b.consent !== true)
         throw new AppError("Подтвердите передачу учебной работы.");
       const attempt = await db.projectAttempt.findFirst({

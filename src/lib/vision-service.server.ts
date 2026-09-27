@@ -15,6 +15,7 @@ import {
   visionVersion,
 } from "./vision-contract";
 import { visionContext } from "./vision-context.server";
+import { accessFor } from "./access.server";
 import { runVision } from "./vision-provider.server";
 import { digest } from "./scoring-input.server";
 import { json } from "./learning-resources.server";
@@ -265,6 +266,7 @@ export async function visionAction(
     });
   }
   if (type === "vision.confirmPlan") {
+    if (await accessFor(user) !== "FULL") throw new AppError("Личный план откроется после подачи заявки.", 403);
     const row = await db.profileAnswer.findFirst({
       where: {
         id: z.string().parse(b.answerId),

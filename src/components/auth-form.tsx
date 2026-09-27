@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {  ShieldCheck, BookmarkCheck } from "lucide-react";
+import { ShieldCheck, BookmarkCheck } from "lucide-react";
 import { action } from "@/lib/client";
 import { Feedback, useTask } from "./ui";
+import { startAuthentication } from "@simplewebauthn/browser";
+import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
 export function AuthForm({
   register = false,
   staff = false,
-  next = "/my",
+  next = "",
 }: {
   register?: boolean;
   staff?: boolean;
@@ -16,6 +18,7 @@ export function AuthForm({
   const [mode, setMode] = useState(register ? "register" : "login");
   const task = useTask();
   const router = useRouter();
+  const [deviceMessage, setDeviceMessage] = useState("");
   return (
     <div className="wrap auth-layout">
       <div className="auth-story">
@@ -39,13 +42,13 @@ export function AuthForm({
         <p>
           {staff
             ? "Источники, содержательные вопросы и решения, за которыми стоит человек."
-            : "Сохрани работу, возвращайся к своим идеям и выбирай следующий шаг."}
+            : "Заполни заявку, сохрани материалы и следи за следующими этапами поступления."}
         </p>
         <p className="inline subtle">
           {staff ? <ShieldCheck size={19} /> : <BookmarkCheck size={19} />}{" "}
           {staff
             ? "Вход для сотрудников комиссии"
-            : "Гостевая работа перенесётся в аккаунт."}
+            : "Прежние гостевые работы останутся с тобой после входа."}
         </p>
       </div>
       <div className="auth-form">
@@ -82,12 +85,18 @@ export function AuthForm({
             e.preventDefault();
             const form = new FormData(e.currentTarget);
             task.run(async () => {
-              const res = await action<{ role: string }>(mode, {
-                email: form.get("email"),
-                password: form.get("password"),
-                ...(mode === "register" ? { name: form.get("name") } : {}),
-              });
-              router.push(res.role === "STAFF" ? "/admissions" : next);
+              const res = await action<{ role: string; destination: string }>(
+                mode,
+                {
+                  ...(mode === "register"
+                    ? { email: form.get("identifier") }
+                    : { identifier: form.get("identifier") }),
+                  password: form.get("password"),
+                  returnTo: next,
+                  ...(mode === "register" ? { name: form.get("name") } : {}),
+                },
+              );
+              router.push(res.destination);
               router.refresh();
             });
           }}
@@ -105,11 +114,13 @@ export function AuthForm({
             </label>
           )}
           <label className="field">
-            Электронная почта
+            {mode === "register"
+              ? "Электронная почта"
+              : "Email, телефон или ID кандидата"}
             <input
-              name="email"
-              type="email"
-              autoComplete="email"
+              name="identifier"
+              type={mode === "register" ? "email" : "text"}
+              autoComplete={mode === "register" ? "email" : "username webauthn"}
               required
               maxLength={160}
             />
@@ -130,9 +141,67 @@ export function AuthForm({
           </label>
           <button className="button primary" disabled={task.busy}>
             {mode === "register" ? "Создать аккаунт" : "Войти"}
-
           </button>
         </form>
+        {mode === "login" && (
+          <div className="auth-alternatives">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={task.busy}
+              onClick={() =>
+                task.run(async () => {
+                  setDeviceMessage("");
+                  if (!window.PublicKeyCredential) {
+                    setDeviceMessage(
+                      "Этот браузер не поддерживает вход с устройства. Используй пароль.",
+                    );
+                    return;
+                  }
+                  const options =
+                    await action<PublicKeyCredentialRequestOptionsJSON>(
+                      "passkey.login.begin",
+                    );
+                  try {
+                    const response = await startAuthentication({
+                      optionsJSON: options,
+                    });
+                    const result = await action<{ destination: string }>(
+                      "passkey.login.finish",
+                      { response, returnTo: next },
+                    );
+                    router.push(result.destination);
+                    router.refresh();
+                  } catch (e) {
+                    if (
+                      e instanceof Error &&
+                      ["NotAllowedError", "AbortError"].includes(e.name)
+                    ) {
+                      setDeviceMessage(
+                        "Вход с устройства отменён. Можно войти по паролю.",
+                      );
+                      return;
+                    }
+                    throw e;
+                  }
+                })
+              }
+            >
+              Войти с устройства
+            </button>
+            <p>
+              Телефон может предложить системный вход с passkey. QR показывает
+              браузер, если устройство поддерживает этот способ.
+            </p>
+            <a
+              href="mailto:info@invisionu.education?subject=Доступ%20к%20аккаунту%20AI%20Leader%20ID"
+              className="text-link"
+            >
+              Нужна помощь со входом?
+            </a>
+          </div>
+        )}
+        {deviceMessage && <p role="status">{deviceMessage}</p>}
         <Feedback task={task} />
       </div>
     </div>

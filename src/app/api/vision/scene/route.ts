@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { actor, AppError, checkOrigin } from "@/lib/security";
 import { askScene } from "@/lib/vision-scene.server";
 import { visionError } from "@/lib/vision-service.server";
+import { accessFor } from "@/lib/access.server";
 export async function POST(req: Request) {
   try {
     checkOrigin(req);
     const user = await actor();
     if (!user) throw new AppError("Сессия закончилась.", 401);
+    if (await accessFor(user) !== "FULL") throw new AppError("Личный учебный разбор откроется после подачи заявки.", 403);
     const raw = await req.text();
     if (raw.length > 6000) throw new AppError("Вопрос слишком длинный.", 413);
     const data = await askScene(

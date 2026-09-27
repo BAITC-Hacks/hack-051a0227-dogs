@@ -16,6 +16,7 @@ import { collectProfile } from "../../src/lib/profile-context.server";
 import { equipmentInitial } from "../../src/lib/equipment";
 import type { Work } from "../../src/lib/journey";
 import { cleanupRun } from "../cleanup";
+import { grantQaAccess } from "../qa-access";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
 const db = new PrismaClient();
 class Session {
@@ -95,7 +96,7 @@ test("Дерево: пустое действие не подтверждает 
     false,
   );
 });
-test("Две ветки, приватность, версии каталога и перенос гостя", async (t) => {
+test("Две ветки, приватность и версии каталога при выданном доступе", async (t) => {
   const run = randomUUID(),
     email = `tree-${run}@qa.local`,
     secondEmail = `tree-other-${run}@qa.local`;
@@ -139,6 +140,13 @@ test("Две ветки, приватность, версии каталога �
     });
   }
   try {
+    await guest.call("tree.view", {}, 401);
+    await guest.call("register", {
+      email,
+      password: "TreePractice2026!",
+      name: "Тест маршрута",
+    });
+    ownerId = await grantQaAccess(db, email);
     await t.test(
       "Просмотр и самоотметка отделены от практики, старт идемпотентен",
       async () => {
@@ -183,16 +191,6 @@ test("Две ветки, приватность, версии каталога �
         n = await node("listen");
         assert.equal(n.status, "STUDIED");
         assert.ok(n.evidence == null);
-        await guest.call("register", {
-          email,
-          password: "TreePractice2026!",
-          name: "Тест маршрута",
-        });
-        const owner = await db.user.update({
-          where: { email },
-          data: { origin: "QA" },
-        });
-        ownerId = owner.id;
         assert.equal(
           await db.developmentStep.count({
             where: { userId: ownerId, treeNode: "listen" },
@@ -339,10 +337,7 @@ test("Две ветки, приватность, версии каталога �
           password: "TreePractice2026!",
           name: "Другой",
         });
-        await db.user.update({
-          where: { email: secondEmail },
-          data: { origin: "QA" },
-        });
+        await grantQaAccess(db, secondEmail);
         await other.call("tree.start", { nodeId: "listen" });
         await other.call(
           "tree.practice",
@@ -447,13 +442,10 @@ test("Две ветки, приватность, версии каталога �
       },
     );
     await t.test(
-      "Вход в существующий аккаунт сохраняет время шага и обе истории",
+      "Повторный вход в существующий аккаунт сохраняет историю",
       async () => {
         const incoming = new Session();
-        await incoming.call("tree.start", { nodeId: "listen" });
-        const before = (await incoming.call("tree.view")).nodes.find(
-          (n: { id: string }) => n.id === "listen",
-        ).step;
+        await incoming.call("tree.start", { nodeId: "listen" }, 401);
         await incoming.call("login", {
           email: secondEmail,
           password: "TreePractice2026!",
@@ -461,13 +453,12 @@ test("Две ветки, приватность, версии каталога �
         const after = (await incoming.call("tree.view")).nodes.find(
           (n: { id: string }) => n.id === "listen",
         ).step;
-        assert.equal(after.id, before.id);
-        assert.equal(after.updatedAt, before.updatedAt);
+        assert.ok(after.id);
         assert.equal(
           await db.developmentStep.count({
             where: { user: { email: secondEmail }, treeNode: "listen" },
           }),
-          2,
+          1,
         );
         await incoming.call("login", {
           email: secondEmail,
@@ -477,7 +468,7 @@ test("Две ветки, приватность, версии каталога �
           await db.developmentStep.count({
             where: { user: { email: secondEmail }, treeNode: "listen" },
           }),
-          2,
+          1,
         );
       },
     );

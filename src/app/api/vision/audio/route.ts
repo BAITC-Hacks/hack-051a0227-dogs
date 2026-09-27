@@ -9,11 +9,13 @@ import {
   latestVisionDictation,
 } from "@/lib/vision-audio.server";
 import { visionError } from "@/lib/vision-service.server";
+import { accessFor } from "@/lib/access.server";
 export async function POST(req: Request) {
   try {
     checkOrigin(req);
     const user = await actor();
     if (!user) throw new AppError("Сессия закончилась.", 401);
+    if (await accessFor(user) !== "FULL") throw new AppError("Голосовой учебный разбор откроется после подачи заявки.", 403);
     if (Number(req.headers.get("content-length")) > 9 * 1024 * 1024)
       throw new AppError("Файл слишком большой.", 413);
     let data: {

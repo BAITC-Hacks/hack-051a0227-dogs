@@ -41,6 +41,9 @@ export default async function Settings() {
         <Link className="button secondary" href="/settings/calendar">
           Календарь интервью
         </Link>
+        <Link className="button secondary" href="/settings/access">
+          Доступ к кабинету
+        </Link>
       </p>
       <SettingsForm guidance={value.guidance} version={value.version} />
       <section className="review-section" style={{ marginTop: 32 }}>

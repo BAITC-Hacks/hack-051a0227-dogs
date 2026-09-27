@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { cleanupRun } from "./cleanup";
 import { initialState } from "../src/lib/projects";
 import { emptyFields } from "../src/lib/validation";
+import { grantQaAccess } from "./qa-access";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
 class BrowserSession {
   cookie = "";
@@ -69,6 +70,17 @@ test(
         screens: ["event", "profile", "confirm"],
         requiredPhone: false,
       };
+      await candidate.call(
+        "project.save",
+        { slug: "digital-products", state },
+        401,
+      );
+      await candidate.call("register", {
+        name: "Проверка Сценария",
+        email: `flow-${run}@qa.local`,
+        password: "FlowCandidate2026!",
+      });
+      const ownerId = await grantQaAccess(db, `flow-${run}@qa.local`);
       const work = await candidate.call("project.save", {
         slug: "digital-products",
         state,
@@ -78,13 +90,7 @@ test(
         where: { id: work.id },
       });
       assert.equal(guestAttempt.revision, 1);
-      const ownerId = guestAttempt.userId;
-      await candidate.call("register", {
-        name: "Проверка Сценария",
-        email: `flow-${run}@qa.local`,
-        password: "FlowCandidate2026!",
-      });
-      await db.user.update({ where: { id: ownerId }, data: { origin: "QA" } });
+      assert.equal(guestAttempt.userId, ownerId);
       const owned = await db.projectAttempt.findUniqueOrThrow({
         where: { id: work.id },
         include: { user: true, versions: true },
@@ -97,10 +103,7 @@ test(
         email: `other-${run}@qa.local`,
         password: "OtherCandidate2026!",
       });
-      await db.user.update({
-        where: { email: `other-${run}@qa.local` },
-        data: { origin: "QA" },
-      });
+      await grantQaAccess(db, `other-${run}@qa.local`);
       await stranger.call(
         "project.save",
         { slug: "digital-products", state, id: work.id, revision: 1 },
@@ -241,6 +244,16 @@ test(
         assert.equal(artifactResponse.status, expectedStatus);
       }
 
+      const grant = await db.candidateAccessGrant.findFirstOrThrow({
+        where: { userId: ownerId, revokedAt: null },
+      });
+      await staff.call("access.revoke", { grantId: grant.id });
+      const beforeSubmit = await fetch(origin + "/world", {
+        headers: { Cookie: candidate.cookie },
+        redirect: "manual",
+      });
+      assert.match(await beforeSubmit.text(), /NEXT_REDIRECT;replace;\/apply/);
+
       await candidate.call(
         "application.submit",
         { confirm: true, revision: 0 },
@@ -250,6 +263,19 @@ test(
         confirm: true,
         revision: app.revision,
       });
+      const unlocked = await fetch(origin + "/world", {
+        headers: { Cookie: candidate.cookie },
+      });
+      assert.equal(unlocked.status, 200);
+      assert.match(await unlocked.text(), /inVision World/);
+      assert.equal(
+        (
+          await fetch(origin + "/apply/complete", {
+            headers: { Cookie: candidate.cookie },
+          })
+        ).status,
+        200,
+      );
       await staff.file(pdf.id);
       const snapshot = await db.applicationVersion.findFirstOrThrow({
         where: { applicationId: app.id, kind: "SUBMITTED" },

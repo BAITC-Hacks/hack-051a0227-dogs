@@ -850,7 +850,7 @@ export function ApplicationWizard({
                         revision: saved.revision,
                         rulesVersion: rules.version,
                       });
-                      router.push("/apply/status");
+                      router.push("/apply/complete");
                       router.refresh();
                     })
                   }

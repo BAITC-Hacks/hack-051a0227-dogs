@@ -3,6 +3,8 @@ import { treeHref } from "@/lib/development-tree";
 import { notFound } from "next/navigation";
 import { programFor } from "@/lib/catalog";
 import { actor } from "@/lib/security";
+import { accessFor, startRoute } from "@/lib/access.server";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { MissionEditor } from "@/components/mission-editor";
 import { readMission } from "@/lib/missions";
@@ -19,6 +21,13 @@ export default async function Project({
     query = await searchParams;
   if (!programFor(slug)) notFound();
   const u = await actor();
+  const space = await accessFor(u);
+  if (space !== "FULL") {
+    const saved = new URLSearchParams();
+    for (const key of ["attempt", "version", "from"] as const) if (query[key]) saved.set(key, query[key]!);
+    const target = `/projects/${slug}${saved.size ? `?${saved}` : ""}`;
+    redirect(space === "GUEST" ? `/login?next=${encodeURIComponent(target)}` : startRoute(space));
+  }
   const owned = u
     ? await db.projectAttempt.findMany({
         where: { userId: u.id },

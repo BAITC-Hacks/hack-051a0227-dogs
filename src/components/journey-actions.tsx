@@ -28,9 +28,7 @@ export function WorkshopChoices({
           {title ??
             (tried.length ? "Что попробовать дальше" : "Выбери действие")}
         </h2>
-        <p>
-          Самостоятельные пробы. Можно начать с любой или сразу подать заявку.
-        </p>
+        <p>Выбери направление, реши небольшую задачу и сохрани свою работу.</p>
       </div>
       <div className="workshop-choice-grid">
         {programs

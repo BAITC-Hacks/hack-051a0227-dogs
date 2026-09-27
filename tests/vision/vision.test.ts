@@ -153,6 +153,14 @@ test(
       },
     });
     const staff = await db.user.findFirstOrThrow({ where: { role: "STAFF" } });
+    await db.candidateAccessGrant.create({
+      data: {
+        userId: user.id,
+        issuedById: staff.id,
+        scope: "FULL_CABINET",
+        reason: "Изолированная проверка доступа к Vision",
+      },
+    });
     const jobs: string[] = [];
     const calls = await db.openAICall.count();
     try {

@@ -20,6 +20,7 @@ import {
 } from "../../src/lib/profile-contract";
 import type { ScoringView } from "../../src/lib/scoring-contract";
 import { cleanupRun } from "../cleanup";
+import { grantQaAccess } from "../qa-access";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
 class Session {
   cookie = "";
@@ -68,14 +69,12 @@ test(
     const db = new PrismaClient(),
       candidate = new Session(),
       other = new Session(),
-      staff = new Session(),
-      mergeGuest = new Session();
+      staff = new Session();
     const emails = [
       `profile-${randomUUID()}@qa.local`,
       `profile-other-${randomUUID()}@qa.local`,
     ];
-    let guestId = "",
-      workId = "",
+    let workId = "",
       applicationId = "",
       privateId = "";
     const scope = () => ({ attemptId: workId });
@@ -96,6 +95,13 @@ test(
         email: "admissions@invision.local",
         password: "LeaderDesk2026!",
       });
+      await candidate.call("project.progress", {}, 401);
+      await candidate.call("register", {
+        name: "Новая Профильная",
+        email: emails[0],
+        password: "ProfileChecks2026!",
+      });
+      await grantQaAccess(db, emails[0]);
       await candidate.call("project.progress");
       const first = await candidate.call("project.save", {
         slug: "digital-products",
@@ -105,7 +111,7 @@ test(
       workId = first.id;
       let oldAnswer: ProfileTurnView;
       await t.test(
-        "новая гостевая работа: собственные версии, реальное изменение и повтор запроса",
+        "собственная работа: версии, реальное изменение и повтор запроса",
         async () => {
           oldAnswer = await candidate.ask("changes", scope());
           assert.match(
@@ -251,58 +257,22 @@ test(
           );
         },
       );
-      await candidate.call("register", {
-        name: "Новая Профильная",
-        email: emails[0],
-        password: "ProfileChecks2026!",
-      });
-      await db.user.update({
-        where: { email: emails[0] },
-        data: { origin: "QA" },
-      });
       await other.call("register", {
         name: "Другой Пользователь",
         email: emails[1],
         password: "ProfileChecks2026!",
       });
-      await db.user.update({
-        where: { email: emails[1] },
-        data: { origin: "QA" },
-      });
+      await grantQaAccess(db, emails[1]);
       await t.test(
-        "регистрация и перенос гостя сохраняют законного владельца истории и плана",
+        "разные аккаунты не читают чужую историю и план",
         async () => {
           assert.ok((await load()).history.some((h) => h.id === oldAnswer.id));
           assert.ok((await load()).steps.some((s) => s.id === contextStepId));
-          await mergeGuest.call("project.progress");
-          const m = await mergeGuest.call("project.save", {
-            slug: "digital-products",
-            state: valid,
-            requestKey: randomUUID(),
-          });
-          guestId = (
-            await db.projectAttempt.findUniqueOrThrow({ where: { id: m.id } })
-          ).userId;
-          const a = await mergeGuest.ask("result", { attemptId: m.id });
-          const r = (
-            await mergeGuest.call("profile.load", {
-              scope: { attemptId: m.id },
-            })
-          ).recommendations[0];
-          const s = await mergeGuest.call("profile.stepStart", {
-            scope: { attemptId: m.id },
-            key: r.key,
-          });
-          await mergeGuest.call("login", {
-            email: emails[0],
-            password: "ProfileChecks2026!",
-          });
-          const merged = await mergeGuest.call("profile.load", {
-            scope: { attemptId: m.id },
-          });
-          assert.ok(merged.history.some((h: ProfileTurnView) => h.id === a.id));
-          assert.ok(merged.steps.some((v: { id: string }) => v.id === s.id));
-          await other.call("profile.load", { scope: { attemptId: m.id } }, 404);
+          await other.call(
+            "profile.load",
+            { scope: { attemptId: workId } },
+            404,
+          );
         },
       );
       const priv = await candidate.call("project.save", {
@@ -709,8 +679,6 @@ test(
       );
     } finally {
       await cleanupRun(db, emails);
-      if (guestId)
-        await db.user.deleteMany({ where: { id: guestId, role: "GUEST" } });
       await db.$disconnect();
       await profileDb.$disconnect();
     }

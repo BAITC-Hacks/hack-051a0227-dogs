@@ -3,6 +3,7 @@ import { learningPolicy } from "./learning-context";
 import type { User } from "@prisma/client";
 import { db } from "./db";
 import { AppError } from "./security";
+import { accessFor } from "./access.server";
 import { collectProfile } from "./profile-context.server";
 import { developmentRecommendations } from "./development.server";
 import type { ProfileScope } from "./profile-contract";
@@ -35,6 +36,10 @@ export async function visionContext(
   const fresh = await db.user.findUnique({ where: { id: user.id } });
   if (!fresh || !["CANDIDATE", "GUEST"].includes(fresh.role))
     throw new AppError("Vision доступен владельцу личной работы.", 403);
+  const access = await accessFor(fresh);
+  if (access === "GUEST" || access === "RESTRICTED") throw new AppError("Войдите в заявку, чтобы спросить Vision.", 403);
+  if (access === "APPLICATION" && (scope.attemptId || scope.feedbackId))
+    throw new AppError("Личный учебный разбор откроется после подачи заявки.", 403);
   if (scope.applicationId || scope.domain)
     throw new AppError(
       "Оценочные материалы разбирает сотрудник. Выбери личную работу или опубликованную обратную связь.",
@@ -54,6 +59,14 @@ export async function visionContext(
   )
     throw new AppError("Диалог остановлен настройками доступа.", 403);
   const c = await collectProfile(fresh, scope);
+  if (access === "APPLICATION") {
+    c.works = [];
+    c.questions = [];
+    c.consistency = [];
+    c.feedbackAction = undefined;
+    c.sources = c.sources.filter((source) => source.key.startsWith("admissions:"));
+    c.hash = digest({ audience: "CANDIDATE", scopeKey: c.scopeKey, sources: c.sources });
+  }
   c.works = c.works.map((w) => ({
     ...w,
     sourceKey: `learning:${w.versionId}`,

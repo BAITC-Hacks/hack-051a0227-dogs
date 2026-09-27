@@ -6,7 +6,8 @@ import { initialMission, missionRuleVersion, readMission } from "./missions";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { AppError, guestActor, rateLimit } from "./security";
+import { AppError, rateLimit } from "./security";
+import { requireFullCandidate } from "./access.server";
 import { programFor } from "./catalog";
 import { projectSchema, initialState } from "./projects";
 import { equipmentInitial, equipmentSchema, equipmentHints } from "./equipment";
@@ -21,7 +22,7 @@ const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 const id = z.string().min(1).max(100);
 export async function journeyAction(type: string, b: Record<string, unknown>) {
-  const u = await guestActor();
+  const u = await requireFullCandidate();
   if (u.role === "STAFF")
     throw new AppError("Для личных работ войдите как кандидат.", 403);
   await rateLimit("project:" + u.id, 120);

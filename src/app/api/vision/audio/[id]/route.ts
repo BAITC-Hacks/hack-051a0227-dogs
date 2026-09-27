@@ -1,5 +1,6 @@
 import { actor, AppError } from "@/lib/security";
 import { accessibleMedia } from "@/lib/vision-audio.server";
+import { accessFor } from "@/lib/access.server";
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -7,6 +8,7 @@ export async function GET(
   try {
     const user = await actor();
     if (!user) throw new AppError("Сессия закончилась.", 401);
+    if (await accessFor(user) !== "FULL") throw new AppError("Запись недоступна.", 403);
     const media = await accessibleMedia(user, (await params).id);
     return new Response(new Uint8Array(media.bytes), {
       headers: {

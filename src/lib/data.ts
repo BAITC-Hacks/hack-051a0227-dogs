@@ -3,6 +3,7 @@ import { pathProgress } from "./path-progress";
 import { avatarIdentity, avatarSelect } from "./avatar";
 import { projectMilestones } from "./journey";
 import { db } from "./db";
+import { accessFor } from "./access.server";
 import { materialContext } from "./review-service.server";
 import { scoringView } from "./scoring-service.server";
 import {
@@ -27,12 +28,13 @@ export const materialSelect = {
 export async function myData() {
   const u = await actor();
   if (!u) return null;
+  const full = await accessFor(u) === "FULL";
   const [attempts, application, steps] = await Promise.all([
-    db.projectAttempt.findMany({
+    full ? db.projectAttempt.findMany({
       where: { userId: u.id },
       include: { versions: { orderBy: { revision: "desc" } } },
       orderBy: { updatedAt: "desc" },
-    }),
+    }) : Promise.resolve([]),
     db.application.findUnique({
       where: { userId: u.id },
       include: {
@@ -76,7 +78,7 @@ export async function myData() {
         versions: { orderBy: { revision: "desc" } },
       },
     }),
-    db.developmentStep.findMany({
+    full ? db.developmentStep.findMany({
       where: { userId: u.id },
       select: {
         recommendation: true,
@@ -86,7 +88,7 @@ export async function myData() {
         treeConfig: true,
         treeState: true,
       },
-    }),
+    }) : Promise.resolve([]),
   ]);
   return {
     progress: pathProgress(attempts, steps),

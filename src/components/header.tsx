@@ -1,36 +1,51 @@
 "use client";
-import { AvatarEditor } from "./avatar-editor";
+import { UserAvatar } from "./user-avatar";
 import { clearUserRecordings } from "@/lib/recording-cache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import { action } from "@/lib/client";
 import { useTask, Feedback } from "./ui";
 import type { SafeUser } from "@/lib/types";
-export function Header({ user }: { user: SafeUser | null }) {
+import type { AccessSpace } from "@/lib/access.server";
+export function Header({
+  user,
+  space,
+}: {
+  user: SafeUser | null;
+  space: AccessSpace;
+}) {
   const path = usePathname();
   const router = useRouter();
   const task = useTask();
-  const staff =
-    path.startsWith("/admissions") ||
-    path === "/settings" ||
-    path.startsWith("/settings/");
+  const staff = space === "STAFF";
   const links = staff
     ? [
         ["Кандидаты", "/admissions"],
         ["Интервью", "/admissions/interviews"],
         ["Решения", "/admissions/decisions"],
       ]
-    : [
-        ["Проекты", "/"],
-        ["Мой путь", "/my"],
-        ["Заявка", "/apply"],
-      ];
+    : space === "FULL"
+      ? [
+          ["Мой путь", "/my"],
+          ["inVision World", "/world"],
+        ]
+      : space === "APPLICATION"
+        ? [["Заявка", "/apply"]]
+        : [];
   return (
     <>
       <header className={`site-header ${staff ? "staff-header" : ""}`}>
         <Link
-          href={staff ? "/admissions" : "/"}
+          href={
+            staff
+              ? "/admissions"
+              : space === "FULL"
+                ? "/my"
+                : space === "APPLICATION"
+                  ? "/apply"
+                  : "/"
+          }
           className="brand"
           aria-label="inVision U, главная"
         >
@@ -47,13 +62,11 @@ export function Header({ user }: { user: SafeUser | null }) {
               href={href}
               className={
                 (
-                  href === "/"
-                    ? path === "/" ||
-                      path.startsWith("/projects") ||
-                      path.startsWith("/programs")
-                    : href === "/admissions"
-                      ? path === "/admissions" ||
-                        path.startsWith("/admissions/candidates")
+                  href === "/admissions"
+                    ? path === "/admissions" ||
+                      path.startsWith("/admissions/candidates")
+                    : href === "/my"
+                      ? path.startsWith("/my") || path.startsWith("/apply")
                       : path.startsWith(href)
                 )
                   ? "active"
@@ -67,29 +80,37 @@ export function Header({ user }: { user: SafeUser | null }) {
         <div className="header-account">
           {user && user.role !== "GUEST" ? (
             <>
-              <AvatarEditor user={user} compact />
-              <span className="account-name">{user.name.split(" ")[0]}</span>
-              <button
-                className="icon-button"
-                aria-label="Выйти"
-                disabled={task.busy}
-                onClick={() =>
-                  task.run(async () => {
-                    await action("logout");
-                    await clearUserRecordings(user.id).catch(() => {});
-                    router.push("/");
-                    router.refresh();
-                  })
-                }
-              >
-                <LogOut size={18} />
-              </button>
+              <details className="account-menu">
+                <summary aria-label="Меню аккаунта">
+                  <UserAvatar user={user} size={34} />
+                  <span className="account-name">
+                    {user.name.split(" ")[0]}
+                  </span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </summary>
+                <div className="account-menu-panel">
+                  <Link href="/account">Профиль и фото</Link>
+                  <Link href="/account#sign-in-methods">Способы входа</Link>
+                  <Link href="/account#active-sessions">Активные сеансы</Link>
+                  <button
+                    type="button"
+                    disabled={task.busy}
+                    onClick={() =>
+                      task.run(async () => {
+                        await action("logout");
+                        await clearUserRecordings(user.id).catch(() => {});
+                        router.push("/");
+                        router.refresh();
+                      })
+                    }
+                  >
+                    <LogOut size={16} /> Выйти
+                  </button>
+                </div>
+              </details>
             </>
           ) : (
-            <Link
-              className="login-link"
-              href={staff ? "/login?staff=1" : "/login"}
-            >
+            <Link className="login-link" href="/login">
               Войти
             </Link>
           )}
@@ -111,7 +132,7 @@ export function Footer() {
             </span>
           </Link>
           <p>AI Leader ID</p>
-          <p>Практика, проекты и твой следующий шаг.</p>
+          <p>Заявка, сообщения и твой путь поступления.</p>
         </div>
         <nav aria-label="Университет">
           <h2>inVision U</h2>

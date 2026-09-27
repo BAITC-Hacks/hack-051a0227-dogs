@@ -1,8 +1,7 @@
 "use client";
-import { PathPointMark } from "./path-point-mark";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Circle } from "lucide-react";
 import type { myData } from "@/lib/data";
 import { programFor } from "@/lib/catalog";
@@ -14,21 +13,20 @@ import type { ApplicationFields } from "@/lib/types";
 import type { TreeView } from "@/lib/development-tree.server";
 import { PublishedFeedback } from "./published-feedback";
 import { Messages } from "./messages";
-import { MilestoneMarks, WorkshopChoices } from "./journey-actions";
+import { WorkshopChoices } from "./journey-actions";
 import { ProjectPassport } from "./project-passport";
 import { DevelopmentTree } from "./development-tree";
-import { AvatarEditor } from "./avatar-editor";
 import { UserAvatar } from "./user-avatar";
 import { CandidateOverview, SupportBanner } from "./candidate-overview";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
 const sections = {
   overview: "Обзор",
-  projects: "Проекты",
+  university: "Заявка",
   route: "Древо навыков",
-  university: "Университет",
-  profile: "Профиль",
+  projects: "Материалы",
+  messages: "Сообщения",
 } as const;
-type Section = keyof typeof sections;
+type Section = keyof typeof sections | "profile";
 export function MyPath({
   data,
   tree,
@@ -41,12 +39,17 @@ export function MyPath({
   nodeId?: string;
 }) {
   const { user, attempts, application: app } = data;
+  const router = useRouter();
   const [section, setSection] = useState<Section>(
     initialView in sections ? (initialView as Section) : "overview",
   );
   const panel = useRef<HTMLDivElement>(null);
   const queryString = useSearchParams().toString();
   function navigate(next: Section, hash = "") {
+    if (next === "profile") {
+      router.push("/account");
+      return;
+    }
     setSection(next);
     window.history.pushState(
       null,
@@ -68,11 +71,13 @@ export function MyPath({
       const next =
         hash.startsWith("#work-") || hash === "#my-projects"
           ? "projects"
-          : ["#application-messages", "#published-feedback"].includes(hash)
-            ? "university"
-            : url.searchParams.get("tree") === "1"
-              ? "route"
-              : (url.searchParams.get("view") ?? "overview");
+          : hash === "#application-messages"
+            ? "messages"
+            : hash === "#published-feedback"
+              ? "university"
+              : url.searchParams.get("tree") === "1"
+                ? "route"
+                : (url.searchParams.get("view") ?? "overview");
       setSection(next in sections ? (next as Section) : "overview");
       if (hash)
         requestAnimationFrame(() =>
@@ -200,20 +205,16 @@ export function MyPath({
     <div className="page wrap candidate-hub candidate-reference">
       <header className="hub-heading">
         <div className="hub-person">
-          {user.role === "GUEST" ? (
-            <UserAvatar size={72} />
-          ) : (
-            <AvatarEditor user={user} />
-          )}
+          <Link href="/account" aria-label="Профиль и фото">
+            <UserAvatar user={user} size={72} />
+          </Link>
           <div>
             <p className="eyebrow">Мой путь</p>
-            <h1>
-              {user.role === "GUEST" ? "Попробуй. Найди своё." : user.name}
-            </h1>
+            <h1>{user.name}</h1>
             <p>
               {attempts.length
                 ? `Результатов: ${completed.length} · Направлений попробовано: ${directions.size}`
-                : "Выбери задачу и посмотри, как устроена работа в направлении."}
+                : "Заявка и следующие действия собраны здесь."}
             </p>
           </div>
         </div>
@@ -239,15 +240,6 @@ export function MyPath({
           </button>
         ))}
       </nav>
-      {user.role === "GUEST" && attempts.length > 0 && (
-        <p className="guest-access">
-          Работа сохранена в этом браузере.{" "}
-          <Link className="text-link" href="/login?mode=register&next=/my">
-            Закрепить за аккаунтом
-          </Link>{" "}
-          без повторного прохождения.
-        </p>
-      )}
       <div className="hub-panels" ref={panel} tabIndex={-1}>
         <section hidden={section !== "overview"} aria-label="Обзор моего пути">
           <CandidateOverview
@@ -258,9 +250,30 @@ export function MyPath({
             needsAnswer={needsAnswer}
             navigate={navigate}
           />
-          {!attempts.length && <WorkshopChoices />}
         </section>
         <section hidden={section !== "projects"} aria-label="Мои проекты">
+          <div className="hub-section-heading">
+            <h2>Материалы и работы</h2>
+            <Link className="text-link" href="/apply/status">
+              Отправленная заявка
+            </Link>
+          </div>
+          {app?.materials.length ? (
+            <div className="material-list">
+              <h3>Файлы заявки</h3>
+              {app.materials.map((m) => (
+                <p key={m.id}>
+                  <Link href={`/api/files/${m.id}`} className="text-link">
+                    {m.name}
+                  </Link>{" "}
+                  <small>
+                    {m.releasedAt ? "Передано комиссии" : "Личный материал"} ·
+                    версия {m.version}
+                  </small>
+                </p>
+              ))}
+            </div>
+          ) : null}
           {attempts.length > 0 && <ProjectPassport data={data} />}
           <details className="hub-disclosure" open={attempts.length === 0}>
             <summary>Попробовать другое направление</summary>
@@ -273,12 +286,9 @@ export function MyPath({
         <section hidden={section !== "route"} aria-label="Древо навыков">
           <DevelopmentTree initial={tree} selectedId={nodeId} full embedded />
         </section>
-        <section
-          hidden={section !== "university"}
-          aria-label="Сообщения и заявка"
-        >
+        <section hidden={section !== "university"} aria-label="Заявка">
           <div className="hub-section-heading">
-            <h2>Заявка и сообщения</h2>
+            <h2>Заявка</h2>
             <Link
               className="button secondary"
               href={app?.submittedAt ? "/apply/status" : "/apply"}
@@ -316,19 +326,6 @@ export function MyPath({
               </details>
               {app.submittedAt && (
                 <>
-                  <div id="application-messages">
-                    <h3>
-                      {needsAnswer
-                        ? "Нужно ответить на уточнение"
-                        : "Переписка с университетом"}
-                    </h3>
-                    <Messages
-                      applicationId={app.id}
-                      messages={app.messages.filter(
-                        (m) => m.kind !== "FEEDBACK",
-                      )}
-                    />
-                  </div>
                   <PublishedFeedback
                     application={{ ...app, feedback: app.feedback.slice(0, 1) }}
                   />
@@ -341,78 +338,23 @@ export function MyPath({
           )}
         </section>
         <section
-          hidden={section !== "profile"}
-          aria-label="Профиль и личный прогресс"
+          hidden={section !== "messages"}
+          aria-label="Сообщения университета"
         >
-          <div className="hub-section-heading">
-            <h2>Твой профиль</h2>
-            {user.role !== "GUEST" && <p>{user.email}</p>}
+          <div id="application-messages" className="hub-section-heading">
+            <h2>
+              {needsAnswer
+                ? "Нужно ответить на уточнение"
+                : "Сообщения университета"}
+            </h2>
           </div>
-          <p>
-            Фото можно изменить рядом с именем. Поинты и отметки доступны только
-            тебе.
-          </p>
-          <section className="hub-block">
-            <div className="hub-block-heading">
-              <h3>Прогресс по работам</h3>
-              <span className="path-points">
-                <PathPointMark />
-                {data.progress.total} поинтов
-              </span>
-            </div>
-            {data.progress.awards.length ? (
-              <ul className="progress-evidence">
-                {data.progress.awards.map((a) => (
-                  <li key={a.key}>
-                    <span className="path-points">
-                      <PathPointMark />+{a.points}
-                    </span>
-                    <div>
-                      <Link className="text-link" href={a.href}>
-                        {a.title}
-                      </Link>
-                      <p>
-                        {a.reason} Основание: версия {a.revision}.
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>
-                Первая сохранённая работа, выполняющая условия, принесёт 10
-                поинтов. Они отмечают практику, а не качество кандидата.
-              </p>
-            )}
-            <p className="subtle">
-              За одно действие начисление не повторяется. Удаление работы
-              убирает связанную отметку. Поинты не передаются комиссии.
-            </p>
-          </section>
-          {data.milestones.length > 0 && (
-            <details className="hub-disclosure">
-              <summary>
-                Отметки выполненной работы · {data.milestones.length}
-              </summary>
-              <MilestoneMarks items={data.milestones} />
-            </details>
-          )}
-          {user.interests.length > 0 && (
-            <section className="hub-block">
-              <h3>Выбранные интересы</h3>
-              <p>Ты сохранил их сам. Программа заявки от этого не меняется.</p>
-              <div className="button-row">
-                {user.interests.map((slug) => (
-                  <Link
-                    className="button secondary"
-                    key={slug}
-                    href={`/programs/${slug}`}
-                  >
-                    {programFor(slug)?.shortTitle}
-                  </Link>
-                ))}
-              </div>
-            </section>
+          {app?.submittedAt ? (
+            <Messages
+              applicationId={app.id}
+              messages={app.messages.filter((m) => m.kind !== "FEEDBACK")}
+            />
+          ) : (
+            <p>Сообщения появятся после отправки заявки.</p>
           )}
         </section>
       </div>
