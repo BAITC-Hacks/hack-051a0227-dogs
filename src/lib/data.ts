@@ -6,6 +6,7 @@ import { db } from "./db";
 import { accessFor } from "./access.server";
 import { materialContext } from "./review-service.server";
 import { scoringView } from "./scoring-service.server";
+import { scoringInput } from "./scoring-input.server";
 import {
   actor,
   assertApplication,
@@ -75,6 +76,17 @@ export async function myData() {
           orderBy: { publishedAt: "desc" },
         },
         sources: { include: { corrections: true } },
+        verificationRequests: {
+          where: { status: { in: ["PUBLISHED", "ANSWERED"] } },
+          select: {
+            id: true,
+            questionMessageId: true,
+            kind: true,
+            claim: true,
+            status: true,
+            attachments: { select: materialSelect },
+          },
+        },
         versions: { orderBy: { revision: "desc" } },
       },
     }),
@@ -178,6 +190,9 @@ export async function loadCandidate(id: string) {
       domainReviews: { orderBy: { createdAt: "desc" } },
       feedback: { orderBy: { createdAt: "desc" } },
       transfers: true,
+      verificationRequests: { orderBy: { createdAt: "desc" }, take: 30 },
+      reReviewCases: { orderBy: { createdAt: "desc" }, take: 30 },
+      essayChecks: { orderBy: { createdAt: "desc" }, take: 5 },
       versions: { orderBy: { revision: "desc" } },
     },
   });
@@ -209,6 +224,20 @@ export async function loadCandidate(id: string) {
     }),
     preparation: await deskView(u, id),
     scoring: await scoringView(id),
+    verificationSources: (await scoringInput(db, id)).sources
+      .filter((source) => source.text && !source.material)
+      .map((source) => ({
+        id: source.id,
+        version: source.version,
+        title: source.title,
+        kind: source.kind,
+        text: source.text,
+      })),
+    reviewers: await db.user.findMany({
+      where: { role: "STAFF" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     materialVersion: (await materialContext(db, id)).version,
   };
 }
@@ -224,6 +253,7 @@ export async function queueData() {
       assessments: { orderBy: { createdAt: "desc" } },
       decisions: { orderBy: { createdAt: "desc" }, take: 1 },
       domainReviews: { orderBy: { createdAt: "desc" } },
+      reReviewCases: { where: { status: "OPEN" }, orderBy: { createdAt: "desc" } },
       _count: { select: { sources: true, messages: true } },
     },
     orderBy: { updatedAt: "desc" },

@@ -37,7 +37,10 @@ export async function POST(req: Request) {
         } as Record<string, string>
       )[purpose] ?? "materials";
     const released = form.get("release") === "true",
-      previousId = String(form.get("previousId") ?? "");
+      previousId = String(form.get("previousId") ?? ""),
+      verificationRequestId = String(form.get("verificationRequestId") ?? "");
+    if (verificationRequestId.length > 100)
+      throw new AppError("Запрос к материалу недоступен.");
     if (!(file instanceof File) || !fileTypes[kind])
       throw new AppError("Выберите поддерживаемый файл.");
     const mime = file.type.split(";")[0];
@@ -139,6 +142,17 @@ export async function POST(req: Request) {
           "У материала уже есть новая версия. Обнови список.",
           409,
         );
+      const verification = verificationRequestId
+        ? await tx.verificationRequest.findFirst({
+            where: {
+              id: verificationRequestId,
+              applicationId: app.id,
+              status: { in: ["PUBLISHED", "ANSWERED"] },
+            },
+          })
+        : null;
+      if (verificationRequestId && (!verification || privatePurposes.includes(purpose) || !released || !["document", "video"].includes(kind)))
+        throw new AppError("Этот файл нельзя приложить к запросу.", 403);
       const m = await tx.material.create({
         data: {
           userId: u.id,
@@ -154,6 +168,7 @@ export async function POST(req: Request) {
           previousId: previous?.id,
           version: (previous?.version ?? 0) + 1,
           releasedAt: current.submittedAt ? new Date() : null,
+          verificationRequestId: verification?.id,
           ...audioMetadata,
         },
       });
@@ -194,6 +209,27 @@ export async function POST(req: Request) {
             } as Prisma.InputJsonValue,
           },
         });
+        if (verification) {
+          await tx.verificationRequest.update({
+            where: { id: verification.id },
+            data: { status: "ANSWERED", answeredAt: new Date() },
+          });
+          const { materialContext } = await import("@/lib/review-service.server");
+          const material = await materialContext(tx, app.id);
+          await tx.reReviewCase.upsert({
+            where: { basisKey: `verification:${verification.id}:file:${m.id}` },
+            update: {},
+            create: {
+              applicationId: app.id,
+              basisKey: `verification:${verification.id}:file:${m.id}`,
+              kind: "NEW_CLARIFICATION",
+              reason: `Добавлен материал к запросу по утверждению «${verification.claim.slice(0, 180)}». Сверьте его с прежним выводом.`,
+              sourceIds: [verification.sourceId],
+              materialVersion: material.version,
+              openedBy: u.id,
+            },
+          });
+        }
       }
       return m;
     });

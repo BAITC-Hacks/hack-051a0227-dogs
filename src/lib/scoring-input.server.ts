@@ -128,6 +128,7 @@ export async function scoringInput(
               sha256: true,
               bytes: true,
               purpose: true,
+              extractedText: true,
             },
           },
           corrections: { orderBy: { id: "asc" } },
@@ -164,22 +165,22 @@ export async function scoringInput(
         id: c.id,
         text: c.explanation,
       }));
-      // A file descriptor is not extracted document text, audio or video understanding.
+      // Only a separately extracted text is readable. A file descriptor alone is not content.
       const text =
         material || s.kind === "Видео" || s.title.includes("Видеопрезентация")
-          ? ""
+          ? (s.material?.extractedText?.slice(0, 8000) ?? "")
           : s.content;
       const assessable =
-        !material &&
+        (!material || !!s.material?.extractedText) &&
         (["Опыт и личная роль", "Мотивация", "Ответ в переписке"].includes(
           s.title,
-        ) ||
+        ) || s.kind === "Эссе" || s.title === "Программа, цели и действия" ||
           (s.provenance === "SEED_CANDIDATE_ACCOUNT" &&
             (s.title.startsWith("Опыт · ") ||
               s.title === "Почему inVision U")));
       return {
         id: s.id,
-        version: digest({ content: s.content, corrections, material }),
+        version: digest({ content: s.content, corrections, material, ...(s.material?.extractedText ? { extractedText: s.material.extractedText } : {}) }),
         title: s.title,
         kind: s.kind,
         text,

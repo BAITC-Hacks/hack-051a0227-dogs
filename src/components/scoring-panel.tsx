@@ -21,6 +21,7 @@ import {
 } from "@/lib/scoring-contract";
 import { sections, woundedBoundary } from "@/lib/review-contract";
 import { ScoringEvidence } from "./scoring-evidence";
+import { AxisProfile } from "./axis-profile";
 import { Feedback, Tag, useTask } from "./ui";
 
 const domainIcons = [
@@ -294,6 +295,19 @@ export function ScoringPanel({
               заново.
             </p>
           )}
+          {run.status === "COMPLETED" && run.result && (
+            <AxisProfile
+              key={run.id + ":axis:" + (run.reviews[0]?.id ?? "")}
+              run={run}
+              runs={view.runs}
+              applicationId={applicationId}
+              onSource={onSource}
+              onUpdated={(next) => {
+                setView(next);
+                router.refresh();
+              }}
+            />
+          )}
           {run.result && (
             <ScoringResultPanel
               key={run.id + ":" + (run.reviews[0]?.id ?? "")}
@@ -352,8 +366,7 @@ function ScoringResultPanel({
       human?.rejectedEvidenceIds ?? [],
     ),
     [reason, setReason] = useState(""),
-    [editing, setEditing] = useState(false),
-    [showAllDomains, setShowAllDomains] = useState(false);
+    [editing, setEditing] = useState(false);
   const task = useTask(),
     router = useRouter();
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
@@ -382,27 +395,10 @@ function ScoringResultPanel({
   const shown = editing ? draft : (human?.result ?? result);
   return (
     <>
-      <div className="scoring-domain-heading">
-        <div>
-          <h3>Ключевые критерии оценки</h3>
-        </div>
-        {shown.domains.length > 4 && (
-          <button
-            className="text-link"
-            aria-expanded={showAllDomains}
-            aria-controls="scoring-domain-list"
-            onClick={() => setShowAllDomains((value) => !value)}
-          >
-            {showAllDomains
-              ? "Первые четыре"
-              : `Все критерии (${shown.domains.length})`}
-          </button>
-        )}
-      </div>
+      <details className="scoring-domain-more">
+        <summary>Подробные основания по девяти критериям</summary>
       <div className="scoring-domain-list" id="scoring-domain-list">
-        {shown.domains
-          .slice(0, showAllDomains ? undefined : 4)
-          .map((d, index) => (
+        {shown.domains.map((d, index) => (
             <details className="scoring-domain" key={d.domain}>
               <summary>
                 <span className="scoring-domain-identity">
@@ -511,6 +507,7 @@ function ScoringResultPanel({
             </details>
           ))}
       </div>
+      </details>
       <details className="scoring-scale">
         <summary>
           Шкала и границы оценки · критерии {criteria.rubricVersion}
@@ -592,7 +589,8 @@ function ScoringResultPanel({
           onClick={() => {
             setEditing(!editing);
             if (!editing) {
-              setShowAllDomains(true);
+              const detail = document.querySelector<HTMLDetailsElement>(".scoring-domain-more");
+              if (detail) detail.open = true;
               document
                 .getElementById("scoring-domain-list")
                 ?.scrollIntoView({ block: "start" });

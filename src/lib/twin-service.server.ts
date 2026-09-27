@@ -28,6 +28,7 @@ import {
   type TwinList,
 } from "./twin-contract";
 import { scoringResultSchema } from "./scoring-contract";
+import { materialContext } from "./review-service.server";
 
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
@@ -166,10 +167,11 @@ export async function twinView(
   applicationId: string,
   auditId: string,
   user: User,
+  reader: Prisma.TransactionClient | typeof db = db,
+  verifiedOrigin?: string,
 ): Promise<TwinAuditView> {
-  const app = await access(applicationId, user);
-  scope(app.origin);
-  const audit = await db.twinAudit.findFirst({
+  scope(verifiedOrigin ?? (await access(applicationId, user)).origin);
+  const audit = await reader.twinAudit.findFirst({
     where: { id: auditId, applicationId },
     include: includeRuns,
   });
@@ -190,7 +192,7 @@ export async function twinView(
     comparison,
     version: digest({ definitionHash: audit.definitionHash, runs, comparison }),
     currentBase:
-      digest(await scoringInput(db, applicationId)) === audit.baseInputHash,
+      digest(await scoringInput(reader, applicationId)) === audit.baseInputHash,
     runs,
     reviews: audit.reviews.map((r) => ({
       id: r.id,
@@ -331,7 +333,7 @@ export async function twinAction(
       .parse(body);
     return db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "TwinAudit" WHERE id=${v.auditId} AND "applicationId"=${applicationId} FOR UPDATE`;
-      const view = await twinView(applicationId, v.auditId, user);
+      const view = await twinView(applicationId, v.auditId, user, tx, app.origin);
       const duplicate = await tx.twinReview.findUnique({
         where: { requestKey: v.requestKey },
       });
@@ -369,6 +371,18 @@ export async function twinAction(
           }),
         },
       });
+      if (v.verdict === "UNEXPLAINED") {
+        const material = await materialContext(tx, applicationId);
+        await tx.reReviewCase.create({ data: {
+          applicationId,
+          basisKey: `twin-review:${review.id}`,
+          kind: "TWIN_QUESTION",
+          reason: `В проверке устойчивости осталось необъяснённое расхождение: ${v.note}`,
+          sourceIds: [],
+          materialVersion: material.version,
+          openedBy: user.id,
+        } });
+      }
       return { id: review.id };
     });
   }

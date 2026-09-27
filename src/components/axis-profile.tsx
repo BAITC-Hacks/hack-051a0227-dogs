@@ -1,0 +1,220 @@
+"use client";
+import "./axis-profile.css";
+import { useState } from "react";
+import { action, dateLabel } from "@/lib/client";
+import { axisPoints, comparableAxisRun } from "@/lib/axis-profile";
+import type { ScoringResult, ScoringView } from "@/lib/scoring-contract";
+import { Feedback, useTask } from "./ui";
+
+type Run = ScoringView["runs"][number];
+const SIZE = 300;
+const CENTER = SIZE / 2;
+const RADIUS = 104;
+function xy(index: number, value: number, maximum: number) {
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / 9;
+  const radius = (value / maximum) * RADIUS;
+  return [CENTER + Math.cos(angle) * radius, CENTER + Math.sin(angle) * radius] as const;
+}
+function segments(points: ReturnType<typeof axisPoints>) {
+  const result: string[] = [];
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    if (point.value === null || next.value === null || point.maximum !== next.maximum) return;
+    const [x1, y1] = xy(index, point.value, point.maximum);
+    const [x2, y2] = xy((index + 1) % points.length, next.value, next.maximum);
+    result.push(`${x1},${y1} ${x2},${y2}`);
+  });
+  return result;
+}
+export function AxisProfile({
+  run,
+  runs,
+  applicationId,
+  onSource,
+  onUpdated,
+}: {
+  run: Run;
+  runs: Run[];
+  applicationId: string;
+  onSource: (id: string) => void;
+  onUpdated: (view: ScoringView) => void;
+}) {
+  const [selected, setSelected] = useState(0);
+  const [compare, setCompare] = useState("none");
+  const [editing, setEditing] = useState(false);
+  const [score, setScore] = useState("");
+  const [sourceId, setSourceId] = useState("");
+  const [quote, setQuote] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [reason, setReason] = useState("");
+  const task = useTask();
+  const points = axisPoints(run);
+  const former = runs.find((item) => comparableAxisRun(run, item));
+  const comparison = compare === "proposal" && run.reviews.length
+    ? axisPoints({ ...run, reviews: [] })
+    : compare === "previous" && former
+      ? axisPoints(former)
+      : null;
+  const result = run.reviews[0]?.result ?? run.result;
+  const item = points[selected];
+  const beforeReview = run.reviews.length ? axisPoints({ ...run, reviews: [] })[selected] : null;
+  const domain = result?.domains[selected];
+  const selectedSource = run.sources.find((source) => source.id === sourceId);
+  const sourceEvidence = item.evidenceIds
+    .map((id) => result?.evidence.find((evidence) => evidence.id === id))
+    .filter((evidence): evidence is NonNullable<typeof evidence> => !!evidence) ?? [];
+  const canEdit = run.current && run.status === "COMPLETED" && !!result;
+  const episodeCount = new Set([
+    ...sourceEvidence.map((entry) => run.sources.find((source) => source.id === entry.sourceId)?.episodeId),
+    selectedSource?.episodeId,
+  ].filter(Boolean)).size;
+  const startEdit = () => {
+    setEditing(true);
+    setScore(item.value === null ? "" : String(item.value));
+    setExplanation(domain?.interpretation ?? "");
+    const evidence = sourceEvidence.find((entry) => run.sources.some((source) => source.id === entry.sourceId && source.assessable));
+    const source = run.sources.find((entry) => entry.id === evidence?.sourceId) ?? run.sources.find((entry) => entry.assessable && entry.text);
+    setSourceId(source?.id ?? "");
+    setQuote(evidence?.quote ?? source?.text.slice(0, 240) ?? "");
+  };
+  async function save() {
+    if (!result || !domain) return;
+    const selectedEvidence = sourceEvidence.find((entry) => entry.sourceId === sourceId && entry.quote === quote);
+    const evidenceId = selectedEvidence?.id ?? `human-${crypto.randomUUID()}`;
+    const evidence = selectedEvidence ?? {
+      id: evidenceId,
+      sourceId,
+      sourceVersion: selectedSource?.version ?? "",
+      quote,
+      explanation: reason,
+    };
+    const value = score ? Number(score) : null;
+    const rating = value === null ? null : {
+      label: value === 1 ? "Есть проявление" : "Устойчивое проявление",
+      value: null,
+    };
+    const updated: ScoringResult = {
+      ...result,
+      evidence: value === null || result.evidence.some((entry) => entry.id === evidenceId)
+        ? result.evidence
+        : [...result.evidence, evidence],
+      domains: result.domains.map((entry, index) => index === selected
+        ? {
+            ...entry,
+            rating,
+            interpretation: explanation,
+            sufficiency: rating ? "Частично" : entry.sufficiency,
+            evidenceIds: rating ? [...new Set([...entry.evidenceIds, evidenceId])] : [],
+          }
+        : entry),
+    };
+    await action("scoring.review", {
+      applicationId,
+      runId: run.id,
+      requestKey: crypto.randomUUID(),
+      baseReviewId: run.reviews[0]?.id ?? null,
+      result: updated,
+      rejectedEvidenceIds: run.reviews[0]?.rejectedEvidenceIds ?? [],
+      reason,
+    });
+    onUpdated(await action<ScoringView>("scoring.status", { applicationId }));
+    setEditing(false);
+    setReason("");
+  }
+  return (
+    <section className="axis-panel" aria-labelledby="axis-title">
+      <div className="axis-heading">
+        <div>
+          <span className="axis-kicker">AXIS · девять областей</span>
+          <h3 id="axis-title">Профиль по проверяемым основаниям</h3>
+          <p>Шкала 1–2 отражает два уровня действующей рубрики. Пустая область не равна нулю. Подготовленные значения требуют проверки.</p>
+        </div>
+        {(former || run.reviews.length > 0) && (
+          <label className="axis-compare">
+            Сравнить с
+            <select value={compare} onChange={(event) => setCompare(event.target.value)}>
+              <option value="none">Без сравнения</option>
+              {run.reviews.length > 0 && <option value="proposal">Предложение до проверки</option>}
+              {former && <option value="previous">Предыдущая версия</option>}
+            </select>
+          </label>
+        )}
+      </div>
+      <div className="axis-layout">
+        <div className="axis-chart-wrap">
+          <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Диаграмма AXIS; значения и основания доступны в списке справа">
+            {[1, 2].map((ring) => (
+              <polygon key={ring} points={points.map((_, index) => xy(index, ring, 2).join(",")).join(" ")} className="axis-grid" />
+            ))}
+            {points.map((_, index) => {
+              const [x, y] = xy(index, 2, 2);
+              const [lx, ly] = xy(index, 2.38, 2);
+              return <g key={index}><line x1={CENTER} y1={CENTER} x2={x} y2={y} className="axis-spoke" /><text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="axis-number">{index + 1}</text></g>;
+            })}
+            {comparison && segments(comparison).map((line, index) => <polyline key={`comparison-${index}`} points={line} className="axis-line axis-line-compare" />)}
+            {segments(points).map((line, index) => <polyline key={`current-${index}`} points={line} className="axis-line axis-line-current" />)}
+            {comparison?.map((point, index) => point.value !== null ? <circle key={`comparison-dot-${index}`} cx={xy(index, point.value, point.maximum)[0]} cy={xy(index, point.value, point.maximum)[1]} r="4" className="axis-dot-compare" /> : null)}
+            {points.map((point, index) => point.value !== null ? <circle key={`current-dot-${index}`} cx={xy(index, point.value, point.maximum)[0]} cy={xy(index, point.value, point.maximum)[1]} r={index === selected ? 7 : 5} className="axis-dot-current" /> : null)}
+          </svg>
+          <p className="axis-legend"><span className="axis-legend-current" /> Текущая оценка {comparison && <><span className="axis-legend-compare" /> {compare === "proposal" ? "До проверки" : "Предыдущая версия"}</>}</p>
+        </div>
+        <div className="axis-list" aria-label="Области AXIS">
+          {points.map((point, index) => (
+            <button type="button" key={point.criterionId} className={`axis-row ${selected === index ? "selected" : ""}`} aria-pressed={selected === index} onClick={() => { setSelected(index); setEditing(false); }}>
+              <span className="axis-index">{String(index + 1).padStart(2, "0")}</span>
+              <span>{point.criterionId}</span>
+              <strong>{point.value === null ? "Не оценено" : `${point.value} / ${point.maximum}`}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="axis-detail">
+        <div className="axis-detail-head">
+          <div><span className="axis-kicker">Критерий {selected + 1}</span><h4>{item.criterionId}</h4></div>
+          <strong>{item.value === null ? "Не оценено" : `${item.value} из ${item.maximum}`}</strong>
+        </div>
+        <p>{item.explanation}</p>
+        <p className="subtle">{item.status} · {item.origin} · шкала {item.scaleVersion} · {dateLabel(run.reviews[0]?.createdAt ?? run.completedAt ?? run.createdAt)}</p>
+        {beforeReview && (beforeReview.value !== item.value || beforeReview.explanation !== item.explanation) &&
+          <p className="subtle">До проверки: {beforeReview.value === null ? "не оценено" : `${beforeReview.value} из ${beforeReview.maximum}`}. Сейчас: {item.value === null ? "не оценено" : `${item.value} из ${item.maximum}`}.</p>}
+        <div className="source-buttons">
+          {sourceEvidence.map((evidence) => (
+            <button key={evidence.id} type="button" className="source-button" onClick={() => onSource(evidence.sourceId)} title={`Версия ${evidence.sourceVersion}. ${evidence.quote}`}>
+              {run.sources.find((source) => source.id === evidence.sourceId)?.title ?? "Источник"} · версия {evidence.sourceVersion.slice(0, 10)}…: «{evidence.quote.slice(0, 96)}{evidence.quote.length > 96 ? "…" : ""}»
+            </button>
+          ))}
+        </div>
+        {item.value !== null && <p className="subtle">Источник и цитату сверяет сотрудник; наличие фрагмента само по себе не подтверждает интерпретацию.</p>}
+        {canEdit && !editing && <button type="button" className="button secondary" onClick={startEdit}>Изменить оценку</button>}
+        {editing && <form className="axis-edit" onSubmit={(event) => { event.preventDefault(); task.run(save, "Оценка сохранена. Предыдущее значение осталось в истории."); }}>
+          <label className="field">Оценка
+            <select value={score} onChange={(event) => setScore(event.target.value)}>
+              <option value="">Не оценено</option>
+              <option value="1">1 из 2 · Есть проявление</option>
+              <option value="2">2 из 2 · Устойчивое проявление</option>
+            </select>
+          </label>
+          <label className="field">Источник
+            <select value={sourceId} onChange={(event) => { const source = run.sources.find((entry) => entry.id === event.target.value); setSourceId(source?.id ?? ""); setQuote(source?.text.slice(0, 240) ?? ""); }}>
+              <option value="">Выберите источник</option>
+              {run.sources.filter((source) => source.assessable && source.text).map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}
+            </select>
+          </label>
+          <label className="field">Точная цитата из источника
+            <textarea value={quote} onChange={(event) => setQuote(event.target.value)} minLength={1} maxLength={4000} required={!!score} />
+          </label>
+          <label className="field">Объяснение оценки
+            <textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={1} maxLength={4000} required />
+          </label>
+          <label className="field">Причина изменения
+            <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={15} maxLength={4000} required />
+          </label>
+          {score === "2" && episodeCount < 2 && <p className="notice info">Для устойчивого проявления нужны два разных эпизода с проверяемыми источниками.</p>}
+          <div className="axis-edit-actions"><button className="button primary" disabled={task.busy || (!!score && !selectedSource) || (score === "2" && episodeCount < 2)}>Сохранить оценку</button><button type="button" className="button quiet" onClick={() => setEditing(false)}>Отмена</button></div>
+          <Feedback task={task} />
+        </form>}
+        {run.reviews.length > 0 && <details className="axis-history"><summary>История проверок</summary>{run.reviews.map((review) => <p key={review.id}>{dateLabel(review.createdAt)} · {review.author}: {review.reason}</p>)}</details>}
+      </div>
+    </section>
+  );
+}

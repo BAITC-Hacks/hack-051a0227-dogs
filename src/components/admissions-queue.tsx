@@ -62,6 +62,13 @@ function actionHash(stage: string) {
   return "";
 }
 function attention(a: Application) {
+  if (a.reReviewCases.length > 0)
+    return {
+      title: "Повторно рассмотреть",
+      detail: a.reReviewCases[0].reason,
+      icon: CircleHelp,
+      tone: "amber",
+    };
   if (a.stage === "LANGUAGE")
     return a.language?.status === "PENDING_REVIEW"
       ? {
@@ -153,7 +160,7 @@ export function AdmissionsQueue({
     id +
     (query ? "?queue=" + encodeURIComponent(query) : "");
   const actionHref = (a: Application) =>
-    candidateHref(a.id) + actionHash(a.stage);
+    candidateHref(a.id) + (a.reReviewCases.length ? "#review-case" : actionHash(a.stage));
   const [selected, setSelected] = useState<string[]>([]);
   const [compare, setCompare] = useState(false);
   const [sort, setSort] = useState<Sort>("recent");
@@ -177,7 +184,11 @@ export function AdmissionsQueue({
       (!program || a.programSlug === program) &&
       (!stage || a.stage === stage) &&
       (!check ||
-        (check === "reviewed"
+        (check === "re-review"
+          ? a.reReviewCases.some((item) => item.kind !== "CONTROL_SAMPLE")
+          : check === "control-sample"
+            ? a.reReviewCases.some((item) => item.kind === "CONTROL_SAMPLE")
+            : check === "reviewed"
           ? a.assessments.length > 0
           : check === "waiting"
             ? a.assessments.length === 0
@@ -245,6 +256,9 @@ export function AdmissionsQueue({
             </button>
           ))}
         </div>
+        <button className="button secondary small" aria-pressed={check === "re-review"} onClick={() => { setStage(""); setCheck(check === "re-review" ? "" : "re-review"); filterChanged(); }}>
+          Повторное рассмотрение <span>{applications.filter((item) => item.reReviewCases.some((entry) => entry.kind !== "CONTROL_SAMPLE")).length}</span>
+        </button>
         <details className="queue-filter-details">
           <summary>
             <SlidersHorizontal size={18} /> Фильтры
@@ -298,6 +312,8 @@ export function AdmissionsQueue({
                 <option value="language">
                   Языковой ответ ожидает проверки
                 </option>
+                <option value="re-review">Повторное рассмотрение</option>
+                <option value="control-sample">Контрольная выборка</option>
               </select>
             </label>
             <button

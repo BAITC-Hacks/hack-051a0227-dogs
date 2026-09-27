@@ -1,10 +1,19 @@
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { checkQuality } from "../tests/quality/check";
 import { db } from "../src/lib/db";
 async function main() {
   try {
     const report = await checkQuality();
+    const detector = JSON.parse(await readFile("data/essay-detector/model.json", "utf8")) as {
+      source: string; scope: string; sampleCounts: { train: number; validation: number; test: number };
+      baseline: string;
+      baselineTestMetrics: { n: number; f1_binary: number | null; falsePositiveRate: number | null; confusion: Record<string, number> };
+      testMetrics: { n: number; precision: number | null; recall: number | null; f1_binary: number | null;
+        falsePositiveRate: number | null; averagePrecision: number | null; brier: number | null;
+        confusion: Record<string, number> };
+      crossValidation: { n: number; f1_binary: number | null; falsePositiveRate: number | null }[];
+    };
     await mkdir(".local/quality", { recursive: true });
     await writeFile(
       ".local/quality/report.json",
@@ -20,6 +29,14 @@ async function main() {
       ),
       "",
       ...report.limitations,
+      "",
+      "## Детектор текста: технический набор, не заявки",
+      `Источник: ${detector.source}. Область: ${detector.scope}.`,
+      `Разбиение: обучение ${detector.sampleCounts.train}, подбор ${detector.sampleCounts.validation}, финальная проверка ${detector.sampleCounts.test}.`,
+      `Групповая CV на обучающей части: ${detector.crossValidation.map((fold, index) => `fold ${index + 1}: n=${fold.n}, F1=${fold.f1_binary ?? "не определён"}, FPR=${fold.falsePositiveRate ?? "не определён"}`).join("; ")}.`,
+      `Baseline (${detector.baseline}) на том же финальном разбиении: n=${detector.baselineTestMetrics.n}, F1=${detector.baselineTestMetrics.f1_binary ?? "не определён"}, FPR=${detector.baselineTestMetrics.falsePositiveRate ?? "не определён"}. Матрица: ${JSON.stringify(detector.baselineTestMetrics.confusion)}.`,
+      `Финальная проверка n=${detector.testMetrics.n}: precision=${detector.testMetrics.precision ?? "не определён"}, recall=${detector.testMetrics.recall ?? "не определён"}, F1=${detector.testMetrics.f1_binary ?? "не определён"}, FPR=${detector.testMetrics.falsePositiveRate ?? "не определён"}, Average Precision=${detector.testMetrics.averagePrecision ?? "не определён"}, Brier=${detector.testMetrics.brier ?? "не определён"}. Матрица: ${JSON.stringify(detector.testMetrics.confusion)}.`,
+      "Эти метрики не подтверждают пригодность для вступительных эссе и не используются как основание решения.",
       "",
       ...report.checks
         .filter((c) => !c.passed)

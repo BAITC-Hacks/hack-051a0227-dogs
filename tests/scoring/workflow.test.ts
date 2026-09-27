@@ -638,7 +638,49 @@ test(
           });
           assert.equal(failed.status, "FAILED");
           assert.equal(failed.result, null);
-          assert.equal(failed.errorCode, "EXTERNAL_TRANSPORT_DISABLED");
+          assert.match(failed.errorCode ?? "", /разрешения кандидата/);
+        },
+      );
+      await t.test(
+        "запрос подтверждения сохраняет цитату, публикуется один раз и ответ открывает повторную проверку",
+        async () => {
+          const input = await scoringInput(db, appId);
+          const source = input.sources.find((entry) => entry.text.length > 20)!;
+          const quote = source.text.slice(0, 40);
+          const data = {
+            applicationId: appId,
+            sourceId: source.id,
+            sourceVersion: source.version,
+            quote,
+            claim: quote,
+            kind: "CONFIRM",
+            question: "Каким материалом можно подтвердить этот эпизод?",
+            requestKey: randomUUID(),
+          };
+          await candidate.call("verification.draft", data, 403);
+          const request = await staff.call("verification.draft", data);
+          assert.equal(request.status, "DRAFT");
+          assert.equal((await staff.call("verification.draft", data)).id, request.id);
+          const published = await staff.call("verification.publish", {
+            applicationId: appId, requestId: request.id, confirm: true,
+          });
+          assert.equal(published.status, "PUBLISHED");
+          assert.ok(published.questionMessageId);
+          await staff.call("verification.publish", {
+            applicationId: appId, requestId: request.id, confirm: true,
+          });
+          assert.equal(await db.message.count({ where: { id: published.questionMessageId } }), 1);
+          const reply = await candidate.call("message", {
+            applicationId: appId,
+            replyToId: published.questionMessageId,
+            body: "Запись проекта содержит даты и мои изменения после проверки.",
+          });
+          const answered = await db.verificationRequest.findUniqueOrThrow({ where: { id: request.id } });
+          assert.equal(answered.status, "ANSWERED");
+          assert.equal(answered.answerMessageId, reply.id);
+          assert.equal(await db.reReviewCase.count({ where: {
+            applicationId: appId, kind: "NEW_CLARIFICATION", basisKey: `verification:${request.id}:reply:${reply.id}`,
+          } }), 1);
         },
       );
       await t.test(

@@ -4,7 +4,7 @@ import { UserAvatar } from "./user-avatar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { questionKinds, unansweredQuestions } from "@/lib/message-state";
-import { action, dateLabel } from "@/lib/client";
+import { action, dateLabel, upload } from "@/lib/client";
 import { Feedback, useTask } from "./ui";
 export type MessageView = {
   id: string;
@@ -19,11 +19,20 @@ export function Messages({
   messages,
   staff = false,
   onSource,
+  verificationRequests = [],
 }: {
   applicationId: string;
   messages: MessageView[];
   staff?: boolean;
   onSource?: (messageId: string) => void;
+  verificationRequests?: {
+    id: string;
+    questionMessageId: string | null;
+    kind: string;
+    claim: string;
+    status: string;
+    attachments: { id: string; name: string }[];
+  }[];
 }) {
   const router = useRouter(),
     task = useTask();
@@ -33,6 +42,8 @@ export function Messages({
   const [replyToId, setReplyToId] = useState(
     unansweredQuestions(messages).at(-1)?.id ?? "",
   );
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const selectedRequest = verificationRequests.find((request) => request.questionMessageId === replyToId);
   return (
     <div>
       {messages.length ? (
@@ -65,6 +76,13 @@ export function Messages({
                 </details>
               )}
               <p>{m.body}</p>
+              {verificationRequests.filter((request) => request.questionMessageId === m.id).map((request) => (
+                <div className="message-question" key={request.id}>
+                  <strong>{request.kind === "EXPLAIN" ? "Объяснить мысль из материала" : "Подтвердить утверждение"}</strong>
+                  <p>Фрагмент: «{request.claim}»</p>
+                  {request.attachments.map((file) => <a className="text-link" href={`/api/files/${file.id}`} key={file.id}>{file.name}</a>)}
+                </div>
+              ))}
               {staff &&
                 m.kind !== "RECEIPT" &&
                 m.author.role === "CANDIDATE" &&
@@ -144,6 +162,21 @@ export function Messages({
         <p className="subtle">Сообщение будет доступно в приложении.</p>
       </form>
       <Feedback task={task} />
+      {!staff && selectedRequest && (
+        <div className="message-attachment">
+          <p>Можно приложить материал, указать ссылку в ответе или объяснить, что подтверждение не сохранилось.</p>
+          <label className="field">Файл к вопросу
+            <input type="file" accept="application/pdf,image/png,image/jpeg,video/mp4" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} />
+          </label>
+          <button type="button" className="button secondary" disabled={!attachment || task.busy} onClick={() => task.run(async () => {
+            if (!attachment) return;
+            const kind = attachment.type.startsWith("video/") ? "video" : "document";
+            await upload(attachment, kind, { purpose: "GENERAL", release: "true", verificationRequestId: selectedRequest.id });
+            setAttachment(null);
+            router.refresh();
+          }, "Материал приложен к вопросу. Комиссия увидит его отдельно от отправленной заявки.")}>Приложить файл</button>
+        </div>
+      )}
     </div>
   );
 }

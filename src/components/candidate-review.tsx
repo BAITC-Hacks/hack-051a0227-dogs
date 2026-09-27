@@ -37,6 +37,8 @@ import { SourceContent } from "./review-source";
 import { EpisodeNotes, MergeEpisodes } from "./episode-notes";
 import { submissionIssues } from "@/lib/validation";
 import { ScoringPanel } from "./scoring-panel";
+import { VerificationPanel } from "./verification-panel";
+import { ReReviewPanel } from "./re-review-panel";
 import type { ScoringResult } from "@/lib/scoring-contract";
 type Candidate = Awaited<ReturnType<typeof loadCandidate>>;
 const subscribeHash = (listener: () => void) => {
@@ -52,6 +54,7 @@ const legacySections: Record<string, string> = {
   "#history": "history",
   "#decision": "decision",
   "#decision-publication": "decision",
+  "#review-case": "profile",
 };
 export function CandidateReview({
   application: a,
@@ -297,6 +300,15 @@ export function CandidateReview({
               }}
             />
           )}
+          {mainTab === "profile" && (
+            <ReReviewPanel
+              applicationId={a.id}
+              cases={a.reReviewCases}
+              sources={a.sources}
+              reviewers={a.reviewers}
+              onSource={openSource}
+            />
+          )}
           {mainTab === "profile" && a.intakeRules && (
             <details className="review-detail">
               <summary>Фактическая сводка по заявке</summary>
@@ -376,6 +388,32 @@ export function CandidateReview({
                     <IntakeSummary
                       fields={fields}
                       rules={a.intakeRules as IntakeRules | null}
+                    />
+                    {fields.intake.essay.text && <section className="review-section" aria-label="Проверка использования AI в эссе">
+                      <h3>Проверка использования AI</h3>
+                      <p>{(() => {
+                        const check = a.essayChecks[0];
+                        if (!check) return "Проверка текста ещё не запускалась.";
+                        if (check.status === "QUEUED" || check.status === "RUNNING") return "Текст обрабатывается. Результат появится после проверки модели и версии.";
+                        if (check.status === "TOO_SHORT") return "Текст слишком короткий для этой проверки. Это не является подозрением.";
+                        if (check.status === "UNSUPPORTED_LANGUAGE") return "Язык или смешанный текст не поддерживается проверенным набором. Вывод не делается.";
+                        if (check.status === "FAILED") return "Обработка прервалась. Оценка по этому сигналу не формируется.";
+                        return "Техническая проверка выполнена, но модель проверена на другом типе русских эссе. Для вступительного текста вывод о происхождении не формируется.";
+                      })()}</p>
+                      <p className="subtle">Версия текста и модели сохраняется отдельно. Этот сигнал не меняет оценки AXIS и решение комиссии.</p>
+                      <a className="text-link" href="#essay-verification">Уточнить содержание</a>
+                    </section>}
+                    <VerificationPanel
+                      applicationId={a.id}
+                      sources={a.verificationSources}
+                      requests={a.verificationRequests}
+                      suggestion={a.scoring.runs.find((run) => run.current)?.result?.questions[0]
+                        ? {
+                            sourceId: a.scoring.runs.find((run) => run.current)!.result!.questions[0].sourceId,
+                            question: a.scoring.runs.find((run) => run.current)!.result!.questions[0].text,
+                          }
+                        : undefined}
+                      onSource={openSource}
                     />
                     <CredentialReview
                       applicationId={a.id}

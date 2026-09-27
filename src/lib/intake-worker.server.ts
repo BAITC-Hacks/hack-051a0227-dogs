@@ -1,6 +1,8 @@
 import "server-only";
 import { runDeskQueueOnce } from "./vision-desk.server";
 import { runCalendarQueueOnce } from "./selection-actions.server";
+import { runScoringQueueOnce } from "./scoring-service.server";
+import { runEssayQueueOnce } from "./essay-check.server";
 const state = globalThis as typeof globalThis & {
   intakeWorker?: ReturnType<typeof setInterval>;
   intakeBusy?: boolean;
@@ -13,6 +15,8 @@ export function startIntakeWorker() {
     state.intakeBusy = true;
     try {
       await runDeskQueueOnce();
+      await runScoringQueueOnce();
+      await runEssayQueueOnce();
       await runCalendarQueueOnce();
     } catch {
       /* Pending database events remain available after recovery; no request content is logged. */

@@ -232,6 +232,8 @@ model Application {
   formField String @default("")
   preparationEvent Int @default(0)
   preparationQueued Int @default(0)
+  scoringPreparedEvent Int @default(0)
+  essayPreparedEvent Int @default(0)
   preparationStatus String @default("NONE")
   credentialReviews CredentialReview[]
   submittedAt DateTime?
@@ -256,6 +258,27 @@ model Application {
   scoringFixtures ScoringFixture[]
   twinAudits TwinAudit[]
   profileAnswers ProfileAnswer[]
+  verificationRequests VerificationRequest[]
+  reReviewCases ReReviewCase[]
+  essayChecks EssayCheck[]
+}
+
+model EssayCheck {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  applicationVersionId String
+  textHash String
+  modelVersion String
+  identity String @unique
+  status String @default("QUEUED")
+  language String
+  wordCount Int
+  signalScore Float?
+  errorCode String?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  @@index([applicationId, createdAt])
 }
 
 model ProfileAnswer {
@@ -338,6 +361,8 @@ model Material {
   sources Source[]
   sha256 String?
   durationMs Int?
+  verificationRequestId String?
+  verificationRequest VerificationRequest? @relation(fields:[verificationRequestId], references:[id], onDelete:SetNull)
 }
 model Episode {
   id String @id @default(cuid())
@@ -615,6 +640,7 @@ model ScoringRun {
   showcaseScore Int?
   showcaseScoreBasis String?
   showcaseScoreEvidenceIds String[] @default([])
+  showcaseAxis Json?
   status String @default("QUEUED")
   requestedBy String
   leaseToken String?
@@ -671,6 +697,47 @@ model ScoringReview {
   rejectedEvidenceIds String[]
   reason String
   createdAt DateTime @default(now())
+}
+
+model VerificationRequest {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  sourceId String
+  sourceVersion String
+  claim String
+  quote String
+  kind String
+  question String
+  authorId String
+  status String @default("DRAFT")
+  requestKey String @unique
+  questionMessageId String? @unique
+  answerMessageId String?
+  createdAt DateTime @default(now())
+  publishedAt DateTime?
+  answeredAt DateTime?
+  attachments Material[]
+  @@index([applicationId,status,createdAt])
+}
+
+model ReReviewCase {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id], onDelete:Cascade)
+  basisKey String @unique
+  kind String
+  reason String
+  sourceIds String[] @default([])
+  materialVersion String
+  openedBy String
+  assigneeId String?
+  status String @default("OPEN")
+  resolution String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt DateTime?
+  @@index([applicationId,status,createdAt])
 }
 
 // Developer-only fixtures: no application-facing write API.

@@ -23,7 +23,7 @@ export function assertPreparedScope(origin: string, scenarioVersion = "") {
   if (
     !isolatedAssessmentEnvironment() ||
     (origin !== "ASSESSMENT_QA" &&
-      !(showcase && ["SEED", "QA"].includes(origin)))
+      !(showcase && ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(origin)))
   )
     throw new Error("PREPARED_SCOPE_BLOCKED");
 }

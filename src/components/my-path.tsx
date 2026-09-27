@@ -352,6 +352,7 @@ export function MyPath({
             <Messages
               applicationId={app.id}
               messages={app.messages.filter((m) => m.kind !== "FEEDBACK")}
+              verificationRequests={app.verificationRequests}
             />
           ) : (
             <p>Сообщения появятся после отправки заявки.</p>

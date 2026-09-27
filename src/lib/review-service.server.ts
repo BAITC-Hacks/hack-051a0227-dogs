@@ -269,7 +269,11 @@ export async function reviewAction(
         })
         .parse(b);
       v.sourceIds = await validSources(tx, applicationId, v.sourceIds);
-      return tx.assessment.create({
+      const previous = await tx.assessment.findFirst({
+        where: { applicationId, domain: v.domain }, orderBy: { createdAt: "desc" },
+        select: { level: true, authorId: true },
+      });
+      const saved = await tx.assessment.create({
         data: {
           ...v,
           applicationId,
@@ -279,6 +283,20 @@ export async function reviewAction(
           reviewedSnapshot: json(context.snapshot),
         },
       });
+      if (previous && previous.authorId !== u.id && previous.level !== v.level &&
+          !["Не рассмотрено", "Нужно уточнение"].includes(previous.level) &&
+          !["Не рассмотрено", "Нужно уточнение"].includes(v.level)) {
+        await tx.reReviewCase.create({ data: {
+          applicationId,
+          basisKey: `assessment-disagreement:${saved.id}`,
+          kind: "ASSESSMENT_DISAGREEMENT",
+          reason: `Оценки сотрудников по области «${v.domain}» различаются: «${previous.level}» и «${v.level}». Нужен независимый просмотр оснований.`,
+          sourceIds: v.sourceIds,
+          materialVersion: context.version,
+          openedBy: u.id,
+        } });
+      }
+      return saved;
     }
     if (type === "decision") {
       const action = z

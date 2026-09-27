@@ -13,6 +13,7 @@ const stories = [
     email: "aigerim@candidate.local",
     origin: "SEED",
     score: 68,
+    axis: [2, 2, 1, 2, 1, 2, 1, 1, 1],
     ready: false,
     quote:
       "Я провела 12 разговоров со школьниками и собрала маршрут обмена учебниками.",
@@ -24,6 +25,7 @@ const stories = [
     email: "timur@candidate.local",
     origin: "SEED",
     score: 62,
+    axis: [1, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: false,
     quote: "Я собрал датчик влажности вместе с учителем физики.",
     leadership:
@@ -34,6 +36,7 @@ const stories = [
     email: "sofia@candidate.local",
     origin: "SEED",
     score: 72,
+    axis: [2, 2, 2, 2, 1, 2, 2, 2, 1],
     ready: true,
     quote: "После замечания библиотекаря исправила неверную дату открытия.",
     leadership:
@@ -44,6 +47,7 @@ const stories = [
     email: "alikhan@candidate.local",
     origin: "SEED",
     score: 61,
+    axis: [1, 2, 1, 1, 1, 2, 2, 1, 1],
     ready: false,
     quote:
       "Я сравнил два варианта размещения светильников и подготовил таблицу расходов.",
@@ -55,6 +59,7 @@ const stories = [
     email: "madina@candidate.local",
     origin: "SEED",
     score: 71,
+    axis: [2, 2, 2, 1, 2, 2, 2, 1, 1],
     ready: false,
     quote:
       "Первоначальный вывод о всём районе пересмотрела: участники были только из одного класса.",
@@ -66,6 +71,7 @@ const stories = [
     email: "daniil@candidate.local",
     origin: "SEED",
     score: 82,
+    axis: [2, 2, 2, 2, 2, 2, 2, 2, 1],
     ready: true,
     quote:
       "Сначала назначал смены сам, затем стал собирать доступность участников заранее.",
@@ -77,6 +83,7 @@ const stories = [
     email: "aruzhan@candidate.local",
     origin: "SEED",
     score: 65,
+    axis: [1, 2, 1, 2, 1, 2, 1, 1, 1],
     ready: false,
     quote:
       "Я предложила выпуск о выборе профессии, нашла двух гостей и подготовила вопросы.",
@@ -88,6 +95,7 @@ const stories = [
     email: "nurislam@candidate.local",
     origin: "SEED",
     score: 66,
+    axis: [1, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: true,
     quote: "Я сравнил два крепления и записал, какое было удобнее собирать.",
     leadership:
@@ -98,6 +106,7 @@ const stories = [
     email: "zhanel@candidate.local",
     origin: "SEED",
     score: 63,
+    axis: [2, 1, 1, 1, 2, 2, 2, 1, 1],
     ready: false,
     quote: "Вместо общей рекомендации описала три разных потребности.",
     leadership:
@@ -108,6 +117,7 @@ const stories = [
     email: "emir@candidate.local",
     origin: "SEED",
     score: 60,
+    axis: [1, 2, 1, 1, 1, 2, 1, 1, 1],
     ready: false,
     quote: "Я подготовил сравнительную таблицу запросов.",
     leadership:
@@ -118,6 +128,7 @@ const stories = [
     email: "alina@candidate.local",
     origin: "SEED",
     score: 69,
+    axis: [2, 2, 1, 2, 1, 2, 2, 1, 1],
     ready: false,
     quote: "После наблюдения изменила названия двух разделов.",
     leadership:
@@ -128,6 +139,7 @@ const stories = [
     email: "ruslan@candidate.local",
     origin: "SEED",
     score: 43,
+    axis: [1, 2, 1, 1, 1, 1, 1, 1, 1],
     ready: false,
     quote:
       "После сбоя проводки нашёл ошибку соединения с помощью руководителя кружка.",
@@ -136,9 +148,50 @@ const stories = [
     file: "The wiring fault was found with help from the club supervisor.",
   },
   {
+    email: "intake.leya@candidate.local",
+    origin: "INTAKE_EXAMPLES_20260927",
+    score: 64,
+    axis: [2, 2, 1, 1, 2, 2, 2, 1, 1],
+    ready: false,
+    quote: "Я сверила их с журналом и заметила повторы.",
+    leadership: "Лея описала сверку журнала и изменение способа подсчёта. Личное решение и подтверждение количества выдач требуют отдельной проверки.",
+    file: "The book-exchange journal separates completed handoffs from repeated requests.",
+  },
+  {
+    email: "intake.amir@candidate.local",
+    origin: "INTAKE_EXAMPLES_20260927",
+    score: 67,
+    axis: [2, 2, 1, 1, 1, 2, 2, 1, 1],
+    ready: false,
+    quote: "Я сравнил два материала и записал положение датчика после пяти запусков.",
+    leadership: "Амир описал сравнение материалов и пять испытаний внутри помещения. Работа конструкции вне этих условий не установлена.",
+    file: "The sensor mount stayed in place during five indoor trials; outdoor use was not tested.",
+  },
+  {
+    email: "intake.dana@candidate.local",
+    origin: "INTAKE_EXAMPLES_20260927",
+    score: 70,
+    axis: [2, 2, 1, 2, 2, 2, 2, 1, 1],
+    ready: false,
+    quote: "Я спросила библиотекаря, сохранила обе исходные записи и исправила дату перед публикацией.",
+    leadership: "Дана описала проверку двух противоречащих записей и исправление публикации. Масштаб инициативы и роль других участников уточняются отдельно.",
+    file: "Both original records were preserved before the library article date was corrected.",
+  },
+  {
+    email: "intake.browser.20260927@candidate.local",
+    origin: "INTAKE_BROWSER_20260927",
+    score: 63,
+    axis: [2, 2, 1, 1, 1, 2, 2, 1, 1],
+    ready: false,
+    quote: "Я сверила записи выдачи и обнаружила, что обращения повторяются.",
+    leadership: "Мира описала сверку журнала и разделение запросов и завершённых выдач. Личная ответственность за исходное решение и итоговый результат ещё не подтверждены.",
+    file: "Repeated book-exchange requests were separated from completed handoffs.",
+  },
+  {
     email: "vision.desk.20260925@qa.local",
     origin: "QA",
     score: 76,
+    axis: [2, 2, 2, 2, 2, 2, 2, 2, 1],
     ready: true,
     quote:
       "Организовала обмен книгами в учебной группе: составила таблицу наличия, собрала пять отзывов и изменила время выдачи.",
@@ -146,6 +199,18 @@ const stories = [
       "Кандидат организовала обмен, собрала пять отзывов и изменила время выдачи; ответ на уточнение разделяет её работу и выдачу книг другими участниками.",
     file: "Five book-exchange records were checked; other participants handled handoff.",
   },
+] as const;
+
+const axisNotes = [
+  "Интерес к университету указан кандидатом; уровень требует проверки мотивации.",
+  "Связь выбранной программы с личными целями пока проверяется.",
+  "Инициатива и пределы личной роли требуют подтверждения по проекту.",
+  "Совместные действия и вклад других участников нужно сверить.",
+  "Ценности нельзя надёжно вывести из одной истории; нужна предметная проверка.",
+  "Описанный проект служит исходным эпизодом; результат проверяется отдельно.",
+  "Способ работы с ограничениями и выводами требует дополнительного разбора.",
+  "Ориентацию на цель следует обсудить по конкретному решению.",
+  "Личный трудный опыт не требуется раскрывать; это значение не является выводом о человеке.",
 ] as const;
 
 const json = (value: unknown) =>
@@ -292,6 +357,13 @@ async function main() {
     validateScoringResult(result, input);
     const inputHash = digest(input);
     const scenarioVersion = "showcase-scoring-v1";
+    const showcaseAxis = domains.map((criterionId, index) => ({
+      criterionId,
+      value: story.axis[index],
+      scaleVersion: "prepared-axis-v1",
+      basis: axisNotes[index],
+      evidenceIds: index < 2 ? ["motivation"] : ["episode"],
+    }));
     await db.scoringFixture.upsert({
       where: { applicationId_inputHash: { applicationId: app.id, inputHash } },
       create: {
@@ -326,8 +398,9 @@ async function main() {
         showcaseScore: story.score,
         showcaseScoreBasis: story.leadership,
         showcaseScoreEvidenceIds: ["episode"],
+        showcaseAxis: json(showcaseAxis),
       },
-      update: {},
+      update: { showcaseAxis: json(showcaseAxis) },
     });
     console.log(`${story.email}: ${story.score}/100, ${app.stage}`);
   }

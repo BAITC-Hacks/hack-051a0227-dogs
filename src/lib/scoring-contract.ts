@@ -245,6 +245,18 @@ export type ScoringView = {
     id: string;
     status: string;
     current: boolean;
+    provider: string;
+    scenarioVersion: string;
+    materialVersion: string;
+    applicationVersion: { id: string; revision: number };
+    sources: {
+      id: string;
+      version: string;
+      title: string;
+      text: string;
+      assessable: boolean;
+      episodeId: string | null;
+    }[];
     createdAt: string;
     completedAt: string | null;
     criteriaVersion: string;
@@ -256,6 +268,13 @@ export type ScoringView = {
       basis: string;
       evidenceIds: string[];
     };
+    showcaseAxis: null | {
+      criterionId: (typeof domains)[number];
+      value: 1 | 2;
+      scaleVersion: "prepared-axis-v1";
+      basis: string;
+      evidenceIds: string[];
+    }[];
     reviews: {
       id: string;
       author: string;

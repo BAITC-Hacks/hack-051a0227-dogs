@@ -65,6 +65,7 @@ import { deskChatAction } from "@/lib/desk-chat.server";
 import { saveResource } from "@/lib/learning-resources.server";
 import { accessGrantAction } from "@/lib/access-grants.server";
 import { passkeyAction } from "@/lib/passkeys.server";
+import { verificationAction, reviewCaseAction } from "@/lib/verification.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
@@ -87,6 +88,10 @@ export async function POST(req: Request) {
       result = await passkeyAction(type, b, await actor());
     } else if (type.startsWith("access.")) {
       result = await accessGrantAction(type, b, await requireStaff());
+    } else if (type.startsWith("verification.")) {
+      result = await verificationAction(type, b, await requireStaff());
+    } else if (type.startsWith("reviewCase.")) {
+      result = await reviewCaseAction(type, b, await requireStaff());
     } else if (type.startsWith("calendar.") || type.startsWith("stage.")) {
       result = await selectionAction(type, b, await requireStaff());
     } else if (type.startsWith("google.")) {
@@ -692,10 +697,23 @@ export async function POST(req: Request) {
         const correction = await tx.correction.create({
           data: { sourceId: source.id, authorId: u.id, explanation },
         });
-        await tx.application.update({
+        const application = await tx.application.update({
           where: { id: source.applicationId },
-          data: { updatedAt: new Date() },
+          data: { preparationEvent: { increment: 1 }, updatedAt: new Date() },
         });
+        if (application.submittedAt) {
+          const { materialContext } = await import("@/lib/review-service.server");
+          const material = await materialContext(tx, source.applicationId);
+          await tx.reReviewCase.create({ data: {
+            applicationId: source.applicationId,
+            basisKey: `correction:${correction.id}`,
+            kind: "CORRECTED_FACT",
+            reason: "Кандидат исправил или пояснил факт в ранее переданном материале.",
+            sourceIds: [source.id],
+            materialVersion: material.version,
+            openedBy: u.id,
+          } });
+        }
         return correction;
       });
     } else if (type.startsWith("audio.")) {
