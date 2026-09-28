@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { programFor, SOURCE_URL } from "@/lib/catalog";
-import { missions } from "@/lib/missions";
 import { actor } from "@/lib/security";
 import { ProgramInterest } from "@/components/program-interest";
 import { External } from "@/components/ui";
@@ -30,13 +29,10 @@ export default async function Program({
       <div className="journey-layout">
         <div>
           <div className="next-step">
-            <h2>{p.action}</h2>
-            <p>
-              Попробуй связанную учебную деятельность и создай работу:{" "}
-              {missions[slug].result.toLowerCase()}.
-            </p>
-            <Link href={"/projects/" + slug} className="button dark">
-              Начать проект
+            <h2>Твой интерес к направлению</h2>
+            <p>Программа заявки выбирается тобой. Изучить направления и сохранить выбор можно в заявке.</p>
+            <Link href="/apply" className="button dark">
+              Открыть заявку
             </Link>
           </div>
           <h2>Что можно изучать глубже</h2>

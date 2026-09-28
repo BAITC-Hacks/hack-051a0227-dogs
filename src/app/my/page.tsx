@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { myData } from "@/lib/data";
 import { MyPath } from "@/components/my-path";
-import { treeView } from "@/lib/development-tree.server";
+import { skillView } from "@/lib/skill-tree.server";
 import { actor } from "@/lib/security";
 import { accessFor, startRoute } from "@/lib/access.server";
 
@@ -27,7 +27,7 @@ export default async function My({
   const [query, data, tree] = await Promise.all([
     searchParams,
     myData(),
-    treeView(user),
+    skillView(user),
   ]);
   if (query.view === "profile") redirect("/account");
   if (!data) redirect("/login?next=/my");

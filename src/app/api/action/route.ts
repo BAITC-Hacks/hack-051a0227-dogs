@@ -59,7 +59,7 @@ import {
   processDesk,
 } from "@/lib/vision-desk.server";
 import { saveApplicationMessage } from "@/lib/application-messages.server";
-import { treeAction } from "@/lib/development-tree.server";
+import { skillAction } from "@/lib/skill-tree.server";
 import { visionAction } from "@/lib/vision-service.server";
 import { deskChatAction } from "@/lib/desk-chat.server";
 import { saveResource } from "@/lib/learning-resources.server";
@@ -126,8 +126,8 @@ export async function POST(req: Request) {
           ).runs.filter((r) => ["QUEUED", "RUNNING"].includes(r.status)))
             await processDesk(r.id);
         });
-    } else if (type.startsWith("tree.")) {
-      result = await treeAction(type, b, await requireFullCandidate());
+    } else if (type.startsWith("skill.")) {
+      result = await skillAction(type, b, await requireFullCandidate());
     } else if (type === "resource.save") {
       result = await saveResource(await requireStaff(), b);
     } else if (type.startsWith("workflow.")) {
@@ -283,14 +283,11 @@ export async function POST(req: Request) {
       if (token)
         await db.session.deleteMany({ where: { tokenHash: tokenHash(token) } });
       jar.delete("leader_session");
-    } else if (
-      [
-        "project.save",
-        "project.context",
-        "project.hint",
-        "project.progress",
-      ].includes(type)
-    ) {
+    } else if (["project.save", "project.context", "project.hint", "project.progress"].includes(type)) {
+      if (type !== "project.progress") {
+        const user = await requireFullCandidate();
+        if (user.origin !== "QA") throw new AppError("Эта учебная задача перемещена в личный архив.", 410);
+      }
       result = await journeyAction(type, b);
     } else if (type === "interest") {
       const u = await requireFullCandidate();

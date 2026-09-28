@@ -1,102 +1,22 @@
 import Link from "next/link";
-import { treeHref } from "@/lib/development-tree";
-import { notFound } from "next/navigation";
-import { programFor } from "@/lib/catalog";
+import { notFound, redirect } from "next/navigation";
 import { actor } from "@/lib/security";
 import { accessFor, startRoute } from "@/lib/access.server";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { MissionEditor } from "@/components/mission-editor";
-import { readMission } from "@/lib/missions";
-import { ProjectEditor } from "@/components/project-editor";
-import { projectMilestones } from "@/lib/journey";
-export default async function Project({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{ attempt?: string; version?: string; from?: string }>;
-}) {
-  const { slug } = await params,
-    query = await searchParams;
+import { programFor } from "@/lib/catalog";
+import { describeWork } from "@/lib/presentation";
+import type { ProjectState } from "@/lib/types";
+export default async function Project({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ attempt?: string; version?: string }> }) {
+  const { slug } = await params, query = await searchParams;
   if (!programFor(slug)) notFound();
-  const u = await actor();
-  const space = await accessFor(u);
-  if (space !== "FULL") {
-    const saved = new URLSearchParams();
-    for (const key of ["attempt", "version", "from"] as const) if (query[key]) saved.set(key, query[key]!);
-    const target = `/projects/${slug}${saved.size ? `?${saved}` : ""}`;
-    redirect(space === "GUEST" ? `/login?next=${encodeURIComponent(target)}` : startRoute(space));
-  }
-  const owned = u
-    ? await db.projectAttempt.findMany({
-        where: { userId: u.id },
-        include: { versions: { orderBy: { revision: "desc" } } },
-        orderBy: { updatedAt: "desc" },
-      })
-    : [];
-  const attempt = query.attempt
-    ? owned.find((a) => a.id === query.attempt && a.slug === slug)
-    : owned.find(
-        (a) =>
-          a.slug === slug && a.context === "WORKSHOP" && readMission(a.state),
-      );
-  if (query.attempt && !attempt) notFound();
-  for (const requested of [query.version, query.from])
-    if (
-      requested !== undefined &&
-      (!/^\d+$/.test(requested) ||
-        !attempt?.versions.some((v) => v.revision === Number(requested)))
-    )
-      notFound();
-  const parent = attempt?.parentVersionId
-    ? owned
-        .flatMap((a) => a.versions.map((v) => ({ attempt: a, version: v })))
-        .find((p) => p.version.id === attempt.parentVersionId)
-    : undefined;
-  const Editor =
-    !attempt || readMission(attempt.state) ? MissionEditor : ProjectEditor;
-  const step =
-    u && attempt
-      ? await db.developmentStep.findFirst({
-          where: {
-            userId: u.id,
-            treeNode: { not: null },
-            treeState: { path: ["attemptId"], equals: attempt.id },
-          },
-          orderBy: { updatedAt: "desc" },
-        })
-      : null;
-  return (
-    <>
-      {step?.treeNode && (
-        <aside className="wrap tree-return">
-          <Link className="text-link" href={treeHref(step.treeNode)}>
-            Вернуться к материалу и личному шагу
-          </Link>
-          <span> · Сохранённая версия подтвердит практику по её условиям.</span>
-        </aside>
-      )}
-      <Editor
-        key={`${attempt?.id ?? slug}-${query.from ?? "current"}-${query.version ?? "latest"}`}
-        slug={slug}
-        attempt={attempt ?? null}
-        authenticated={!!u && u.role !== "GUEST"}
-        milestones={projectMilestones(owned)}
-        selectedRevision={
-          query.version === undefined ? undefined : Number(query.version)
-        }
-        fromRevision={query.from === undefined ? undefined : Number(query.from)}
-        parent={
-          parent
-            ? {
-                attemptId: parent.attempt.id,
-                revision: parent.version.revision,
-                feedback: parent.version.feedback,
-              }
-            : undefined
-        }
-      />
-    </>
-  );
+  const user = await actor(); const space = await accessFor(user);
+  if (space !== "FULL") redirect(space === "GUEST" ? `/login?next=${encodeURIComponent(`/projects/${slug}${query.attempt ? `?attempt=${encodeURIComponent(query.attempt)}` : ""}`)}` : startRoute(space));
+  if (!query.attempt) redirect("/my?view=projects#my-projects");
+  const work = await db.projectAttempt.findFirst({ where: { id: query.attempt, userId: user!.id, slug }, include: { versions: { orderBy: { revision: "desc" } } } });
+  if (!work) notFound();
+  const revision = query.version ? Number(query.version) : work.revision;
+  if (!Number.isInteger(revision) || revision < 0) notFound();
+  const selected = work.versions.find((v) => v.revision === revision);
+  if (!selected) notFound();
+  return <main className="page wrap"><Link className="text-link" href="/my?view=projects#my-projects">← К личным материалам</Link><div className="page-title"><div><p className="eyebrow">Личный архив</p><h1>{programFor(slug)!.shortTitle}</h1><p>Сохранённая версия {revision}. Эта работа не участвует в новом дереве навыков.</p></div></div><section className="card" style={{ padding: 24, maxWidth: 860 }}><h2>Содержание работы</h2><pre style={{ whiteSpace: "pre-wrap", font: "inherit", lineHeight: 1.6 }}>{describeWork(slug, selected.state as ProjectState, work.context)}</pre><div className="row">{work.versions.map((v) => <Link key={v.id} className="button secondary small" href={`/projects/${slug}?attempt=${work.id}&version=${v.revision}`}>Версия {v.revision}</Link>)}</div></section></main>;
 }

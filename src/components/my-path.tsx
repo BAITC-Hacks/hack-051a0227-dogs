@@ -4,18 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Circle } from "lucide-react";
 import type { myData } from "@/lib/data";
-import { programFor } from "@/lib/catalog";
 import { unansweredQuestions } from "@/lib/message-state";
 import { dateLabel } from "@/lib/client";
-import { workHref, workTitle, versionCompleted } from "@/lib/journey";
 import { applicationRequirements } from "@/lib/validation";
 import type { ApplicationFields } from "@/lib/types";
-import type { TreeView } from "@/lib/development-tree.server";
+import type { SkillView } from "@/lib/skill-tree.server";
 import { PublishedFeedback } from "./published-feedback";
 import { Messages } from "./messages";
-import { WorkshopChoices } from "./journey-actions";
 import { ProjectPassport } from "./project-passport";
-import { DevelopmentTree } from "./development-tree";
+import { SkillTree } from "./skill-tree";
 import { UserAvatar } from "./user-avatar";
 import { CandidateOverview, SupportBanner } from "./candidate-overview";
 type Data = NonNullable<Awaited<ReturnType<typeof myData>>>;
@@ -34,7 +31,7 @@ export function MyPath({
   nodeId,
 }: {
   data: Data;
-  tree: TreeView;
+  tree: SkillView;
   initialView?: string;
   nodeId?: string;
 }) {
@@ -107,15 +104,6 @@ export function MyPath({
         m.author.role === "CANDIDATE" &&
         new Date(m.createdAt) > new Date(app.feedback[0].publishedAt!),
     );
-  const unfinished = attempts.find((a) => !versionCompleted(a, a.versions[0]));
-  const continuation =
-    unfinished ?? attempts.find((a) => a.interest === "MORE") ?? attempts[0];
-  const completed = attempts.filter((a) =>
-    a.versions.some((v) => versionCompleted(a, v)),
-  );
-  const directions = new Set(
-    completed.filter((a) => a.context === "WORKSHOP").map((a) => a.slug),
-  );
   const requirements = app
     ? [
         { title: "Выбранная программа", complete: !!app.programSlug },
@@ -166,41 +154,16 @@ export function MyPath({
           : app && !app.submittedAt
             ? {
                 title: "Продолжи заявку",
-                body: `Заполнено ${requirements.filter((r) => r.complete).length} из ${requirements.length} обязательных разделов. Работы из мастерских прикладываются по желанию.`,
+                body: `Заполнено ${requirements.filter((r) => r.complete).length} из ${requirements.length} обязательных разделов.`,
                 label: "Продолжить заявку",
                 href: "/apply",
               }
-            : continuation
-              ? {
-                  title: versionCompleted(
-                    continuation,
-                    continuation.versions[0],
-                  )
-                    ? "Твой результат можно развить"
-                    : "Продолжи начатую работу",
-                  body: workTitle(
-                    continuation,
-                    programFor(continuation.slug)!.action,
-                  ),
-                  label: versionCompleted(
-                    continuation,
-                    continuation.versions[0],
-                  )
-                    ? "Открыть результат"
-                    : "Продолжить работу",
-                  href: workHref(
-                    continuation,
-                    versionCompleted(continuation, continuation.versions[0])
-                      ? continuation.revision
-                      : undefined,
-                  ),
-                }
-              : {
-                  title: "Запусти обмен учебниками",
-                  body: "Построй путь от поиска книги до её передачи и проверь, где студенту не хватает информации. В разделе проектов есть ещё четыре направления.",
-                  label: "Открыть мини-практику",
-                  href: "/projects/digital-products",
-                };
+          : {
+              title: "Продолжи своё развитие",
+              body: "В дереве навыков тебя ждёт следующий личный шаг.",
+              label: "Открыть дерево навыков",
+              href: `/my?view=route&node=${tree.recommendedId}`,
+            };
   return (
     <div className="page wrap candidate-hub candidate-reference">
       <header className="hub-heading">
@@ -212,8 +175,8 @@ export function MyPath({
             <p className="eyebrow">Мой путь</p>
             <h1>{user.name}</h1>
             <p>
-              {attempts.length
-                ? `Результатов: ${completed.length} · Направлений попробовано: ${directions.size}`
+              {tree.completedCount
+                ? `В дереве навыков завершено шагов: ${tree.completedCount}`
                 : "Заявка и следующие действия собраны здесь."}
             </p>
           </div>
@@ -274,17 +237,10 @@ export function MyPath({
               ))}
             </div>
           ) : null}
-          {attempts.length > 0 && <ProjectPassport data={data} />}
-          <details className="hub-disclosure" open={attempts.length === 0}>
-            <summary>Попробовать другое направление</summary>
-            <WorkshopChoices
-              id="more-workshop-choices"
-              tried={[...new Set(attempts.map((a) => a.slug))]}
-            />
-          </details>
+          {attempts.length > 0 && <div className="legacy-work"><ProjectPassport data={data} /></div>}
         </section>
         <section hidden={section !== "route"} aria-label="Древо навыков">
-          <DevelopmentTree initial={tree} selectedId={nodeId} full embedded />
+          <SkillTree initial={tree} selectedId={nodeId} />
         </section>
         <section hidden={section !== "university"} aria-label="Заявка">
           <div className="hub-section-heading">
@@ -322,7 +278,7 @@ export function MyPath({
                     </li>
                   ))}
                 </ul>
-                <p>Мастерские и исследовательское согласие необязательны.</p>
+                <p>Учебные задания не являются условием отправки заявки.</p>
               </details>
               {app.submittedAt && (
                 <>

@@ -1,5 +1,4 @@
 import { deskView } from "./vision-desk.server";
-import { pathProgress } from "./path-progress";
 import { avatarIdentity, avatarSelect } from "./avatar";
 import { projectMilestones } from "./journey";
 import { db } from "./db";
@@ -30,7 +29,7 @@ export async function myData() {
   const u = await actor();
   if (!u) return null;
   const full = await accessFor(u) === "FULL";
-  const [attempts, application, steps] = await Promise.all([
+  const [attempts, application, pointTotal] = await Promise.all([
     full ? db.projectAttempt.findMany({
       where: { userId: u.id },
       include: { versions: { orderBy: { revision: "desc" } } },
@@ -90,20 +89,10 @@ export async function myData() {
         versions: { orderBy: { revision: "desc" } },
       },
     }),
-    full ? db.developmentStep.findMany({
-      where: { userId: u.id },
-      select: {
-        recommendation: true,
-        selfCompletedAt: true,
-        note: true,
-        treeNode: true,
-        treeConfig: true,
-        treeState: true,
-      },
-    }) : Promise.resolve([]),
+    full ? db.uPointEntry.aggregate({ where: { userId: u.id }, _sum: { amount: true } }) : Promise.resolve({ _sum: { amount: null } }),
   ]);
   return {
-    progress: pathProgress(attempts, steps),
+    progress: { total: pointTotal._sum.amount ?? 0 },
     user: {
       ...avatarIdentity(u),
       id: u.id,

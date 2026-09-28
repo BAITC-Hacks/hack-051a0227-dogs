@@ -1,0 +1,1 @@
+ALTER TABLE "LearningAttempt" ADD COLUMN "origin" TEXT NOT NULL DEFAULT 'USER';

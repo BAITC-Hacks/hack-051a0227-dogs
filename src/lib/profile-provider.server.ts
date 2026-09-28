@@ -1,5 +1,5 @@
 import "server-only";
-import { treeHref, treeNodes } from "./development-tree";
+import { skillHref } from "./skill-tree-catalog";
 import {
   profileAnswerSchema,
   type ProfileAnswer,
@@ -7,7 +7,6 @@ import {
   type ProfileSource,
 } from "./profile-contract";
 import { type ProfileContext, sourceRef } from "./profile-context.server";
-import { developmentRecommendations } from "./development.server";
 export interface ProfileProvider {
   readonly id: "local" | "external";
   answer(
@@ -151,20 +150,8 @@ export class LocalProfileProvider implements ProfileProvider {
           "Выбери сохранённую работу, чтобы разобрать её результат и версии.";
     } else if (topic === "next") {
       answer.text =
-        "Личные продолжения опираются на условия работы. Они не меняют рассмотрение заявки.";
-      for (const r of developmentRecommendations(c)
-        .filter((r) => !work || r.attemptId === work.id)
-        .slice(0, 3)) {
-        const s = c.sources.find((s) => s.key === r.source.key)!;
-        claim(
-          s,
-          `${r.title}\nОснование: ${r.basis}\n${r.purpose}\nЗавершение: ${r.completion}`,
-        );
-      }
-      if(c.audience==="CANDIDATE") link(treeHref(treeNodes.find(n=>n.slug===work?.slug)?.id), "Материал и практика в личном маршруте");
-      if (!answer.claims.length)
-        answer.text =
-          "Сохрани свою работу или открой опубликованное сообщение, чтобы выбрать связанный личный шаг.";
+        "Выбери следующий шаг в личном дереве навыков. Он не меняет рассмотрение заявки.";
+      if (c.audience === "CANDIDATE") link(skillHref(), "Открыть дерево навыков");
     } else if (topic === "direction") {
       answer.text =
         "Связь с программой объясняется выполненной деятельностью. Интерес сохраняется только по твоему выбору.";

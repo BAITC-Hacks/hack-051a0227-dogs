@@ -43,6 +43,10 @@ export async function cleanupRun(db: PrismaClient, emails: string[]) {
         await tx.application.delete({ where: { id: applicationId } });
       }
       await tx.material.deleteMany({ where: { userId: id } });
+      await tx.uPointEntry.deleteMany({ where: { userId: id } });
+      await tx.learningCompletion.deleteMany({ where: { userId: id } });
+      await tx.learningAttempt.deleteMany({ where: { userId: id } });
+      await tx.learningMedia.deleteMany({ where: { userId: id } });
       await tx.projectAttempt.deleteMany({ where: { userId: id } });
       await tx.actionPreview.deleteMany({ where: { authorId: id } });
       await tx.googleConnection.deleteMany({ where: { userId: id } });

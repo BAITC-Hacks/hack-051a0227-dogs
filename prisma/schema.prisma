@@ -39,6 +39,10 @@ model User {
   twinReviews TwinReview[]
   profileAnswers ProfileAnswer[]
   developmentSteps DevelopmentStep[]
+  learningAttempts LearningAttempt[]
+  learningCompletions LearningCompletion[]
+  learningMedia LearningMedia[]
+  uPointEntries UPointEntry[]
   workflowSessions WorkflowSession[]
   connection OpenAIConnection?
 }
@@ -317,6 +321,65 @@ model DevelopmentStep {
   updatedAt DateTime @updatedAt
   @@unique([userId,key])
   @@index([userId,treeNode])
+}
+
+// Private learning history. No relation from admissions assessments or staff views.
+model LearningAttempt {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeId String
+  contentVersion Int
+  response Json
+  status String @default("DRAFT")
+  origin String @default("USER")
+  requestKey String @unique
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  completion LearningCompletion?
+  @@index([userId, nodeId, createdAt])
+}
+
+model LearningCompletion {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeId String
+  contentVersion Int
+  attemptId String @unique
+  attempt LearningAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  origin String @default("USER")
+  completedAt DateTime @default(now())
+  award UPointEntry?
+  @@unique([userId, nodeId])
+}
+
+model UPointEntry {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source String
+  nodeId String
+  rewardVersion Int
+  amount Int
+  reason String
+  idempotencyKey String @unique
+  completionId String @unique
+  completion LearningCompletion @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
+model LearningMedia {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeId String
+  mime String
+  bytes Bytes
+  size Int
+  createdAt DateTime @default(now())
+  @@index([userId, nodeId])
 }
 model ApplicationVersion {
   id String @id @default(cuid())

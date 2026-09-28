@@ -4,7 +4,9 @@ import type { User } from "@prisma/client";
 import { db } from "./db";
 import { AppError } from "./security";
 import { accessFor } from "./access.server";
-import { collectProfile } from "./profile-context.server";
+import { collectProfile, profileSource } from "./profile-context.server";
+import { skillView } from "./skill-tree.server";
+import { skillHref } from "./skill-tree-catalog";
 import { developmentRecommendations } from "./development.server";
 import type { ProfileScope } from "./profile-contract";
 import { visionConsentSchema, visionVersion } from "./vision-contract";
@@ -59,6 +61,19 @@ export async function visionContext(
   )
     throw new AppError("Диалог остановлен настройками доступа.", 403);
   const c = await collectProfile(fresh, scope);
+  let skillNext: { title: string; href: string } | null = null;
+  if (access === "FULL" && !scope.attemptId && !scope.feedbackId) {
+    const tree = await skillView(fresh);
+    c.works = [];
+    c.questions = [];
+    c.consistency = [];
+    c.sources = c.sources.filter((source) => source.key.startsWith("admissions:") || source.group === "publication");
+    c.sources.push(profileSource("skill:overview", "Прогресс дерева навыков", tree.nodes.map((node) => `${node.title}: ${node.state === "completed" ? "завершено" : node.state === "locked" ? "пока закрыто" : node.state === "in_progress" ? "в работе" : "доступно"}`).join("; "), "resource", "Личное дерево навыков", { href: skillHref() }));
+    for (const node of tree.nodes.filter((node) => node.state !== "locked").slice(0, 8))
+      c.sources.push(profileSource(`skill:${node.id}`, node.title, `${node.title}. ${node.prompt} Состояние: ${node.state === "completed" ? "завершено" : node.state === "in_progress" ? "в работе" : "доступно"}. Награда за первое завершение: ${node.reward} U.`, "resource", "Личное дерево навыков", { href: skillHref(node.id) }));
+    const recommended = tree.nodes.find((node) => node.id === tree.recommendedId);
+    if (recommended) skillNext = { title: recommended.title, href: skillHref(recommended.id) };
+  }
   if (access === "APPLICATION") {
     c.works = [];
     c.questions = [];
@@ -120,6 +135,7 @@ export async function visionContext(
     .slice(0, 4);
   const actions = [
     { key: "intake", label: "Открыть заявку", href: "/apply" },
+    ...(skillNext ? [{ key: "skill-next", label: `Продолжить: ${skillNext.title}`, href: skillNext.href }] : []),
     {
       key: "admissions-messages",
       label: "Вопрос комиссии",
