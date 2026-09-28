@@ -1,7 +1,8 @@
 import { openingQuest } from "./quest";
-export const WORLD_VERSION = 1;
+import { districtScenes, interiorScenes, zones } from "./scenes";
+export const WORLD_VERSION = 2;
 export const WORLD_REWARD = 60;
-export type WorldScene = "square" | "cafe";
+export type WorldScene = "square" | "cafe" | "maker" | "maker-room" | "garage" | "garage-room" | "people" | "people-room" | "urban" | "urban-room" | "house" | "house-room";
 export type WorldChoice = "repair" | "delegate" | "relocate";
 export type WorldEventKind =
   | "coordinator"
@@ -36,11 +37,32 @@ export type WorldState = {
   items: string[];
   npc: Record<string, number>;
   openedLocations: string[];
+  visitedDistricts: WorldScene[];
+  visitedInteriors: WorldScene[];
+  npcStates: Record<string, "idle" | "working" | "patrolling">;
+  npcMemoryFlags: Record<string, boolean>;
+  worldPhase: "PREP" | "EVENT" | "AFTER";
+  persistentPropStates: Record<string, boolean>;
+  discoveredSecrets: string[];
+  playerAppearance: string;
+  safeLocation: { scene: WorldScene; x: number; y: number };
+  returnPositions: Partial<Record<WorldScene, { x: number; y: number }>>;
+  worldVersion: number;
 };
 
-export const spawn = {
+export const spawn: Record<WorldScene, {x:number;y:number}> = {
   square: { x: 25 * 32 + 16, y: 27 * 32 + 16 },
   cafe: { x: 9 * 32, y: 9 * 32 },
+  maker: { x: 4 * 32, y: 11 * 32 },
+  garage: { x: 4 * 32, y: 11 * 32 },
+  people: { x: 4 * 32, y: 11 * 32 },
+  urban: { x: 4 * 32, y: 11 * 32 },
+  house: { x: 4 * 32, y: 11 * 32 },
+  "maker-room": { x: 9 * 32, y: 9 * 32 },
+  "garage-room": { x: 9 * 32, y: 9 * 32 },
+  "people-room": { x: 9 * 32, y: 9 * 32 },
+  "urban-room": { x: 9 * 32, y: 9 * 32 },
+  "house-room": { x: 9 * 32, y: 9 * 32 },
 };
 export const points = {
   coordinator: { scene: "square", x: 25 * 32, y: 13 * 32 },
@@ -77,13 +99,30 @@ export function initialWorldState(): WorldState {
     items: [],
     npc: {},
     openedLocations: ["square"],
+    visitedDistricts: [],
+    visitedInteriors: [],
+    npcStates: {},
+    npcMemoryFlags: {},
+    worldPhase: "PREP",
+    persistentPropStates: {},
+    discoveredSecrets: [],
+    playerAppearance: "player",
+    safeLocation: { scene: "square", ...spawn.square },
+    returnPositions: {},
+    worldVersion: WORLD_VERSION,
   };
 }
 
 export function safePosition(scene: WorldScene, x: number, y: number) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return spawn[scene];
-  if (scene === "cafe")
-    return x >= 48 && x <= 528 && y >= 48 && y <= 336 ? { x, y } : spawn.cafe;
+  if (interiorScenes.includes(scene as typeof interiorScenes[number]))
+    return x >= 48 && x <= 528 && y >= 48 && y <= 336 ? { x, y } : spawn[scene];
+  if (districtScenes.includes(scene as typeof districtScenes[number])) {
+    if (x < 32 || x > (zones[scene].width - 1) * 32 || y < 32 || y > (zones[scene].height - 1) * 32)
+      return spawn[scene];
+    const building = x >= 405 && x <= 555 && y >= 95 && y <= 225;
+    return building ? spawn[scene] : {x,y};
+  }
   if (x < 32 || x > 1568 || y < 32 || y > 1056) return spawn.square;
   const water = x >= 38 * 32 && x <= 47 * 32 && y >= 23 * 32 && y <= 30 * 32;
   // Match the solid bodies in the Phaser scene. Wider rectangles made reachable
@@ -112,6 +151,40 @@ export function safePosition(scene: WorldScene, x: number, y: number) {
     : { x, y };
 }
 
+export function migrateWorldState(raw: unknown): WorldState {
+  const base = initialWorldState();
+  const value = raw as Partial<WorldState> | null;
+  if (!value || !value.flags || !Array.isArray(value.items)) return base;
+  const scene = value.scene && Object.hasOwn(zones, value.scene) ? value.scene : "square";
+  const position = safePosition(scene, Number(value.x), Number(value.y));
+  const state: WorldState = {
+    ...base, ...value,
+    version: WORLD_VERSION,
+    worldVersion: WORLD_VERSION,
+    scene,
+    ...position,
+    flags: { ...base.flags, ...value.flags },
+    items: value.items,
+    npc: value.npc ?? {},
+    openedLocations: value.openedLocations ?? ["square"],
+    visitedDistricts: value.visitedDistricts ?? [],
+    visitedInteriors: value.visitedInteriors ?? (value.flags.cafeVisited ? ["cafe"] : []),
+    npcStates: value.npcStates ?? {},
+    npcMemoryFlags: value.npcMemoryFlags ?? Object.fromEntries([
+      ...Object.entries(value.npc ?? {}).filter(([, count]) => count > 0).map(([id]) => [`met:${id}`, true] as const),
+      ...(value.flags.coordinator ? [["met:saniya", true] as const] : []),
+      ...value.flags.talks.map((id) => [`met:${id}`, true] as const),
+    ]),
+    worldPhase: value.worldPhase ?? (value.flags.completed ? "AFTER" : value.flags.coordinator ? "EVENT" : "PREP"),
+    persistentPropStates: value.persistentPropStates ?? {},
+    discoveredSecrets: value.discoveredSecrets ?? [],
+    playerAppearance: value.playerAppearance ?? value.avatar ?? "player",
+    safeLocation: {scene, ...position},
+    returnPositions: value.returnPositions ?? {},
+  };
+  return state;
+}
+
 export function objective(state: WorldState): string {
   return (
     openingQuest.objectives.find((step) => !step.complete(state))?.text ??
@@ -126,7 +199,7 @@ export function applyWorldEvent(
 ): WorldState {
   const next = structuredClone(state);
   const f = next.flags;
-  if (kind === "coordinator") f.coordinator = true;
+  if (kind === "coordinator") { f.coordinator = true; next.worldPhase = "EVENT"; }
   else if (kind === "board") {
     if (!f.coordinator) throw new Error("Сначала поговори с координатором.");
     f.board = true;
@@ -160,6 +233,7 @@ export function applyWorldEvent(
   } else if (kind === "finish") {
     if (!f.delivered) throw new Error("Сначала отнеси материалы на площадку.");
     f.completed = true;
+    next.worldPhase = "AFTER";
   } else if (kind === "visit_cafe") {
     f.cafeVisited = true;
     if (!next.openedLocations.includes("cafe"))

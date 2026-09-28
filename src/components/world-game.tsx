@@ -17,6 +17,8 @@ import {
   type DialogueSpec,
 } from "@/lib/world/dialogues";
 import "./world-game.css";
+import { districtScenes, zones } from "@/lib/world/scenes";
+import { npcById } from "@/lib/world/npcs";
 
 type Snapshot = {
   userId: string;
@@ -60,7 +62,7 @@ export default function WorldGame() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<
-      "loading" | "entering" | "playing" | "error"
+      "loading" | "entering" | "playing" | "zone" | "error"
     >("loading"),
     [error, setError] = useState("Не удалось загрузить мир");
   const [near, setNear] = useState<Interaction | null>(null),
@@ -69,6 +71,8 @@ export default function WorldGame() {
     [optionIndex, setOptionIndex] = useState(0);
   const [menu, setMenu] = useState(false),
     [help, setHelp] = useState(false),
+    [mapOpen,setMapOpen] = useState(false),
+    [zoneProgress,setZoneProgress] = useState(0),
     [touch, setTouch] = useState(false),
     [reduced, setReduced] = useState(false);
   const [status, setStatus] = useState<"saved" | "saving" | "offline">("saved"),
@@ -209,6 +213,8 @@ export default function WorldGame() {
         y: 0,
       });
       update({ ...current, ...result });
+      setZoneProgress(0);
+      setPhase("zone");
       game.current?.travel(next);
       setScene(next);
       if (next === "cafe")
@@ -218,6 +224,21 @@ export default function WorldGame() {
     } catch (e) {
       setStatus("offline");
       setNotice(e instanceof Error ? e.message : "Не удалось перейти");
+    }
+  };
+  const explore = async (targetId:string, exploreAction:"meet"|"deeper"|"toggle"|"discover") => {
+    const current=await move();
+    if(!current) return false;
+    try {
+      setStatus("saving");
+      const result=await api({type:"world.explore",revision:current.revision,targetId,exploreAction,eventKey:crypto.randomUUID()});
+      update({...current,...result});
+      return true;
+    } catch(e) {
+      if(e instanceof WorldRequestError && e.status===409) update(await api({type:"world.get"}));
+      else setStatus("offline");
+      setNotice(e instanceof Error?e.message:"Не удалось сохранить действие");
+      return false;
     }
   };
   const perform = (effect: DialogueEffect) => {
@@ -235,6 +256,14 @@ export default function WorldGame() {
             done: { kind: "close" },
           });
       });
+    } else if(effect.kind==="explore") {
+      void explore(effect.targetId,effect.action).then((ok)=>{
+        if(!ok) return;
+        const npc=npcById[effect.targetId];
+        const prop=zones[saved.current!.state.scene].props.find((item)=>item.id===effect.targetId);
+        if(effect.action==="deeper" && npc) show({speaker:npc.name,portrait:npc.portrait,pages:[npc.deeper,npc.exit]});
+        if(effect.action==="toggle" && prop?.activeText) show({speaker:prop.label,pages:[prop.activeText]});
+      });
     }
   };
   useEffect(() => {
@@ -247,7 +276,10 @@ export default function WorldGame() {
       void travel("square");
       return;
     }
+    if(point.id==="square-map") {setMapOpen(true);return;}
     show(dialogueFor(point.id, point.name, state));
+    if(npcById[point.id] && ["saniya","aruzhan","timur","dana","amir"].includes(point.id) && !state.npcMemoryFlags[`met:${point.id}`])
+      void explore(point.id,"meet");
   };
   useEffect(() => {
     actionRef.current = interact;
@@ -270,14 +302,8 @@ export default function WorldGame() {
           progress: setProgress,
           ready: () => {
             if (dead) return;
-            if (matchMedia("(prefers-reduced-motion: reduce)").matches)
-              setPhase("playing");
-            else {
-              setPhase("entering");
-              setTimeout(() => {
-                if (!dead) setPhase("playing");
-              }, 300);
-            }
+            setPhase((current)=>current==="zone" || current==="playing" || matchMedia("(prefers-reduced-motion: reduce)").matches ? "playing":"entering");
+            setTimeout(() => {if(!dead) setPhase("playing");},300);
             setTimeout(() => {
               if (!dead) retryRef.current();
             }, 400);
@@ -286,6 +312,7 @@ export default function WorldGame() {
           nearby: setNear,
           escape: () => setMenu((v) => !v),
           scene: setScene,
+          zoneLoading:(_zone,value)=>setZoneProgress(value),
           error: (message) => {
             setError(message);
             setPhase("error");
@@ -310,8 +337,8 @@ export default function WorldGame() {
     };
   }, [move]);
   useEffect(() => {
-    game.current?.setPaused(Boolean(dialogue || menu || help));
-  }, [dialogue, menu, help]);
+    game.current?.setPaused(Boolean(dialogue || menu || help || mapOpen || phase==="zone"));
+  }, [dialogue, menu, help, mapOpen, phase]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -319,9 +346,11 @@ export default function WorldGame() {
           e.preventDefault();
           close();
         } else if (help) setHelp(false);
+        else if (mapOpen) setMapOpen(false);
         else if (menu) setMenu(false);
         return;
       }
+      if((e.key==="m" || e.key==="M") && !dialogue && !menu && !help){e.preventDefault();setMapOpen(v=>!v);return;}
       if (!dialogue) return;
       if (
         dialogue.options &&
@@ -346,7 +375,7 @@ export default function WorldGame() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [dialogue, page, optionIndex, help, menu]);
+  }, [dialogue, page, optionIndex, help, menu, mapOpen]);
   useEffect(() => {
     const online = () => {
       if (!retryRef.current()) void move();
@@ -365,7 +394,7 @@ export default function WorldGame() {
       <div
         className="world-canvas"
         ref={host}
-        aria-label="Игровая карта Campus Square"
+        aria-label={`Игровая карта: ${zones[scene].title}`}
       />
       {(phase === "loading" || phase === "entering") && (
         <div
@@ -411,20 +440,21 @@ export default function WorldGame() {
           <button onClick={() => void leave()}>Вернуться в Мой путь</button>
         </div>
       )}
+      {phase === "zone" && <div className="world-zone-loading" role="status"><strong>{zones[scene].title}</strong><span>Открываем район · {zoneProgress}%</span><div className="world-meter"><span style={{width:`${zoneProgress}%`}} /></div></div>}
       {phase === "playing" && (
         <>
           <div className="world-hud">
             <div>
               <small>
-                {scene === "square" ? "CAMPUS SQUARE" : "КОФЕЙНЯ"} · ПЕРЕД
-                ОТКРЫТИЕМ
+                {zones[scene].title.toUpperCase()}
               </small>
               <strong>
-                {snapshot ? objective(snapshot.state) : "Исследуй площадь"}
+                {snapshot && (scene==="square" || scene==="cafe") ? objective(snapshot.state) : "Исследуй пространство"}
               </strong>
             </div>
             <div className="world-hud-right">
               <span>✦ {snapshot?.points ?? 0} U</span>
+              <button aria-label="Карта кампуса" onClick={() => setMapOpen(true)}>▣</button>
               <button aria-label="Открыть меню" onClick={() => setMenu(true)}>
                 ☰
               </button>
@@ -553,6 +583,7 @@ export default function WorldGame() {
           <div className="world-menu">
             <h2>inVision World</h2>
             <button onClick={() => setMenu(false)}>Продолжить</button>
+            <button onClick={() => {setMenu(false);setMapOpen(true);}}>Карта кампуса</button>
             <button
               onClick={() => {
                 setMenu(false);
@@ -579,13 +610,14 @@ export default function WorldGame() {
         >
           <div className="world-menu">
             <h2>Управление</h2>
-            <p>WASD или стрелки: идти. E или Enter: действие. Esc: меню.</p>
+            <p>WASD или стрелки: идти. E или Enter: действие. M: карта. Esc: меню.</p>
             <p>На сенсорном экране используй стрелки и кнопку действия.</p>
             <p>В этой зоне звук не используется.</p>
             <button onClick={() => setHelp(false)}>Вернуться в мир</button>
           </div>
         </div>
       )}
+      {mapOpen && <div className="world-overlay" role="dialog" aria-modal="true" aria-label="Карта кампуса"><div className="world-menu world-map"><div className="world-map-head"><h2>Карта кампуса</h2><button onClick={()=>setMapOpen(false)} aria-label="Закрыть карту">×</button></div><p>Дорожки ведут из Campus Square в пять районов. Карта не переносит персонажа.</p><div className="world-map-layout"><div className="world-map-square">Campus<br/>Square</div>{districtScenes.map((id)=>{const visited=snapshot?.state.visitedDistricts.includes(id);const here=scene===id || scene===`${id}-room`;return <div key={id} className={`world-map-place ${id} ${here?"here":""}`}><strong>{zones[id].title}</strong><span>{here?"Ты здесь":visited?"Посещено":"Не исследовано"}</span></div>})}</div><button onClick={()=>setMapOpen(false)}>Вернуться в мир</button></div></div>}
     </div>
   );
 }

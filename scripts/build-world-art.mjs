@@ -62,6 +62,34 @@ await cropSheet(
 );
 await cropSheet("buildings.png", ["hall", "media", "workshop"], 3, 724, 256);
 
+async function cropGeneratedGrid(file, names, columns, rows, size) {
+  const image = sharp(join(source, file));
+  const meta = await image.metadata();
+  for (const [index, name] of names.entries()) {
+    const col = index % columns, row = Math.floor(index / columns);
+    const left = Math.floor(col * meta.width / columns);
+    const top = Math.floor(row * meta.height / rows);
+    const right = Math.floor((col + 1) * meta.width / columns);
+    const bottom = Math.floor((row + 1) * meta.height / rows);
+    await sharp(join(source, file))
+      .extract({left, top, width:right-left, height:bottom-top})
+      .resize(size, size, {kernel:"nearest"})
+      .webp({lossless:true, effort:6})
+      .toFile(join(output, `${name}.webp`));
+  }
+}
+await cropGeneratedGrid("district-atlas.png", [
+  "maker-facade", "product-facade", "people-facade", "urban-facade",
+  "media-facade", "maker-bench", "journey-board", "research-board",
+  "city-model", "podcast-desk", "kinetic", "map-kiosk",
+], 4, 3, 256);
+await cropGeneratedGrid("interior-atlas.png", [
+  "desk", "green-wall", "bike-rack", "event-stage",
+  "maker-station", "test-screen", "interview-table", "planning-board",
+  "editing-desk", "camera", "notebooks", "origami",
+], 4, 3, 128);
+await cropGeneratedGrid("cast-atlas.png", Array.from({length:16}, (_,i)=>`cast-${i}-portrait`), 4, 4, 128);
+
 const rgba = (hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
@@ -129,6 +157,17 @@ const actors = [
   ["dana", "#87ae4f", "#2d2524", "#ab6a45"],
   ["amir", "#416f95", "#282526", "#bc855b"],
   ["saniya", "#96765f", "#43332b", "#c38b63"],
+  ["aida", "#6c9d6b", "#322628", "#c98e66"],
+  ["nursultan", "#34363c", "#27282b", "#bb8057"],
+  ["ayan", "#e4e3db", "#282b30", "#c89168"],
+  ["malika", "#eee7cf", "#332a2b", "#bd7e5c"],
+  ["leila", "#438e95", "#322728", "#bf825c"],
+  ["oliver", "#76acbc", "#b99a6d", "#d8a077"],
+  ["zhanerke", "#64857a", "#513626", "#c88d63"],
+  ["daniyar", "#6c4d42", "#302622", "#b98259"],
+  ["inaya", "#293238", "#24252b", "#d1916d"],
+  ["mark", "#425f59", "#2d2827", "#b9855c"],
+  ["azamat", "#5b8a8b", "#27282a", "#bb805c"],
 ];
 for (const [name, jacket, hair, skin] of actors) {
   const image = canvas(96, 128);
@@ -206,6 +245,29 @@ await writeFile(
     tiles: cafe,
   }),
 );
+for (const id of ["maker", "garage", "people", "urban", "house"]) {
+  const width = 30, height = 22;
+  const district = Array.from({length:height},(_,y)=>Array.from({length:width},(_,x)=>{
+    if ((x >= 1 && x <= 16 && y >= 10 && y <= 12) || (x >= 14 && x <= 16 && y >= 8 && y <= 20)) return 1;
+    if (id === "maker" && x >= 19 && x <= 24 && y >= 11 && y <= 16) return 5;
+    if (id === "garage" && x >= 17 && x <= 26 && y >= 10 && y <= 17) return 4;
+    if (id === "people" && x >= 5 && x <= 12 && y >= 13 && y <= 18) return 5;
+    if (id === "urban" && x >= 5 && x <= 25 && y >= 7 && y <= 19) return 2;
+    if (id === "house" && x >= 19 && x <= 26 && y >= 12 && y <= 18) return 4;
+    if (id === "house" && x >= 5 && x <= 10 && y >= 7 && y <= 10) return 5;
+    if (x >= 6 && x <= 24 && y >= 8 && y <= 18) return id === "people" ? 5 : 2;
+    return 0;
+  }));
+  await writeFile(`public/world/maps/${id}.json`,JSON.stringify({version:2,tileSize:32,width,height,tiles:district}));
+  const interior = Array.from({length:12},(_,y)=>Array.from({length:18},(_,x)=> {
+    if(y===0 || x===0 || x===17) return 5;
+    if(id==="people" || id==="urban") return 5;
+    if(id==="garage" && x>=4 && x<=14 && y>=3 && y<=8) return 2;
+    if(id==="house" && x>=3 && x<=14 && y>=3 && y<=8) return 2;
+    return 4;
+  }));
+  await writeFile(`public/world/maps/${id}-room.json`,JSON.stringify({version:2,tileSize:32,width:18,height:12,tiles:interior}));
+}
 console.log(
-  "Built planet, 6 portraits, 12 props, 3 facades, 6 actor sheets, terrain and two maps.",
+  "Built 12 original scenes with 5 generated facades, 24 new props, 16 portraits and 16 actor sheets.",
 );

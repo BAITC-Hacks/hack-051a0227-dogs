@@ -18,6 +18,12 @@ function state(kind: "partial" | "complete" | "first"): WorldState {
     };
     value.items = ["materials"];
     value.npc = { aruzhan: 1, timur: 1, saniya: 1 };
+    value.openedLocations = ["square", "maker"];
+    value.visitedDistricts = ["maker"];
+    value.npcStates = { aida: "working", nursultan: "patrolling" };
+    value.npcMemoryFlags = { "met:aida": true, "met:nursultan": true };
+    value.persistentPropStates = { "maker-kinetic": true };
+    value.discoveredSecrets = ["maker-bird"];
   }
   if (kind === "complete") {
     value.x = 24 * 32;
@@ -35,6 +41,13 @@ function state(kind: "partial" | "complete" | "first"): WorldState {
     };
     value.npc = { saniya: 2, dana: 1, amir: 2 };
     value.openedLocations = ["square", "cafe"];
+    value.openedLocations.push("urban", "urban-room", "house");
+    value.visitedDistricts = ["urban", "house"];
+    value.visitedInteriors = ["cafe", "urban-room"];
+    value.npcStates = { zhanerke: "working", daniyar: "patrolling" };
+    value.npcMemoryFlags = { "met:zhanerke": true, "deep:zhanerke": true, "met:daniyar": true };
+    value.persistentPropStates = { "urban-model": true };
+    value.discoveredSecrets = ["urban-ticket"];
   }
   return value;
 }

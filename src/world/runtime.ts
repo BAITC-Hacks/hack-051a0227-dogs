@@ -1,5 +1,7 @@
 import * as Phaser from "phaser";
 import type { WorldScene, WorldState } from "@/lib/world/model";
+import { zones, sceneKeys } from "@/lib/world/scenes";
+import { npcsIn, npcLocation } from "@/lib/world/npcs";
 
 export type Interaction = {
   id: string;
@@ -23,6 +25,7 @@ type Hooks = {
   nearby: (point: Interaction | null) => void;
   escape: () => void;
   scene: (scene: WorldScene) => void;
+  zoneLoading: (scene: WorldScene, progress: number) => void;
   error: (message: string) => void;
 };
 const npcNames = ["aruzhan", "timur", "dana", "amir", "saniya"] as const;
@@ -52,6 +55,16 @@ export function mountWorld(
   let active: GameScene | null = null;
   let paused = false;
   let touch = { x: 0, y: 0, action: false };
+  const queueZone = (scene: Phaser.Scene, zone: WorldScene) => {
+    if (!scene.cache.json.exists(`${zone}-map`))
+      scene.load.json(`${zone}-map`, `/world/maps/${zone === "square" ? "campus-square" : zone}.json`);
+    const images = [zones[zone].facade, zones[zone].landmark, ...zones[zone].props.map((item) => item.art), ...(zone==="square"?["bike-rack","event-stage","green-wall"]:[]), ...(zones[zone].interior?["desk","green-wall"]:[])].filter((v):v is string=>Boolean(v));
+    for (const key of new Set(images))
+      if (!scene.textures.exists(key)) scene.load.image(key,url(`${key}.webp`));
+    for (const npc of npcsIn(zone,state))
+      if (!scene.textures.exists(npc.sprite))
+        scene.load.spritesheet(npc.sprite,url(`${npc.sprite}-walk.png`),{frameWidth:32,frameHeight:32});
+  };
   class LoadingScene extends Phaser.Scene {
     constructor() {
       super("loading");
@@ -72,8 +85,7 @@ export function mountWorld(
       for (const prop of props) this.load.image(prop, url(`${prop}.webp`));
       for (const building of buildings)
         this.load.image(building, url(`${building}.webp`));
-      this.load.json("square-map", "/world/maps/campus-square.json");
-      this.load.json("cafe-map", "/world/maps/cafe.json");
+      queueZone(this,state.scene);
     }
     create() {
       hooks.progress(100);
@@ -86,6 +98,7 @@ export function mountWorld(
     cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     keys!: Record<string, Phaser.Input.Keyboard.Key>;
     objects: Interaction[] = [];
+    npcBodies: Phaser.Physics.Arcade.Sprite[] = [];
     current: Interaction | null = null;
     destination: { x: number; y: number; point: Interaction | null } | null =
       null;
@@ -95,12 +108,16 @@ export function mountWorld(
       super(zone);
       this.zone = zone;
     }
+    preload() {
+      queueZone(this,this.zone);
+      this.load.on("progress", (progress:number)=>hooks.zoneLoading(this.zone,Math.round(progress*100)));
+      this.load.on("loaderror",()=>hooks.error("Не удалось загрузить район"));
+    }
     create() {
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       active = this;
-      const data = this.cache.json.get(
-        this.zone === "square" ? "square-map" : "cafe-map",
-      ) as { tiles: number[][]; width: number; height: number };
+      this.objects = [];
+      const data = this.cache.json.get(`${this.zone}-map`) as { tiles: number[][]; width: number; height: number };
       const map = this.make.tilemap({
         data: data.tiles,
         tileWidth: 32,
@@ -135,6 +152,7 @@ export function mountWorld(
       const point = (id: string, name: string, x: number, y: number) =>
         this.objects.push({ id, name, x, y, scene: this.zone });
       const npcBodies: Phaser.Physics.Arcade.Sprite[] = [];
+      this.npcBodies=npcBodies;
       if (this.zone === "square") {
         // Shared 32 px coordinates keep visual props, collisions and server validation aligned.
         art("hall", 26 * 32, 8 * 32, 256);
@@ -211,15 +229,24 @@ export function mountWorld(
           for (let y = 23; y <= 29; y++)
             if (data.tiles[y]?.[x] === 3)
               wall(x * 32 + 16, y * 32 + 16, 32, 32);
-        for (const [id, name, x, y] of [
-          ["maker", "Maker Yard", 2, 17],
-          ["garage", "Product Garage", 47, 17],
-          ["people", "People Lab", 24, 2],
-          ["urban", "Urban Lab", 42, 31],
-          ["house", "Media House", 5, 32],
-        ] as const)
-          point(id, name, x * 32, y * 32);
-      } else {
+        art("bike-rack", 38*32, 22*32, 80);
+        art("event-stage", 25*32, 25*32, 100);
+        art("green-wall", 6*32, 23*32, 64);
+        for(const item of zones.square.props) {
+          art(item.art,item.x,item.y,item.size ?? 64);
+          point(item.id,item.label,item.x,item.y);
+        }
+        for(const portal of zones.square.portals.filter((v)=>v.to!=="cafe")) {
+          point(portal.id,portal.label,portal.x,portal.y);
+          const label = this.add.text(portal.x,portal.y-44,portal.label,{fontFamily:"Arial",fontSize:"12px",color:"#18231e",backgroundColor:"#ecf5d7",padding:{x:5,y:3}}).setOrigin(.5).setDepth(5);
+          label.setResolution(2);
+        }
+        for(const [x,y,key] of [[39,20,"bike-rack"],[18,30,"shrub"],[42,12,"shrub"]] as const) art(key,x*32,y*32,65);
+        for(const [x,y,key] of [[22,22,"player"],[13,26,"aruzhan"],[33,27,"dana"]] as const) {
+          const ambient=this.add.sprite(x*32,y*32,key,0).setDepth(3).setScale(1.5).setAlpha(.72);
+          this.tweens.add({targets:ambient,x:ambient.x+24,duration:2300,yoyo:true,repeat:-1,ease:"Sine.easeInOut"});
+        }
+      } else if (this.zone === "cafe") {
         for (let x = 0; x < 18; x++) {
           wall(x * 32 + 16, 16, 32, 32);
           wall(x * 32 + 16, 11 * 32 + 16, 32, 32);
@@ -231,15 +258,63 @@ export function mountWorld(
         art("coffee", 9 * 32, 5 * 32, 126);
         art("bench", 5 * 32, 7 * 32, 76);
         art("shrub", 14 * 32, 6 * 32, 66);
-        point("coffee-counter", "Осмотреть кофейню", 9 * 32, 5 * 32);
+        for(const item of zones.cafe.props) {
+          if(item.id!=="cafe-counter") art(item.art,item.x,item.y,55);
+          point(item.id,item.label,item.x,item.y);
+        }
         point("square-door", "Выйти на площадь", 9 * 32, 10 * 32);
+        for(const npcDef of npcsIn("cafe",state)) {
+          const npc=this.physics.add.sprite(npcDef.x,npcDef.y,npcDef.sprite,0).setDepth(4).setScale(1.7).setImmovable(true);
+          npc.body?.setSize(18,14).setOffset(7,18);
+          npcBodies.push(npc);
+          point(npcDef.id,npcDef.name,npcDef.x,npcDef.y);
+        }
+        for(const [x,y,key] of [[3,6,"dana"],[15,7,"amir"]] as const) this.add.sprite(x*32,y*32,key,0).setDepth(3).setScale(1.5).setAlpha(.68);
+      } else {
+        const zone = zones[this.zone];
+        if(zone.interior) {
+          for(let x=0;x<zone.width;x++) { wall(x*32+16,16,32,32); wall(x*32+16,(zone.height-1)*32+16,32,32); }
+          for(let y=0;y<zone.height;y++) { wall(16,y*32+16,32,32); wall((zone.width-1)*32+16,y*32+16,32,32); }
+          art("desk",4*32,6*32,72);
+          art("green-wall",14*32,5*32,66);
+        } else {
+          art(zone.facade!,15*32,8*32,230);
+          wall(15*32,5*32,150,130);
+          for(const [x,y] of [[5,4],[26,4],[4,18],[26,18]] as const) art("tree",x*32,y*32,72);
+          art("bench",5*32,15*32,64);
+          art("lamp",24*32,10*32,66);
+          art("shrub",25*32,16*32,56);
+        }
+        for(const item of zone.props) {
+          const image=art(item.art,item.x,item.y,item.size ?? (zone.interior?68:86));
+          if(state.persistentPropStates[item.id]) image.setTint(0xc8f79a);
+          point(item.id,item.label,item.x,item.y);
+        }
+        for(const portal of zone.portals) {
+          point(portal.id,portal.label,portal.x,portal.y);
+          if(!zone.interior) this.add.text(portal.x,portal.y-38,portal.label,{fontFamily:"Arial",fontSize:"12px",color:"#18231e",backgroundColor:"#ecf5d7",padding:{x:5,y:3}}).setOrigin(.5).setDepth(5);
+        }
+        for(const npcDef of npcsIn(this.zone,state)) {
+          const loc = npcLocation(npcDef,state);
+          const npc = this.physics.add.sprite(loc.x,loc.y,npcDef.sprite,0).setDepth(4).setScale(1.7).setImmovable(true);
+          npc.body?.setSize(18,14).setOffset(7,18);
+          if(npcDef.activity==="patrol") this.tweens.add({targets:npc,x:loc.x+26,duration:2000,yoyo:true,repeat:-1,ease:"Sine.easeInOut"});
+          npcBodies.push(npc);
+          point(npcDef.id,npcDef.name,loc.x,loc.y);
+          npc.setData("interactionId",npcDef.id);
+        }
+        for(let i=0;i<(zone.interior?1:3);i++) {
+          const x=(zone.interior?3+i*8:6+i*8)*32, y=(zone.interior?8:17)*32;
+          const sprite=this.add.sprite(x,y,["aruzhan","amir","dana"][i%3],0).setDepth(3).setAlpha(.7).setScale(1.5);
+          if(i!==1) this.tweens.add({targets:sprite,x:x+24,duration:2400+i*250,yoyo:true,repeat:-1,ease:"Sine.easeInOut"});
+        }
       }
       const position =
         state.scene === this.zone
           ? state
           : {
-              x: this.zone === "square" ? 25 * 32 + 16 : 9 * 32,
-              y: this.zone === "square" ? 27 * 32 + 16 : 9 * 32,
+              x: zoneSpawn(this.zone).x,
+              y: zoneSpawn(this.zone).y,
             };
       this.player = this.physics.add
         .sprite(position.x, position.y, "player", 0)
@@ -248,7 +323,7 @@ export function mountWorld(
         .setCollideWorldBounds(true);
       this.player.body?.setSize(15, 12).setOffset(9, 20);
       this.physics.add.collider(this.player, walls);
-      for (const npc of npcBodies) this.physics.add.collider(this.player, npc);
+      for (const npc of npcBodies) if(!this.zone || npc.texture.key === "saniya" || !npcsIn(this.zone,state).find((item)=>item.id===npc.texture.key && item.activity==="patrol")) this.physics.add.collider(this.player, npc);
       for (const dir of ["down", "left", "right", "up"] as const) {
         const row = { down: 0, left: 1, right: 2, up: 3 }[dir];
         if (!this.anims.exists(`walk-${dir}`))
@@ -265,7 +340,8 @@ export function mountWorld(
       this.cameras.main
         .setBounds(0, 0, data.width * 32, data.height * 32)
         .startFollow(this.player, true, 0.1, 0.1);
-      this.cameras.main.setZoom(parent.clientWidth < 600 ? 1.35 : 1.75);
+      const zoom = () => parent.clientWidth < 600 ? (zones[this.zone].interior ? 2 : 1) : Math.max(2, Math.ceil(Math.max(parent.clientWidth / (data.width * 32), parent.clientHeight / (data.height * 32))));
+      this.cameras.main.setZoom(zoom());
       this.cameras.main.roundPixels = true;
       this.cursors = this.input.keyboard!.createCursorKeys();
       this.keys = this.input.keyboard!.addKeys("W,A,S,D,E,ENTER,ESC") as Record<
@@ -289,9 +365,9 @@ export function mountWorld(
       });
       hooks.ready();
       hooks.scene(this.zone);
-      this.scale.on("resize", () =>
-        this.cameras.main.setZoom(parent.clientWidth < 600 ? 1.35 : 1.75),
-      );
+      const resize = () => this.cameras.main.setZoom(zoom());
+      this.scale.on("resize", resize);
+      this.events.once("shutdown", () => this.scale.off("resize", resize));
     }
     update(time: number) {
       if (!this.player?.body) return;
@@ -344,6 +420,8 @@ export function mountWorld(
         this.player.anims.play(`walk-${dir}`, true);
       } else this.player.anims.stop();
       const nearest = this.objects.reduce<Interaction | null>((best, p) => {
+        const moving = this.npcBodies.find((sprite)=>sprite.getData("interactionId")===p.id);
+        if(moving) {p.x=moving.x;p.y=moving.y;}
         const d = Phaser.Math.Distance.Between(
           this.player.x,
           this.player.y,
@@ -390,7 +468,7 @@ export function mountWorld(
     render: { antialias: false, roundPixels: true },
     scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: "arcade", arcade: { debug: false } },
-    scene: [LoadingScene, new GameScene("square"), new GameScene("cafe")],
+    scene: [LoadingScene, ...sceneKeys.map((key)=>new GameScene(key))],
   });
   const observer = new ResizeObserver(() =>
     game.scale.resize(parent.clientWidth, parent.clientHeight),
@@ -410,12 +488,15 @@ export function mountWorld(
       };
     },
     setState(next) {
+      const refresh = active?.zone === next.scene && JSON.stringify(state.persistentPropStates)!==JSON.stringify(next.persistentPropStates);
       state = next;
       if (active?.zone === next.scene && active.player)
         active.player.setPosition(next.x, next.y);
+      if(refresh) active?.scene.restart();
     },
     setPaused(value) {
       paused = value;
+      if(value) active?.tweens.pauseAll(); else active?.tweens.resumeAll();
     },
     setTouch(x, y, action) {
       touch = { x, y, action };
@@ -425,4 +506,10 @@ export function mountWorld(
       active?.scene.start(scene);
     },
   };
+}
+
+function zoneSpawn(scene: WorldScene) {
+  if(scene === "square") return {x:25*32+16,y:27*32+16};
+  if(zones[scene].interior) return {x:9*32,y:9*32};
+  return {x:4*32,y:11*32};
 }

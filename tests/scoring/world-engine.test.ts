@@ -9,8 +9,11 @@ import {
   objective,
   points,
   safePosition,
+  migrateWorldState,
 } from "../../src/lib/world/model";
 import { dialogueFor } from "../../src/lib/world/dialogues";
+import { districtScenes, zones, portalBetween } from "../../src/lib/world/scenes";
+import { npcCast, npcsIn } from "../../src/lib/world/npcs";
 import { grantQaAccess } from "../qa-access";
 import { cleanupRun } from "../cleanup";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
@@ -76,6 +79,68 @@ test("Квест проходит через осмотр, встречи, пр�
     }).pages[0],
     /вернули экран/,
   );
+});
+test("Новые районы связаны с площадью, старое сохранение мигрирует без потери квеста", () => {
+  assert.equal(districtScenes.length,5);
+  assert.equal(npcCast.length,16);
+  for(const id of districtScenes) {
+    assert.ok(zones[id].program);
+    assert.ok(portalBetween("square",id));
+    assert.ok(portalBetween(id,"square"));
+    assert.ok(portalBetween(id,`${id}-room`));
+    assert.ok(portalBetween(`${id}-room`,id));
+    assert.ok(npcsIn(id,initialWorldState()).length>=2);
+  }
+  const old=initialWorldState();
+  old.version=1;
+  old.flags.completed=true;
+  old.flags.choice="delegate";
+  old.npc={saniya:2,aruzhan:1};
+  const migrated=migrateWorldState({...old,visitedDistricts:undefined,npcMemoryFlags:undefined,returnPositions:undefined,worldPhase:undefined});
+  assert.equal(migrated.version,2);
+  assert.equal(migrated.flags.completed,true);
+  assert.equal(migrated.flags.choice,"delegate");
+  assert.equal(migrated.worldPhase,"AFTER");
+  assert.deepEqual(migrated.visitedDistricts,[]);
+  assert.equal(migrated.npcMemoryFlags["met:saniya"],true);
+  assert.equal(migrated.npcMemoryFlags["met:aruzhan"],true);
+  assert.deepEqual(safePosition("maker",480,160),initialWorldState().scene === "square" ? {x:128,y:352}:null);
+  assert.match(dialogueFor("maker-door","Maker Yard",initialWorldState()).pages[0],/Maker Yard/);
+});
+test("World API: район, интерьер, возвращение к двери и сохранение взаимодействия",{timeout:120000},async()=>{
+  const email="world-district-"+randomUUID()+"@qa.local", candidate=new Session();
+  let userId="";
+  try {
+    await candidate.call("register",{email,name:"Игрок районов",password:"WorldTest2026!"});
+    userId=(await db.user.update({where:{email},data:{origin:"QA"}})).id;
+    await grantQaAccess(db,email);
+    const first=await candidate.call("world.get") as {revision:number;state:ReturnType<typeof initialWorldState>};
+    await candidate.call("world.move",{revision:first.revision,scene:"maker",x:0,y:0},400);
+    const atGate={...first.state,x:64,y:544};
+    const gateSave=await db.worldSave.update({where:{userId},data:{state:atGate as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const entered=await candidate.call("world.move",{revision:gateSave.revision,scene:"maker",x:0,y:0}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(entered.state.scene,"maker");
+    assert.deepEqual(entered.state.visitedDistricts,["maker"]);
+    await candidate.call("world.explore",{revision:entered.revision,targetId:"maker-bird",exploreAction:"discover",eventKey:randomUUID()},400);
+    const atProp={...entered.state,x:256,y:352};
+    const propSave=await db.worldSave.update({where:{userId},data:{state:atProp as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const key=randomUUID();
+    const toggled=await candidate.call("world.explore",{revision:propSave.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:key}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(toggled.state.persistentPropStates["maker-kinetic"],true);
+    const repeated=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:key}) as {revision:number};
+    assert.equal(repeated.revision,toggled.revision);
+    const repeatedNewKey=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:randomUUID()}) as {revision:number};
+    assert.equal(repeatedNewKey.revision,toggled.revision);
+    const atDoor={...toggled.state,x:480,y:288};
+    const doorSave=await db.worldSave.update({where:{userId},data:{state:atDoor as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const inside=await candidate.call("world.move",{revision:doorSave.revision,scene:"maker-room",x:0,y:0}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(inside.state.scene,"maker-room");
+    assert.deepEqual(inside.state.visitedInteriors,["maker-room"]);
+    const outside=await candidate.call("world.move",{revision:inside.revision,scene:"maker",x:0,y:0}) as {state:ReturnType<typeof initialWorldState>};
+    assert.deepEqual({x:outside.state.x,y:outside.state.y},{x:480,y:288});
+    assert.equal(outside.state.persistentPropStates["maker-kinetic"],true);
+    assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD"}}),0);
+  } finally {if(userId) await cleanupRun(db,[email]);await db.$disconnect();}
 });
 test(
   "World API: полный доступ, ревизия, однократный U и граница комиссии",
