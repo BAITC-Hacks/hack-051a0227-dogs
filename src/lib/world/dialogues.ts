@@ -7,11 +7,13 @@ import {
 } from "./model";
 import { zones } from "./scenes";
 import { npcById } from "./npcs";
+import { roleIds, roles, type RoleId } from "./missions";
 export type DialogueEffect =
   | { kind: "close" }
   | { kind: "event"; event: WorldEventKind; choice?: WorldChoice }
   | { kind: "travel"; scene: WorldScene }
-  | { kind: "explore"; targetId: string; action: "meet" | "deeper" | "toggle" | "discover" };
+  | { kind: "explore"; targetId: string; action: "meet" | "deeper" | "toggle" | "discover" }
+  | { kind: "mission"; roleId: RoleId; stage?: "deeper" };
 export type DialogueOption = { label: string; effect: DialogueEffect };
 export type DialogueSpec = {
   speaker: string;
@@ -75,13 +77,18 @@ export function dialogueFor(
   const prop = zones[s.scene].props.find((item)=>item.id===id);
   if(prop) {
     const active = prop.kind==="secret" ? s.discoveredSecrets.includes(id) : Boolean(s.persistentPropStates[id]);
+    const role = roleIds.map((roleId)=>roles[roleId]).find((item)=>item.scene===s.scene && item.prop===id);
+    const deeper = roleIds.map((roleId)=>roles[roleId]).find((item)=>item.deeperScene===s.scene && item.deeperProp===id && s.roles[item.id]?.completedAt && !s.roles[item.id]?.deeperAt);
+    const missionAvailable = role && s.roles[role.id]?.introAt;
     return {
       speaker: prop.label,
-      pages:[active && prop.activeText ? prop.activeText : prop.text],
-      options:prop.kind==="toggle" && !active ? [
-        {label:"Попробовать",effect:{kind:"explore",targetId:id,action:"toggle"}},
+      pages:[active && prop.activeText ? prop.activeText : prop.text, ...(missionAvailable ? [`${role.mission}: здесь можно проверить свой вариант и увидеть, что изменится.`] : [])],
+      options:[
+        ...(missionAvailable ? [{label:s.roles[role.id]?.completedAt?"Переиграть историю роли":"Открыть задачу роли",effect:{kind:"mission" as const,roleId:role.id}}] : []),
+        ...(deeper ? [{label:`Посмотреть связь с ${deeper.title.toLowerCase()}`,effect:{kind:"mission" as const,roleId:deeper.id,stage:"deeper" as const}}] : []),
+        ...(prop.kind==="toggle" && !active ? [{label:"Попробовать",effect:{kind:"explore" as const,targetId:id,action:"toggle" as const}}] : []),
         {label:"Оставить",effect:close},
-      ]:undefined,
+      ],
       done:prop.kind==="secret" && !active ? {kind:"explore",targetId:id,action:"discover"}:close,
     };
   }
@@ -89,13 +96,15 @@ export function dialogueFor(
   if(cast && !["saniya","aruzhan","timur","dana","amir"].includes(id)) {
     const met = Boolean(s.npcMemoryFlags[`met:${id}`]);
     const contextual = cast.alternate && s.persistentPropStates[cast.alternate.afterProp];
+    const role = roleIds.map((roleId)=>roles[roleId]).find((item)=>item.lead===id);
     return {
       speaker:cast.name,portrait:cast.portrait,
-      pages:[contextual?cast.contextual:met?cast.returning:cast.initial,cast.exit],
-      options:met ? [
-        {label:"Спросить подробнее",effect:{kind:"explore",targetId:id,action:"deeper"}},
+      pages:[s.roles[role?.id ?? "engineer"]?.completedAt && role ? `Твоя версия для «${role.mission}» уже в работе. ${cast.contextual}` : contextual?cast.contextual:met?cast.returning:cast.initial,role ? `У нас идёт Festival of Ideas. Можешь попробовать роль «${role.title}» и помочь с ${role.intro.toLowerCase()}.` : cast.exit],
+      options:[
+        ...(role ? [{label:s.roles[role.id]?.introAt?"Вернуться к роли":"Попробовать роль",effect:{kind:"mission" as const,roleId:role.id}}] : []),
+        ...(met ? [{label:"Спросить подробнее",effect:{kind:"explore" as const,targetId:id,action:"deeper" as const}}] : []),
         {label:"Попрощаться",effect:close},
-      ]:undefined,
+      ],
       done:met?close:{kind:"explore",targetId:id,action:"meet"},
     };
   }

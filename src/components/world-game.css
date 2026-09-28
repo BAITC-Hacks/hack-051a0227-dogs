@@ -378,6 +378,39 @@ body:has(.world-game) main {
 .world-touch {
   display: none;
 }
+.world-mission,.world-journal,.world-cross {
+  width:min(850px,100%);max-height:min(92dvh,980px);overflow:auto;
+  background:#f8f6e9;border:3px solid #263b2d;border-radius:16px;
+  box-shadow:0 10px 0 #10251b;padding:clamp(16px,3vw,30px);
+}
+.world-mission header,.world-journal header,.world-cross header {display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #cfdbbd;padding-bottom:14px;margin-bottom:18px}
+.world-mission header small,.world-journal header small,.world-cross header small {display:block;color:#496149;font-weight:800;letter-spacing:.09em;font-size:11px}
+.world-mission h2,.world-journal h2,.world-cross h2 {font:800 clamp(25px,4vw,40px) "Manrope Variable",sans-serif;letter-spacing:-.055em;margin:4px 0 0;line-height:1.1}
+.world-mission header>button,.world-journal header>button,.world-cross header>button {border:2px solid #798a70;background:#fff;border-radius:10px;min-width:42px;min-height:42px;font-size:25px}
+.world-mission-body {display:grid;gap:15px;font-size:16px;line-height:1.5}
+.world-mission-illustration {display:flex;align-items:center;gap:12px;background:#293733;color:#f8f6e9;border-radius:12px;padding:8px 14px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.world-mission-illustration img {width:88px;height:88px;object-fit:cover;image-rendering:pixelated}
+.world-mission-body p {margin:0}.world-mission-lead {font-size:18px;max-width:65ch}
+.world-mission-body label {display:grid;gap:7px;font-weight:700}
+.world-mission-options,.world-mission-cards,.world-cross-choices {display:flex;flex-wrap:wrap;gap:9px}
+.world-mission-options button,.world-mission-cards button,.world-cross-choices button,.world-mission-recap fieldset button {border:2px solid #91a08e;border-radius:9px;background:#fffdf4;padding:11px 13px;text-align:left;min-height:46px;color:#243128}
+.world-mission-options button.chosen,.world-mission-cards button.chosen,.world-cross-choices button.chosen,.world-mission-recap fieldset button.chosen {border-color:#436e31;background:#dafa8c;box-shadow:inset 0 0 0 1px #436e31}
+.world-mission-cards {display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.world-mission-cards button {display:grid;gap:4px}.world-mission-cards small {font-size:10px;letter-spacing:.08em;color:#536b61;font-weight:800}
+.world-mission-art {display:flex;align-items:center;gap:8px;background:#dcecf0;border:2px solid #a6c9d6;border-radius:12px;padding:13px;overflow:auto;font-size:12px;font-weight:800;white-space:nowrap}
+.world-mission-art span {background:#fff;border:1px solid #7196a0;border-radius:8px;padding:9px}.world-mission-art i {display:block;width:35px;height:3px;background:#426c70;flex:none}
+.world-mission-order {list-style:none;margin:0;padding:0;display:grid;gap:7px}.world-mission-order li {display:flex;align-items:center;gap:8px;padding:8px;border:2px solid #b6c2aa;border-radius:10px;background:#fff}.world-mission-order li span {background:#dafa8c;padding:7px 12px;border-radius:6px;font-weight:800}.world-mission-order li strong {flex:1}.world-mission-order li button {border:1px solid #9baa91;background:#fff;border-radius:7px;width:40px;height:40px;font-size:20px}.world-mission-order li button:disabled {opacity:.35}
+.world-mission-grid {display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:#b8d8d1;padding:8px;border:2px solid #7ea99a;border-radius:12px}.world-mission-grid>div {min-height:74px;padding:11px;background:#f8f6e9;border:2px solid #537365;border-radius:8px;display:grid}.world-mission-grid small {font-size:10px;color:#5b7264}.world-mission-grid strong {font-size:15px}
+.world-mission-data,.world-mission-test,.world-mission-message {background:#e4eff4;border:2px solid #a8cbd9;border-radius:12px;padding:13px;display:grid;gap:5px}.world-mission-test small,.world-mission-recap>small {font-weight:800;color:#4c6556;letter-spacing:.08em}.world-mission-warning {background:#fff0d8;border:2px solid #dfbd78;padding:12px;border-radius:10px}
+.world-mission-primary {justify-self:start;background:#c8f230;border:2px solid #4c722b;border-radius:10px;padding:13px 20px;font-weight:800;color:#1e2926;min-height:50px}.world-mission-primary:disabled {opacity:.5;cursor:not-allowed}
+.world-mission-recap {display:grid;gap:12px}.world-mission-recap h3 {margin:8px 0 0}.world-mission-replay {display:flex;gap:8px;flex-wrap:wrap}.world-mission-replay button,.world-journal-close,.world-cross>button:last-child {background:#fff;border:2px solid #8b9c83;border-radius:9px;padding:11px 14px}.world-mission-recap fieldset {border:0;padding:0;margin:6px 0;display:flex;flex-wrap:wrap;gap:7px}.world-mission-recap legend {font-weight:800;margin-bottom:7px}
+.world-mission-replay a {display:inline-flex;align-items:center;background:#e4eff4;border:2px solid #8bb4c5;border-radius:9px;padding:11px 14px;color:#253c44;text-decoration:none;font-weight:700}
+.world-program {display:grid;gap:5px;border-top:2px solid #cfdbbd;padding-top:13px}.world-program small {color:#4c6556;font-weight:800;letter-spacing:.08em}.world-program ul {margin:2px 0;padding-left:20px}.world-program a {color:#236983;font-weight:700}
+.world-mission-evidence {display:grid;gap:10px;background:#edf4e5;border:2px solid #c1d2ac;border-radius:12px;padding:14px}.world-mission-evidence>div {display:grid;gap:7px;border-top:1px solid #c1d2ac;padding-top:9px}
+.world-journal-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px}.world-journal-grid section {border:2px solid #c2cfb7;border-radius:12px;background:#fffdf4;padding:14px}.world-journal-grid h3 {margin:0 0 9px;font-size:19px}.world-journal-grid p {line-height:1.45;margin:0 0 8px}.world-journal-grid ul {list-style:none;padding:0;margin:0;display:grid;gap:5px}.world-journal-grid li {display:grid;border-bottom:1px solid #e4e9dc;padding:5px 0}.world-journal-grid li span {color:#667264;font-size:13px}.world-journal-roles article {display:grid;gap:5px;border-top:1px solid #d5dec9;padding:9px 0}.world-journal-roles article span,.world-journal-roles article small {font-size:13px;color:#59705c}.world-journal-roles article a {font-size:13px;color:#1d6680}.world-journal-close {margin-top:15px}
+.world-journal-role-heading {display:flex;align-items:center;gap:9px}.world-journal-role-heading img {flex:none;image-rendering:pixelated;border-radius:8px}.world-journal-role-heading div {display:grid}
+.world-cross {width:min(650px,100%);display:grid;gap:15px}.world-cross p {margin:0;line-height:1.5}.world-cross-choices button {flex:1 1 180px}
+@media (max-width:600px) {.world-overlay {padding:8px}.world-mission,.world-journal,.world-cross {max-height:calc(100dvh - 16px);padding:14px}.world-mission-body {font-size:14px}.world-mission-lead {font-size:16px}.world-mission-cards {grid-template-columns:1fr 1fr}.world-journal-grid {grid-template-columns:1fr}.world-mission-options button {flex:1 1 100%}.world-mission-order li strong {font-size:13px}.world-mission-order li button {width:34px;height:36px;flex:none}}
 @keyframes world-float {
   50% {
     transform: translateY(-10px);

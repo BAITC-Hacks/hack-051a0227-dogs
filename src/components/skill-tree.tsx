@@ -7,6 +7,7 @@ import { action } from "@/lib/client";
 import { skillBranches, skillDomains, skillHref, type SkillDomainId, type SkillNode } from "@/lib/skill-tree-catalog";
 import type { SkillView } from "@/lib/skill-tree.server";
 import { ArrowRight, Check, Coins, LockKeyhole, Mic, RotateCcw, Square } from "lucide-react";
+import { roleIds, roles } from "@/lib/world/missions";
 
 export function SkillTree({ initial, selectedId }: { initial: SkillView; selectedId?: string }) {
   const router = useRouter();
@@ -67,7 +68,7 @@ function SkillActivity({ node, saved, completed, reload }: { node: SkillView["no
     finally { setBusy(false); }
   }
   return <div className="skill-v2-activity">
-    {node.type === "WORLD_MISSION" ? <div className="skill-v2-actions"><a className="button primary" href="/world">{completed ? "Вернуться на площадь" : "Начать в inVision World"}<ArrowRight size={17}/></a></div> : null}
+    {node.type === "WORLD_MISSION" ? <div className="skill-v2-actions"><a className="button primary" href={(() => { const role=roleIds.find((id)=>roles[id].skillNode===node.id); return role?`/world?mission=${role}&returnTo=${node.id}`:"/world"; })()}>{completed ? "Вернуться в inVision World" : "Пройти в inVision World"}<ArrowRight size={17}/></a></div> : null}
     {completed && !retry && <div className="skill-v2-done"><Check size={18}/> Шаг завершён. Ответ сохранён в личном дереве.</div>}
     {node.passage && <blockquote className="skill-v2-passage">{node.passage}</blockquote>}
     {node.type === "VIDEO" && <div className="skill-v2-video"><video controls preload="metadata" playsInline aria-label="История про обмен книгами"><source src={node.mediaSrc} type="video/mp4"/><track kind="captions" src="/media/skill-listen.en.vtt" srcLang="en" label="English" default/></video><details><summary>Текст записи</summary><p lang="en">{node.mediaTranscript}</p></details></div>}

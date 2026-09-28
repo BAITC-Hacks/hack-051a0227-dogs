@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import type { Interaction, WorldRuntime } from "@/world/runtime";
 import {
   objective,
@@ -19,12 +20,18 @@ import {
 import "./world-game.css";
 import { districtScenes, zones } from "@/lib/world/scenes";
 import { npcById } from "@/lib/world/npcs";
+import { roleIds, roles, type MissionPayload, type RoleId } from "@/lib/world/missions";
+
+const WorldMission = dynamic(() => import("./world-mission"), { ssr: false });
+const WorldJournal = dynamic(() => import("./world-journal"), { ssr: false });
 
 type Snapshot = {
   userId: string;
   state: WorldState;
   revision: number;
   points: number;
+  earned?: number;
+  resultText?: string;
 };
 const pendingKey = (userId: string) => `invision-world-pending:${userId}`;
 class WorldRequestError extends Error {
@@ -72,6 +79,12 @@ export default function WorldGame() {
   const [menu, setMenu] = useState(false),
     [help, setHelp] = useState(false),
     [mapOpen,setMapOpen] = useState(false),
+    [journalOpen,setJournalOpen] = useState(false),
+    [crossOpen,setCrossOpen] = useState(false),
+    [missionRole,setMissionRole] = useState<RoleId|null>(null),
+    [deeperRole,setDeeperRole] = useState<RoleId|null>(null),
+    [targetRole,setTargetRole] = useState<RoleId|null>(null),
+    [crossPair,setCrossPair] = useState<RoleId[]>([]),
     [zoneProgress,setZoneProgress] = useState(0),
     [touch, setTouch] = useState(false),
     [reduced, setReduced] = useState(false);
@@ -241,6 +254,24 @@ export default function WorldGame() {
       return false;
     }
   };
+  const missionAction = async (roleId:RoleId|undefined, missionAction:"intro"|"test"|"finish"|"deeper"|"replay"|"preference"|"cross", payload:MissionPayload):Promise<string|null> => {
+    const current=await move();
+    if(!current) return null;
+    setStatus("saving");
+    try {
+      const result=await api({type:"world.mission",revision:current.revision,roleId,missionAction,payload,eventKey:crypto.randomUUID()});
+      update({...current,...result,points:current.points+(result.earned??0)});
+      if(result.earned) setNotice(`+${result.earned} U · ${result.resultText??"История сохранена"}`);
+      if(missionAction==="intro") {setMissionRole(null);setNotice("Знакомство сохранено. Найди предмет команды в этом районе.");}
+      return result.resultText??"Сохранено";
+    } catch(e) {
+      if(e instanceof WorldRequestError && e.status===409) {
+        try {update(await api({type:"world.get"}));} catch {setStatus("offline");}
+      } else setStatus("offline");
+      setNotice(e instanceof Error?e.message:"Не удалось сохранить действие");
+      return null;
+    }
+  };
   const perform = (effect: DialogueEffect) => {
     close();
     if (effect.kind === "travel") {
@@ -256,6 +287,9 @@ export default function WorldGame() {
             done: { kind: "close" },
           });
       });
+    } else if(effect.kind==="mission") {
+      if(effect.stage==="deeper") setDeeperRole(effect.roleId);
+      else setMissionRole(effect.roleId);
     } else if(effect.kind==="explore") {
       void explore(effect.targetId,effect.action).then((ok)=>{
         if(!ok) return;
@@ -276,9 +310,13 @@ export default function WorldGame() {
       void travel("square");
       return;
     }
-    if(point.id==="square-map") {setMapOpen(true);return;}
+    if(point.id==="square-map") {
+      if(roleIds.some((id)=>state.roles[id]?.completedAt) && !state.crossMission) setCrossOpen(true);
+      else setMapOpen(true);
+      return;
+    }
     show(dialogueFor(point.id, point.name, state));
-    if(npcById[point.id] && ["saniya","aruzhan","timur","dana","amir"].includes(point.id) && !state.npcMemoryFlags[`met:${point.id}`])
+    if(npcById[point.id] && !state.npcMemoryFlags[`met:${point.id}`])
       void explore(point.id,"meet");
   };
   useEffect(() => {
@@ -291,6 +329,8 @@ export default function WorldGame() {
         const initial = await api({ type: "world.get" });
         if (dead) return;
         update(initial);
+        const missionParam=new URLSearchParams(window.location.search).get("mission");
+        if(roleIds.includes(missionParam as RoleId)) setTargetRole(missionParam as RoleId);
         setScene(initial.state.scene);
         setProgress(20);
         setTouch(matchMedia("(pointer: coarse)").matches);
@@ -337,8 +377,8 @@ export default function WorldGame() {
     };
   }, [move]);
   useEffect(() => {
-    game.current?.setPaused(Boolean(dialogue || menu || help || mapOpen || phase==="zone"));
-  }, [dialogue, menu, help, mapOpen, phase]);
+    game.current?.setPaused(Boolean(dialogue || menu || help || mapOpen || journalOpen || crossOpen || missionRole || deeperRole || phase==="zone"));
+  }, [dialogue, menu, help, mapOpen, journalOpen, crossOpen, missionRole, deeperRole, phase]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -347,10 +387,15 @@ export default function WorldGame() {
           close();
         } else if (help) setHelp(false);
         else if (mapOpen) setMapOpen(false);
+        else if (journalOpen) setJournalOpen(false);
+        else if (crossOpen) setCrossOpen(false);
+        else if (missionRole) setMissionRole(null);
+        else if (deeperRole) setDeeperRole(null);
         else if (menu) setMenu(false);
         return;
       }
-      if((e.key==="m" || e.key==="M") && !dialogue && !menu && !help){e.preventDefault();setMapOpen(v=>!v);return;}
+      if((e.key==="m" || e.key==="M") && !dialogue && !menu && !help && !missionRole && !deeperRole){e.preventDefault();setMapOpen(v=>!v);return;}
+      if((e.key==="j" || e.key==="J") && !dialogue && !menu && !help && !missionRole && !deeperRole){e.preventDefault();setJournalOpen(v=>!v);return;}
       if (!dialogue) return;
       if (
         dialogue.options &&
@@ -375,7 +420,7 @@ export default function WorldGame() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [dialogue, page, optionIndex, help, menu, mapOpen]);
+  }, [dialogue, page, optionIndex, help, menu, mapOpen, journalOpen, crossOpen, missionRole, deeperRole]);
   useEffect(() => {
     const online = () => {
       if (!retryRef.current()) void move();
@@ -387,7 +432,8 @@ export default function WorldGame() {
     await move();
     game.current?.destroy();
     game.current = null;
-    router.push("/my?view=route");
+    const node=targetRole?roles[targetRole].skillNode:null;
+    router.push(node?`/my?view=route&node=${node}`:"/my?view=route");
   };
   return (
     <div className="world-game">
@@ -449,12 +495,13 @@ export default function WorldGame() {
                 {zones[scene].title.toUpperCase()}
               </small>
               <strong>
-                {snapshot && (scene==="square" || scene==="cafe") ? objective(snapshot.state) : "Исследуй пространство"}
+                {targetRole && !snapshot?.state.roles[targetRole]?.completedAt ? `Попробуй роль «${roles[targetRole].title}» в ${zones[roles[targetRole].scene].title}` : snapshot && (scene==="square" || scene==="cafe") ? objective(snapshot.state) : "Исследуй пространство"}
               </strong>
             </div>
             <div className="world-hud-right">
               <span>✦ {snapshot?.points ?? 0} U</span>
               <button aria-label="Карта кампуса" onClick={() => setMapOpen(true)}>▣</button>
+              <button aria-label="Журнал ролей" onClick={() => setJournalOpen(true)}>▤</button>
               <button aria-label="Открыть меню" onClick={() => setMenu(true)}>
                 ☰
               </button>
@@ -584,6 +631,7 @@ export default function WorldGame() {
             <h2>inVision World</h2>
             <button onClick={() => setMenu(false)}>Продолжить</button>
             <button onClick={() => {setMenu(false);setMapOpen(true);}}>Карта кампуса</button>
+            <button onClick={() => {setMenu(false);setJournalOpen(true);}}>Журнал ролей</button>
             <button
               onClick={() => {
                 setMenu(false);
@@ -610,7 +658,7 @@ export default function WorldGame() {
         >
           <div className="world-menu">
             <h2>Управление</h2>
-            <p>WASD или стрелки: идти. E или Enter: действие. M: карта. Esc: меню.</p>
+            <p>WASD или стрелки: идти. E или Enter: действие. M: карта. J: журнал. Esc: меню.</p>
             <p>На сенсорном экране используй стрелки и кнопку действия.</p>
             <p>В этой зоне звук не используется.</p>
             <button onClick={() => setHelp(false)}>Вернуться в мир</button>
@@ -618,6 +666,10 @@ export default function WorldGame() {
         </div>
       )}
       {mapOpen && <div className="world-overlay" role="dialog" aria-modal="true" aria-label="Карта кампуса"><div className="world-menu world-map"><div className="world-map-head"><h2>Карта кампуса</h2><button onClick={()=>setMapOpen(false)} aria-label="Закрыть карту">×</button></div><p>Дорожки ведут из Campus Square в пять районов. Карта не переносит персонажа.</p><div className="world-map-layout"><div className="world-map-square">Campus<br/>Square</div>{districtScenes.map((id)=>{const visited=snapshot?.state.visitedDistricts.includes(id);const here=scene===id || scene===`${id}-room`;return <div key={id} className={`world-map-place ${id} ${here?"here":""}`}><strong>{zones[id].title}</strong><span>{here?"Ты здесь":visited?"Посещено":"Не исследовано"}</span></div>})}</div><button onClick={()=>setMapOpen(false)}>Вернуться в мир</button></div></div>}
+      {journalOpen && snapshot && <WorldJournal state={snapshot.state} onClose={()=>setJournalOpen(false)}/>}
+      {crossOpen && snapshot && <div className="world-overlay" role="dialog" aria-modal="true" aria-label="Открытие через час"><div className="world-cross"><header><div><small>FESTIVAL OF IDEAS</small><h2>Открытие через час</h2></div><button onClick={()=>setCrossOpen(false)} aria-label="Закрыть">×</button></header><p>У интерактивной установки собирается очередь. На карте видно, что её можно изменить разными способами. Выбери два взгляда и объедини их в план.</p><div className="world-cross-choices">{roleIds.map((id)=><button key={id} className={crossPair.includes(id)?"chosen":""} aria-pressed={crossPair.includes(id)} onClick={()=>setCrossPair(v=>v.includes(id)?v.filter((item)=>item!==id):v.length<2?[...v,id]:v)}>{roles[id].title}</button>)}</div>{snapshot.state.crossMission?<p className="world-mission-test">{snapshot.state.crossMission.result}</p>:<button className="world-mission-primary" disabled={crossPair.length!==2} onClick={()=>void missionAction(undefined,"cross",{perspectives:crossPair}).then((result)=>{if(result)setNotice("План сохранён. Открой журнал, чтобы увидеть фестивальную историю.");})}>Собрать общий план</button>}<button onClick={()=>{setCrossOpen(false);setMapOpen(true);}}>Посмотреть карту</button></div></div>}
+      {missionRole && snapshot && <WorldMission key={missionRole} roleId={missionRole} progress={snapshot.state.roles[missionRole]} hasComponent={Boolean(snapshot.state.persistentPropStates["maker-rack"])} onAction={(action,payload)=>missionAction(missionRole,action,payload)} onClose={()=>setMissionRole(null)}/>}
+      {deeperRole && snapshot && <WorldMission key={`deeper-${deeperRole}`} mode="deeper" roleId={deeperRole} progress={snapshot.state.roles[deeperRole]} hasComponent={Boolean(snapshot.state.persistentPropStates["maker-rack"])} onAction={(action,payload)=>missionAction(deeperRole,action,payload)} onClose={()=>setDeeperRole(null)}/>}
     </div>
   );
 }

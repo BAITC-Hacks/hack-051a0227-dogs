@@ -1,5 +1,5 @@
 // Versioned, author-owned learning content. It does not define admission criteria.
-export const skillVersion = 3;
+export const skillVersion = 4;
 export const skillDomains = [
   { id: "LEADERSHIP", title: "Лидерство", intro: "Пробуй решения, распределяй ответственность и меняй план, когда меняются обстоятельства." },
   { id: "TEAMWORK", title: "Работа в команде", intro: "Слушай разные позиции и собирай решение вместе с другими." },
@@ -144,6 +144,11 @@ export const skillNodes: SkillNode[] = [
     C("free", "It became a paid event.", "The message does not mention payment."),
   ] }),
   N("ENGLISH", "Discussion", "e-response", "Your turn", "REFLECTION", "Write an English reply to a classmate who disagrees with your project idea. Acknowledge their point, add one fact and ask a question.", { prerequisites: ["e-discuss", "e-clear"], tier: 3, minWords: 30, reward: 30 }),
+  N("LEADERSHIP", "Неопределённость", "world-engineer", "До открытия 42 минуты", "WORLD_MISSION", "В Maker Yard проверь, как прототип работает после нового ограничения.", { optional:true, reward:75, shortDescription:"Попробовать роль инженера в World" }),
+  N("TEAMWORK", "Совместное решение", "world-product", "Люди теряются", "WORLD_MISSION", "В Product Garage собери путь гостя и проверь его с командой.", { optional:true, reward:75, shortDescription:"Попробовать создание продукта в World" }),
+  N("COMMUNICATION", "Ясная мысль", "world-research", "Кто не пришёл?", "WORLD_MISSION", "В People Lab сравни интервью с небольшой выборкой и пересмотри объяснение.", { optional:true, reward:75, shortDescription:"Попробовать исследование в World" }),
+  N("LEADERSHIP", "Решения", "world-policy", "Площадь для всех", "WORLD_MISSION", "В Urban Lab распределяй место для разных участников фестиваля.", { optional:true, reward:75, shortDescription:"Попробовать проектирование пространства в World" }),
+  N("COMMUNICATION", "Storytelling", "world-media", "История меняется", "WORLD_MISSION", "В Media House проверь источники и обнови историю после нового факта.", { optional:true, reward:75, shortDescription:"Попробовать создание медиа в World" }),
 ];
 
 export const skillBranches: Record<SkillDomainId, string[]> = {

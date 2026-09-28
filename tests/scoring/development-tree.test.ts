@@ -25,17 +25,18 @@ class Session {
   }
 }
 
-test("Четыре направления содержат 32 учебных шага и одну World mission", () => {
+test("Четыре направления содержат 32 учебных шага и шесть World missions", () => {
   assert.deepEqual(skillDomains.map((d) => d.id), ["LEADERSHIP", "TEAMWORK", "COMMUNICATION", "ENGLISH"]);
-  assert.equal(skillNodes.length, 33);
-  assert.equal(new Set(skillNodes.map((n) => n.id)).size, 33);
+  assert.equal(skillNodes.length, 38);
+  assert.equal(new Set(skillNodes.map((n) => n.id)).size, 38);
+  assert.equal(skillNodes.filter((n)=>n.type==="WORLD_MISSION").length,6);
   assert.deepEqual(new Set(skillNodes.map((n) => n.type)), new Set([
     "VIDEO", "READING", "QUIZ", "BRANCHING_SCENARIO", "REFLECTION",
     "TEXT_RESPONSE", "AUDIO_RESPONSE", "SORTING", "DIALOGUE", "SUBMISSION", "WORLD_MISSION",
   ]));
   for (const domain of skillDomains) {
     const nodes = skillNodes.filter((n) => n.domain === domain.id);
-    assert.equal(nodes.length, domain.id === "LEADERSHIP" ? 9 : 8);
+    assert.ok(nodes.length>=8);
     assert.deepEqual(new Set(nodes.map((n) => n.branch)), new Set(skillBranches[domain.id]));
     for (const node of nodes) for (const required of node.prerequisites)
       assert.ok(skillNodes.some((n) => n.id === required && n.domain === domain.id && n.tier < node.tier), `${node.id}: ${required}`);

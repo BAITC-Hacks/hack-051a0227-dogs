@@ -14,6 +14,8 @@ import {
 import { dialogueFor } from "../../src/lib/world/dialogues";
 import { districtScenes, zones, portalBetween } from "../../src/lib/world/scenes";
 import { npcCast, npcsIn } from "../../src/lib/world/npcs";
+import { roleIds, roles, resolveMission, validateIntro, resolveDeeper } from "../../src/lib/world/missions";
+import { npcById, npcLocation } from "../../src/lib/world/npcs";
 import { grantQaAccess } from "../qa-access";
 import { cleanupRun } from "../cleanup";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
@@ -97,7 +99,8 @@ test("Новые районы связаны с площадью, старое �
   old.flags.choice="delegate";
   old.npc={saniya:2,aruzhan:1};
   const migrated=migrateWorldState({...old,visitedDistricts:undefined,npcMemoryFlags:undefined,returnPositions:undefined,worldPhase:undefined});
-  assert.equal(migrated.version,2);
+  assert.equal(migrated.version,3);
+  assert.deepEqual(migrated.roles,{});
   assert.equal(migrated.flags.completed,true);
   assert.equal(migrated.flags.choice,"delegate");
   assert.equal(migrated.worldPhase,"AFTER");
@@ -106,6 +109,30 @@ test("Новые районы связаны с площадью, старое �
   assert.equal(migrated.npcMemoryFlags["met:aruzhan"],true);
   assert.deepEqual(safePosition("maker",480,160),initialWorldState().scene === "square" ? {x:128,y:352}:null);
   assert.match(dialogueFor("maker-door","Maker Yard",initialWorldState()).pages[0],/Maker Yard/);
+});
+test("Пять ролей имеют разные действия, проверку и изменяемое решение",()=>{
+  assert.equal(roleIds.length,5);
+  const examples = {
+    engineer:{sensor:"steady",power:"battery",mount:"guarded",connections:["sensor-power","power-mount"]},
+    product:{flow:["place","schedule","save","detail"],problem:"wayfinding",testers:["visitor","volunteer"]},
+    research:{interviews:["volunteer","quiet"],hypothesis:"route",evidence:["supports","contradicts"]},
+    policy:{layout:["demo","quiet","media","food"],priority:"access",volunteers:["entrance","demo"]},
+    media:{sources:["author","schedule"],angle:"process",channel:"board",story:["scene","fact","context"],headline:"making",update:"revise"},
+  };
+  const introductions = {engineer:{check:"датчик"},product:{flow:["событие","место"]},research:{question:"как узнали о событии"},policy:{zones:["показ","тихая","проход"]},media:{fact:"место"}} as const;
+  for(const id of roleIds) {
+    assert.ok(roles[id].intro && roles[id].mission && roles[id].deeper);
+    assert.ok(validateIntro(id,introductions[id] as never));
+    const first=resolveMission(id,examples[id] as never,"test");
+    assert.ok(first.observation.length>30);
+    assert.throws(()=>resolveMission(id,examples[id] as never,"revision",first),/измени/);
+    assert.ok(resolveDeeper(id,id==="engineer"?"accessible":id==="product"?"preview":id==="research"?"observe":id==="policy"?"split":"context"));
+  }
+  assert.match(resolveMission("engineer",{...examples.engineer,sensor:"low-power"},"test").consequence,/проще/);
+  assert.match(resolveMission("product",{...examples.product,flow:["schedule","detail","place","save"]},"test").observation,/3 шага/);
+  assert.match(resolveMission("research",examples.research,"test").observation,/20/);
+  assert.match(resolveMission("policy",examples.policy,"test").observation,/Волонтёр/);
+  assert.match(resolveMission("media",{...examples.media,sources:["rumour","photo"]},"test").consequence,/Слух/);
 });
 test("World API: район, интерьер, возвращение к двери и сохранение взаимодействия",{timeout:120000},async()=>{
   const email="world-district-"+randomUUID()+"@qa.local", candidate=new Session();
@@ -122,14 +149,14 @@ test("World API: район, интерьер, возвращение к две�
     assert.equal(entered.state.scene,"maker");
     assert.deepEqual(entered.state.visitedDistricts,["maker"]);
     await candidate.call("world.explore",{revision:entered.revision,targetId:"maker-bird",exploreAction:"discover",eventKey:randomUUID()},400);
-    const atProp={...entered.state,x:256,y:352};
+    const atProp={...entered.state,x:21*32,y:14*32};
     const propSave=await db.worldSave.update({where:{userId},data:{state:atProp as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
     const key=randomUUID();
-    const toggled=await candidate.call("world.explore",{revision:propSave.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:key}) as {revision:number;state:ReturnType<typeof initialWorldState>};
-    assert.equal(toggled.state.persistentPropStates["maker-kinetic"],true);
-    const repeated=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:key}) as {revision:number};
+    const toggled=await candidate.call("world.explore",{revision:propSave.revision,targetId:"maker-rack",exploreAction:"toggle",eventKey:key}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(toggled.state.persistentPropStates["maker-rack"],true);
+    const repeated=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-rack",exploreAction:"toggle",eventKey:key}) as {revision:number};
     assert.equal(repeated.revision,toggled.revision);
-    const repeatedNewKey=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-kinetic",exploreAction:"toggle",eventKey:randomUUID()}) as {revision:number};
+    const repeatedNewKey=await candidate.call("world.explore",{revision:toggled.revision,targetId:"maker-rack",exploreAction:"toggle",eventKey:randomUUID()}) as {revision:number};
     assert.equal(repeatedNewKey.revision,toggled.revision);
     const atDoor={...toggled.state,x:480,y:288};
     const doorSave=await db.worldSave.update({where:{userId},data:{state:atDoor as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
@@ -138,7 +165,7 @@ test("World API: район, интерьер, возвращение к две�
     assert.deepEqual(inside.state.visitedInteriors,["maker-room"]);
     const outside=await candidate.call("world.move",{revision:inside.revision,scene:"maker",x:0,y:0}) as {state:ReturnType<typeof initialWorldState>};
     assert.deepEqual({x:outside.state.x,y:outside.state.y},{x:480,y:288});
-    assert.equal(outside.state.persistentPropStates["maker-kinetic"],true);
+    assert.equal(outside.state.persistentPropStates["maker-rack"],true);
     assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD"}}),0);
   } finally {if(userId) await cleanupRun(db,[email]);await db.$disconnect();}
 });
@@ -278,3 +305,50 @@ test(
     }
   },
 );
+test("Ролевая миссия сохраняет версии, открывает узел и не выдаёт U за повтор",{timeout:120000},async()=>{
+  const email=`world-roles-${randomUUID()}@qa.local`,candidate=new Session();
+  let userId="";
+  try {
+    await candidate.call("register",{email,name:"Игрок миссий",password:"WorldTest2026!"});
+    userId=(await db.user.update({where:{email},data:{origin:"QA"}})).id;
+    await candidate.call("world.get",{},403);
+    await grantQaAccess(db,email);
+    const fresh=await candidate.call("world.get") as {state:ReturnType<typeof initialWorldState>;revision:number;points:number};
+    const lead=npcLocation(npcById.aida,fresh.state);
+    const atLead={...fresh.state,scene:lead.scene,x:lead.x,y:lead.y,visitedDistricts:["maker"],openedLocations:["square","maker"]};
+    const prepared=await db.worldSave.update({where:{userId},data:{state:atLead as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const introKey=randomUUID();
+    const intro=await candidate.call("world.mission",{revision:prepared.revision,roleId:"engineer",missionAction:"intro",payload:{check:"датчик"},eventKey:introKey}) as {revision:number;earned:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(intro.earned,25);
+    await candidate.call("world.mission",{revision:intro.revision,roleId:"engineer",missionAction:"intro",payload:{check:"датчик"},eventKey:introKey});
+    await candidate.call("world.mission",{revision:prepared.revision,roleId:"engineer",missionAction:"test",payload:{},eventKey:randomUUID()},409);
+    const atProp={...intro.state,scene:"maker" as const,x:8*32,y:11*32};
+    const propSave=await db.worldSave.update({where:{userId},data:{state:atProp as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const firstPayload={sensor:"steady",power:"battery",mount:"guarded",connections:["sensor-power","power-mount"]};
+    await candidate.call("world.mission",{revision:propSave.revision,roleId:"engineer",missionAction:"test",payload:firstPayload,eventKey:randomUUID()},400);
+    const withKit=await db.worldSave.update({where:{userId},data:{state:{...atProp,persistentPropStates:{"maker-rack":true}} as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const tested=await candidate.call("world.mission",{revision:withKit.revision,roleId:"engineer",missionAction:"test",payload:firstPayload,eventKey:randomUUID()}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(tested.state.roles.engineer?.stage,"revision");
+    await candidate.call("world.mission",{revision:tested.revision,roleId:"engineer",missionAction:"finish",payload:firstPayload,eventKey:randomUUID()},400);
+    const finished=await candidate.call("world.mission",{revision:tested.revision,roleId:"engineer",missionAction:"finish",payload:{...firstPayload,sensor:"low-power"},eventKey:randomUUID()}) as {revision:number;earned:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(finished.earned,75);
+    assert.equal(finished.state.roles.engineer?.history.length,1);
+    assert.equal(finished.state.persistentPropStates["maker-kinetic"],true);
+    const tree=await candidate.call("skill.view") as {nodes:{id:string;state:string}[]};
+    assert.equal(tree.nodes.find((n)=>n.id==="world-engineer")?.state,"completed");
+    const replay=await candidate.call("world.mission",{revision:finished.revision,roleId:"engineer",missionAction:"replay",payload:{},eventKey:randomUUID()}) as {revision:number};
+    const again=await candidate.call("world.mission",{revision:replay.revision,roleId:"engineer",missionAction:"test",payload:firstPayload,eventKey:randomUUID()}) as {revision:number};
+    const second=await candidate.call("world.mission",{revision:again.revision,roleId:"engineer",missionAction:"finish",payload:{...firstPayload,power:"grid"},eventKey:randomUUID()}) as {revision:number;earned:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(second.earned,0);
+    assert.equal(second.state.roles.engineer?.history.length,2);
+    assert.equal(second.state.roles.engineer?.replayCount,1);
+    assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD"}}),2);
+    assert.equal(await db.scoringRun.count({where:{application:{userId}}}),0);
+    const atMap={...second.state,scene:"square" as const,x:35*32,y:25*32};
+    const mapSave=await db.worldSave.update({where:{userId},data:{state:atMap as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const cross=await candidate.call("world.mission",{revision:mapSave.revision,missionAction:"cross",payload:{perspectives:["engineer","product"]},eventKey:randomUUID()}) as {earned:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(cross.earned,100);
+    assert.deepEqual(cross.state.crossMission?.perspectives,["engineer","product"]);
+    assert.equal((await candidate.call("world.get") as {points:number}).points,200);
+  } finally {if(userId) await cleanupRun(db,[email]);await db.$disconnect();}
+});

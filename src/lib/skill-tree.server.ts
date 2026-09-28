@@ -6,6 +6,7 @@ import { db } from "./db";
 import { accessFor } from "./access.server";
 import { AppError, rateLimit } from "./security";
 import { skillDomains, skillNode, skillNodes, skillVersion, type SkillDomainId, type SkillNode } from "./skill-tree-catalog";
+import { roleIds, roles, type RoleProgress } from "./world/missions";
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const responseSchema = z.object({ choice: z.string().max(80).optional(), followup: z.string().max(80).optional(), text: z.string().max(8000).optional(), order: z.array(z.string().max(80)).max(12).optional(), mediaId: z.string().max(100).optional() }).strict();
@@ -72,14 +73,18 @@ export async function skillView(user: User | null) {
   const done = new Set(completions.map((c) => c.nodeId));
   const worldFlags = (worldSave?.state as { flags?: { completed?: boolean } } | null)?.flags;
   if (worldFlags?.completed) done.add("world-before-opening");
+  const worldRoles = (worldSave?.state as {roles?:Record<string,RoleProgress>}|null)?.roles ?? {};
+  for(const roleId of roleIds) if(worldRoles[roleId]?.completedAt) done.add(roles[roleId].skillNode);
   const profile = mapDevelopmentProfile({ result: application?.scoringRuns[0]?.result, resultVersion: application?.scoringRuns[0]?.id, languageStatus: application?.language?.status });
   const nodes = skillNodes.map((node) => {
     const latest = attempts.find((a) => a.nodeId === node.id);
     const completed = done.has(node.id);
     const unlocked = node.prerequisites.every((id) => done.has(id));
+    const worldRole = roleIds.find((id) => roles[id].skillNode === node.id);
+    const worldCompletedAt = worldRole ? worldRoles[worldRole]?.completedAt ?? null : node.id === "world-before-opening" && worldFlags?.completed ? worldSave?.updatedAt.toISOString() ?? null : null;
     return { ...node, state: completed ? "completed" as const : unlocked ? latest?.status === "DRAFT" ? "in_progress" as const : "available" as const : "locked" as const,
       latest: latest ? { id: latest.id, status: latest.status, response: latest.response as ResponseValue, createdAt: latest.createdAt.toISOString() } : null,
-      completedAt: completions.find((c) => c.nodeId === node.id)?.completedAt.toISOString() ?? (node.id === "world-before-opening" && worldFlags?.completed ? worldSave?.updatedAt.toISOString() ?? null : null) };
+      completedAt: completions.find((c) => c.nodeId === node.id)?.completedAt.toISOString() ?? worldCompletedAt };
   });
   const domainViews = skillDomains.map((domain) => {
     const own = nodes.filter((n) => n.domain === domain.id);

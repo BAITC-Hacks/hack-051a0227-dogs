@@ -89,6 +89,10 @@ await cropGeneratedGrid("interior-atlas.png", [
   "editing-desk", "camera", "notebooks", "origami",
 ], 4, 3, 128);
 await cropGeneratedGrid("cast-atlas.png", Array.from({length:16}, (_,i)=>`cast-${i}-portrait`), 4, 4, 128);
+await cropGeneratedGrid("role-props.png", [
+  "mission-engineer", "mission-product", "mission-research",
+  "mission-policy", "mission-media", "mission-festival",
+], 3, 2, 192);
 
 const rgba = (hex) => [
   parseInt(hex.slice(1, 3), 16),

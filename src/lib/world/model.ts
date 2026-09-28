@@ -1,6 +1,7 @@
 import { openingQuest } from "./quest";
 import { districtScenes, interiorScenes, zones } from "./scenes";
-export const WORLD_VERSION = 2;
+import type { RoleId, RoleProgress, CrossProgress } from "./missions";
+export const WORLD_VERSION = 3;
 export const WORLD_REWARD = 60;
 export type WorldScene = "square" | "cafe" | "maker" | "maker-room" | "garage" | "garage-room" | "people" | "people-room" | "urban" | "urban-room" | "house" | "house-room";
 export type WorldChoice = "repair" | "delegate" | "relocate";
@@ -48,6 +49,8 @@ export type WorldState = {
   safeLocation: { scene: WorldScene; x: number; y: number };
   returnPositions: Partial<Record<WorldScene, { x: number; y: number }>>;
   worldVersion: number;
+  roles: Partial<Record<RoleId, RoleProgress>>;
+  crossMission: CrossProgress | null;
 };
 
 export const spawn: Record<WorldScene, {x:number;y:number}> = {
@@ -110,6 +113,8 @@ export function initialWorldState(): WorldState {
     safeLocation: { scene: "square", ...spawn.square },
     returnPositions: {},
     worldVersion: WORLD_VERSION,
+    roles: {},
+    crossMission: null,
   };
 }
 
@@ -181,6 +186,8 @@ export function migrateWorldState(raw: unknown): WorldState {
     playerAppearance: value.playerAppearance ?? value.avatar ?? "player",
     safeLocation: {scene, ...position},
     returnPositions: value.returnPositions ?? {},
+    roles: value.roles ?? {},
+    crossMission: value.crossMission ?? null,
   };
   return state;
 }
