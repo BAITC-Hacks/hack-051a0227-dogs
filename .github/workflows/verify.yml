@@ -1,0 +1,65 @@
+name: Verify application
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: leader_id
+          POSTGRES_USER: leader
+          POSTGRES_PASSWORD: local-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leader -d leader_id"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://leader:local-ci-only@127.0.0.1:5432/leader_id?schema=public
+      APP_ORIGIN: http://127.0.0.1:3000
+      TEST_ORIGIN: http://127.0.0.1:3000
+      COOKIE_SECURE: "false"
+      ASSESSMENT_ENVIRONMENT: isolated-local
+      ASSESSMENT_PROVIDER: local
+      PROFILE_PROVIDER: local
+      INTAKE_WORKER_DISABLED: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: ENABLE_LOCAL_SEED=true npm run db:seed
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run quality:check
+      - run: npm run build
+      - name: Start production server and run integration tests
+        run: |
+          npm start > /tmp/invision-server.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then
+              npm test
+              exit $?
+            fi
+            sleep 2
+          done
+          tail -80 /tmp/invision-server.log
+          exit 1
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deployable container
+        run: docker build -t invision-u:verify .
