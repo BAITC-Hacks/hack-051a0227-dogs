@@ -21,9 +21,11 @@ import "./world-game.css";
 import { districtScenes, zones } from "@/lib/world/scenes";
 import { npcById } from "@/lib/world/npcs";
 import { roleIds, roles, type MissionPayload, type RoleId } from "@/lib/world/missions";
+import { sideQuests } from "@/lib/world/progression";
 
 const WorldMission = dynamic(() => import("./world-mission"), { ssr: false });
 const WorldJournal = dynamic(() => import("./world-journal"), { ssr: false });
+const WorldProgression = dynamic(() => import("./world-progression"), { ssr: false });
 
 type Snapshot = {
   userId: string;
@@ -34,6 +36,7 @@ type Snapshot = {
   resultText?: string;
 };
 const pendingKey = (userId: string) => `invision-world-pending:${userId}`;
+const progressionPendingKey = (userId:string)=>`invision-world-progress-pending:${userId}`;
 class WorldRequestError extends Error {
   constructor(
     message: string,
@@ -66,6 +69,7 @@ export default function WorldGame() {
   const actionRef = useRef<(p: Interaction) => void>(() => {});
   const performRef = useRef<(effect: DialogueEffect) => void>(() => {});
   const retryRef = useRef<() => boolean>(() => false);
+  const progressionRef = useRef<(type:"world.purchase"|"world.appearance"|"world.display"|"world.quest"|"world.reflection",fields:Record<string,unknown>,retryKey?:string)=>Promise<string|null>>(async()=>null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<
@@ -85,6 +89,10 @@ export default function WorldGame() {
     [deeperRole,setDeeperRole] = useState<RoleId|null>(null),
     [targetRole,setTargetRole] = useState<RoleId|null>(null),
     [crossPair,setCrossPair] = useState<RoleId[]>([]),
+    [progressionMode,setProgressionMode] = useState<"store"|"wardrobe"|"desk"|"quest"|null>(null),
+    [questId,setQuestId] = useState<string|null>(null),
+    [returnOpen,setReturnOpen] = useState(false),
+    [returnNode,setReturnNode] = useState<string|null>(null),
     [zoneProgress,setZoneProgress] = useState(0),
     [touch, setTouch] = useState(false),
     [reduced, setReduced] = useState(false);
@@ -239,6 +247,11 @@ export default function WorldGame() {
       setNotice(e instanceof Error ? e.message : "Не удалось перейти");
     }
   };
+  const focusRole=async(roleId:RoleId|"before-opening")=>{
+    const current=await move();if(!current)return;
+    const target=roleId==="before-opening"?"square":roles[roleId].scene;
+    try {const result=await api({type:"world.focus",revision:current.revision,...(roleId==="before-opening"?{questId:roleId}:{roleId}),eventKey:crypto.randomUUID()});update({...current,...result});setReturnOpen(false);setPhase("zone");setZoneProgress(0);game.current?.travel(target);setScene(target);} catch(e){if(e instanceof WorldRequestError&&e.status===409)update(await api({type:"world.get"}));setNotice(e instanceof Error?e.message:"Не удалось открыть район");}
+  };
   const explore = async (targetId:string, exploreAction:"meet"|"deeper"|"toggle"|"discover") => {
     const current=await move();
     if(!current) return false;
@@ -272,6 +285,27 @@ export default function WorldGame() {
       return null;
     }
   };
+  const progressionAction=async(type:"world.purchase"|"world.appearance"|"world.display"|"world.quest"|"world.reflection",fields:Record<string,unknown>,retryKey?:string):Promise<string|null>=>{
+    const current=await move();
+    if(!current)return null;
+    const key=retryKey??crypto.randomUUID();
+    setStatus("saving");
+    try {
+      const result=await api({type,revision:current.revision,eventKey:key,...fields});
+      update({...current,...result,points:result.points??current.points});
+      if(type==="world.quest" && result.state.sideQuests[String(fields.questId)]?.completedAt) setProgressionMode(null);
+      setNotice(result.earned?`${result.earned>0?"+":""}${result.earned} U · ${result.resultText}`:result.resultText??"Сохранено");
+      localStorage.removeItem(progressionPendingKey(current.userId));
+      return result.resultText??"Сохранено";
+    } catch(e) {
+      if(e instanceof WorldRequestError && e.status===409) {try{update(await api({type:"world.get"}));}catch{setStatus("offline");}}
+      else if(!(e instanceof WorldRequestError)) {setStatus("offline");localStorage.setItem(progressionPendingKey(current.userId),JSON.stringify({type,fields,key}));}
+      else setStatus("saved");
+      setNotice(e instanceof Error?e.message:"Не удалось сохранить действие");
+      return null;
+    }
+  };
+  useEffect(()=>{progressionRef.current=progressionAction});
   const perform = (effect: DialogueEffect) => {
     close();
     if (effect.kind === "travel") {
@@ -315,6 +349,12 @@ export default function WorldGame() {
       else setMapOpen(true);
       return;
     }
+    if(point.id==="supply-corner") {setProgressionMode("store");return;}
+    if(point.id==="corner-wardrobe") {setProgressionMode("wardrobe");return;}
+    if(point.id==="corner-desk") {setProgressionMode("desk");return;}
+    if(point.id==="corner-journal") {setJournalOpen(true);return;}
+    const activeQuest=sideQuests.find(q=>{const step=state.sideQuests[q.id]?.step??0;return step>0 && !state.sideQuests[q.id]?.completedAt && q.steps[step]?.point.scene===point.scene && q.steps[step]?.point.id===point.id;})??sideQuests.find(q=>!state.sideQuests[q.id]?.completedAt && q.steps[0]?.point.scene===point.scene && q.steps[0]?.point.id===point.id);
+    if(activeQuest){setQuestId(activeQuest.id);setProgressionMode("quest");return;}
     show(dialogueFor(point.id, point.name, state));
     if(npcById[point.id] && !state.npcMemoryFlags[`met:${point.id}`])
       void explore(point.id,"meet");
@@ -330,7 +370,10 @@ export default function WorldGame() {
         if (dead) return;
         update(initial);
         const missionParam=new URLSearchParams(window.location.search).get("mission");
+        const nodeParam=new URLSearchParams(window.location.search).get("returnTo");
+        if(nodeParam==="world-before-opening" || roleIds.some(id=>roles[id].skillNode===nodeParam)) setReturnNode(nodeParam);
         if(roleIds.includes(missionParam as RoleId)) setTargetRole(missionParam as RoleId);
+        if(nodeParam || missionParam || initial.state.flags.coordinator || initial.state.visitedDistricts.length || Object.keys(initial.state.sideQuests).length || Object.values(initial.state.roles).some(Boolean)) setReturnOpen(true);
         setScene(initial.state.scene);
         setProgress(20);
         setTouch(matchMedia("(pointer: coarse)").matches);
@@ -347,6 +390,7 @@ export default function WorldGame() {
             setTimeout(() => {
               if (!dead) retryRef.current();
             }, 400);
+            setTimeout(()=>{if(dead)return;const userId=saved.current?.userId;if(!userId)return;const raw=localStorage.getItem(progressionPendingKey(userId));if(raw)try{const pending=JSON.parse(raw) as {type:"world.purchase"|"world.appearance"|"world.display"|"world.quest";fields:Record<string,unknown>;key:string};void progressionRef.current(pending.type,pending.fields,pending.key);}catch{localStorage.removeItem(progressionPendingKey(userId));}},500);
           },
           interact: (p) => actionRef.current(p),
           nearby: setNear,
@@ -377,8 +421,8 @@ export default function WorldGame() {
     };
   }, [move]);
   useEffect(() => {
-    game.current?.setPaused(Boolean(dialogue || menu || help || mapOpen || journalOpen || crossOpen || missionRole || deeperRole || phase==="zone"));
-  }, [dialogue, menu, help, mapOpen, journalOpen, crossOpen, missionRole, deeperRole, phase]);
+    game.current?.setPaused(Boolean(dialogue || menu || help || mapOpen || journalOpen || crossOpen || missionRole || deeperRole || progressionMode || returnOpen || phase==="zone"));
+  }, [dialogue, menu, help, mapOpen, journalOpen, crossOpen, missionRole, deeperRole, progressionMode, returnOpen, phase]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -391,6 +435,8 @@ export default function WorldGame() {
         else if (crossOpen) setCrossOpen(false);
         else if (missionRole) setMissionRole(null);
         else if (deeperRole) setDeeperRole(null);
+        else if (progressionMode) setProgressionMode(null);
+        else if (returnOpen) setReturnOpen(false);
         else if (menu) setMenu(false);
         return;
       }
@@ -420,10 +466,11 @@ export default function WorldGame() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [dialogue, page, optionIndex, help, menu, mapOpen, journalOpen, crossOpen, missionRole, deeperRole]);
+  }, [dialogue, page, optionIndex, help, menu, mapOpen, journalOpen, crossOpen, missionRole, deeperRole, progressionMode, returnOpen]);
   useEffect(() => {
     const online = () => {
       if (!retryRef.current()) void move();
+      const userId=saved.current?.userId;if(userId){const raw=localStorage.getItem(progressionPendingKey(userId));if(raw)try{const pending=JSON.parse(raw) as {type:"world.purchase"|"world.appearance"|"world.display"|"world.quest";fields:Record<string,unknown>;key:string};void progressionRef.current(pending.type,pending.fields,pending.key);}catch{localStorage.removeItem(progressionPendingKey(userId));}}
     };
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
@@ -432,7 +479,7 @@ export default function WorldGame() {
     await move();
     game.current?.destroy();
     game.current = null;
-    const node=targetRole?roles[targetRole].skillNode:null;
+    const node=returnNode??(targetRole?roles[targetRole].skillNode:null);
     router.push(node?`/my?view=route&node=${node}`:"/my?view=route");
   };
   return (
@@ -495,7 +542,7 @@ export default function WorldGame() {
                 {zones[scene].title.toUpperCase()}
               </small>
               <strong>
-                {targetRole && !snapshot?.state.roles[targetRole]?.completedAt ? `Попробуй роль «${roles[targetRole].title}» в ${zones[roles[targetRole].scene].title}` : snapshot && (scene==="square" || scene==="cafe") ? objective(snapshot.state) : "Исследуй пространство"}
+                {targetRole && !snapshot?.state.roles[targetRole]?.completedAt ? `Попробуй роль «${roles[targetRole].title}» в ${zones[roles[targetRole].scene].title}` : snapshot && sideQuests.find(q=>{const p=snapshot.state.sideQuests[q.id];return p && p.step>0 && !p.completedAt;}) ? (()=>{const q=sideQuests.find(q=>{const p=snapshot.state.sideQuests[q.id];return p && p.step>0 && !p.completedAt;})!;const step=q.steps[snapshot.state.sideQuests[q.id].step];return `${q.title}: ${step.prompt} · ${zones[step.point.scene].title}`;})() : snapshot && (scene==="square" || scene==="cafe") ? objective(snapshot.state) : "Исследуй пространство"}
               </strong>
             </div>
             <div className="world-hud-right">
@@ -563,6 +610,7 @@ export default function WorldGame() {
           )}
         </>
       )}
+      {returnOpen&&phase==="playing"&&snapshot&&<div className="world-overlay" role="dialog" aria-modal="true" aria-label="Продолжить в мире"><div className="world-menu"><small>{targetRole||returnNode==="world-before-opening"?"ИЗ ДЕРЕВА НАВЫКОВ":"ТЫ СНОВА В МИРЕ"}</small><h2>Продолжить</h2><p>{targetRole?`История роли «${roles[targetRole].title}» начинается в ${zones[roles[targetRole].scene].title}. Ты появишься у входа в район.`:returnNode==="world-before-opening"?"История фестиваля начинается на Campus Square. Ты появишься у входа на площадь.":sideQuests.find(q=>{const p=snapshot.state.sideQuests[q.id];return p&&p.step>0&&!p.completedAt;})?.title ? `Ты продолжал историю «${sideQuests.find(q=>{const p=snapshot.state.sideQuests[q.id];return p&&p.step>0&&!p.completedAt;})?.title}».` : roleIds.map(id=>({id,p:snapshot.state.roles[id]})).find(v=>v.p?.introAt&&!v.p?.completedAt)?`Ты знакомился с ролью «${roles[roleIds.find(id=>snapshot.state.roles[id]?.introAt&&!snapshot.state.roles[id]?.completedAt)!].title}».`:"Твои прогулки и решения сохранены."}</p><p>Сейчас ты в {zones[snapshot.state.scene].title}.</p>{targetRole&&<button onClick={()=>void focusRole(targetRole)}>К истории в {zones[roles[targetRole].scene].title}</button>}{returnNode==="world-before-opening"&&<button onClick={()=>void focusRole("before-opening")}>К истории на Campus Square</button>}<button onClick={()=>setReturnOpen(false)}>Продолжить с этого места</button><button onClick={()=>{setReturnOpen(false);setMapOpen(true);}}>Карта мира</button></div></div>}
       {dialogue && phase === "playing" && (
         <div className="world-dialogue-wrap">
           <div
@@ -666,7 +714,8 @@ export default function WorldGame() {
         </div>
       )}
       {mapOpen && <div className="world-overlay" role="dialog" aria-modal="true" aria-label="Карта кампуса"><div className="world-menu world-map"><div className="world-map-head"><h2>Карта кампуса</h2><button onClick={()=>setMapOpen(false)} aria-label="Закрыть карту">×</button></div><p>Дорожки ведут из Campus Square в пять районов. Карта не переносит персонажа.</p><div className="world-map-layout"><div className="world-map-square">Campus<br/>Square</div>{districtScenes.map((id)=>{const visited=snapshot?.state.visitedDistricts.includes(id);const here=scene===id || scene===`${id}-room`;return <div key={id} className={`world-map-place ${id} ${here?"here":""}`}><strong>{zones[id].title}</strong><span>{here?"Ты здесь":visited?"Посещено":"Не исследовано"}</span></div>})}</div><button onClick={()=>setMapOpen(false)}>Вернуться в мир</button></div></div>}
-      {journalOpen && snapshot && <WorldJournal state={snapshot.state} onClose={()=>setJournalOpen(false)}/>}
+      {journalOpen && snapshot && <WorldJournal state={snapshot.state} onClose={()=>setJournalOpen(false)} onReflection={text=>progressionAction("world.reflection",{reflection:text})}/>}
+      {progressionMode&&snapshot&&<WorldProgression key={`${progressionMode}-${questId??""}`} mode={progressionMode} state={snapshot.state} points={snapshot.points} questId={questId??undefined} onAction={progressionAction} onClose={()=>setProgressionMode(null)} onConversation={progressionMode==="quest"&&near?()=>{setProgressionMode(null);show(dialogueFor(near.id,near.name,snapshot.state));}:undefined}/>}
       {crossOpen && snapshot && <div className="world-overlay" role="dialog" aria-modal="true" aria-label="Открытие через час"><div className="world-cross"><header><div><small>FESTIVAL OF IDEAS</small><h2>Открытие через час</h2></div><button onClick={()=>setCrossOpen(false)} aria-label="Закрыть">×</button></header><p>У интерактивной установки собирается очередь. На карте видно, что её можно изменить разными способами. Выбери два взгляда и объедини их в план.</p><div className="world-cross-choices">{roleIds.map((id)=><button key={id} className={crossPair.includes(id)?"chosen":""} aria-pressed={crossPair.includes(id)} onClick={()=>setCrossPair(v=>v.includes(id)?v.filter((item)=>item!==id):v.length<2?[...v,id]:v)}>{roles[id].title}</button>)}</div>{snapshot.state.crossMission?<p className="world-mission-test">{snapshot.state.crossMission.result}</p>:<button className="world-mission-primary" disabled={crossPair.length!==2} onClick={()=>void missionAction(undefined,"cross",{perspectives:crossPair}).then((result)=>{if(result)setNotice("План сохранён. Открой журнал, чтобы увидеть фестивальную историю.");})}>Собрать общий план</button>}<button onClick={()=>{setCrossOpen(false);setMapOpen(true);}}>Посмотреть карту</button></div></div>}
       {missionRole && snapshot && <WorldMission key={missionRole} roleId={missionRole} progress={snapshot.state.roles[missionRole]} hasComponent={Boolean(snapshot.state.persistentPropStates["maker-rack"])} onAction={(action,payload)=>missionAction(missionRole,action,payload)} onClose={()=>setMissionRole(null)}/>}
       {deeperRole && snapshot && <WorldMission key={`deeper-${deeperRole}`} mode="deeper" roleId={deeperRole} progress={snapshot.state.roles[deeperRole]} hasComponent={Boolean(snapshot.state.persistentPropStates["maker-rack"])} onAction={(action,payload)=>missionAction(deeperRole,action,payload)} onClose={()=>setDeeperRole(null)}/>}

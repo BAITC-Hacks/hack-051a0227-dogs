@@ -1,9 +1,11 @@
 import { openingQuest } from "./quest";
 import { districtScenes, interiorScenes, zones } from "./scenes";
 import type { RoleId, RoleProgress, CrossProgress } from "./missions";
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
 export const WORLD_REWARD = 60;
-export type WorldScene = "square" | "cafe" | "maker" | "maker-room" | "garage" | "garage-room" | "people" | "people-room" | "urban" | "urban-room" | "house" | "house-room";
+export type WorldScene = "square" | "cafe" | "corner" | "maker" | "maker-room" | "garage" | "garage-room" | "people" | "people-room" | "urban" | "urban-room" | "house" | "house-room";
+export type WorldAppearance = { preset: "classic" | "cyan" | "graphite"; hair: "short" | "wave" | "curl"; bottom: "graphite" | "denim" | "olive"; top: string | null; accessory: string | null };
+export type SideQuestProgress = { step: number; choice: 0 | 1 | null; completedAt: string | null };
 export type WorldChoice = "repair" | "delegate" | "relocate";
 export type WorldEventKind =
   | "coordinator"
@@ -51,11 +53,18 @@ export type WorldState = {
   worldVersion: number;
   roles: Partial<Record<RoleId, RoleProgress>>;
   crossMission: CrossProgress | null;
+  appearance: WorldAppearance;
+  ownedCosmetics: string[];
+  displayedItems: string[];
+  postcards: string[];
+  sideQuests: Record<string, SideQuestProgress>;
+  reflection: string;
 };
 
 export const spawn: Record<WorldScene, {x:number;y:number}> = {
   square: { x: 25 * 32 + 16, y: 27 * 32 + 16 },
   cafe: { x: 9 * 32, y: 9 * 32 },
+  corner: { x: 9 * 32, y: 9 * 32 },
   maker: { x: 4 * 32, y: 11 * 32 },
   garage: { x: 4 * 32, y: 11 * 32 },
   people: { x: 4 * 32, y: 11 * 32 },
@@ -115,6 +124,12 @@ export function initialWorldState(): WorldState {
     worldVersion: WORLD_VERSION,
     roles: {},
     crossMission: null,
+    appearance: {preset:"classic",hair:"short",bottom:"graphite",top:null,accessory:null},
+    ownedCosmetics: [],
+    displayedItems: [],
+    postcards: [],
+    sideQuests: {},
+    reflection: "",
   };
 }
 
@@ -188,6 +203,17 @@ export function migrateWorldState(raw: unknown): WorldState {
     returnPositions: value.returnPositions ?? {},
     roles: value.roles ?? {},
     crossMission: value.crossMission ?? null,
+    appearance: { ...base.appearance, ...value.appearance },
+    ownedCosmetics: Array.isArray(value.ownedCosmetics) ? value.ownedCosmetics : [],
+    displayedItems: Array.isArray(value.displayedItems) ? value.displayedItems.slice(0,3) : [],
+    postcards: [...new Set([
+      ...(Array.isArray(value.postcards) ? value.postcards : []),
+      ...(value.visitedDistricts ?? []).map(scene=>`visit-${scene}`),
+      ...(value.discoveredSecrets ?? []).map(id=>`secret-${id}`),
+      ...Object.entries(value.roles ?? {}).filter(([,progress])=>Boolean(progress?.completedAt)).map(([role])=>`role-${role}`),
+    ])],
+    sideQuests: value.sideQuests ?? {},
+    reflection: typeof value.reflection === "string" ? value.reflection : "",
   };
   return state;
 }

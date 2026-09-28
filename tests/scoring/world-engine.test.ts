@@ -9,6 +9,7 @@ import {
   objective,
   points,
   safePosition,
+  spawn,
   migrateWorldState,
 } from "../../src/lib/world/model";
 import { dialogueFor } from "../../src/lib/world/dialogues";
@@ -16,6 +17,7 @@ import { districtScenes, zones, portalBetween } from "../../src/lib/world/scenes
 import { npcCast, npcsIn } from "../../src/lib/world/npcs";
 import { roleIds, roles, resolveMission, validateIntro, resolveDeeper } from "../../src/lib/world/missions";
 import { npcById, npcLocation } from "../../src/lib/world/npcs";
+import { cosmetics, sideQuests } from "../../src/lib/world/progression";
 import { grantQaAccess } from "../qa-access";
 import { cleanupRun } from "../cleanup";
 const origin = process.env.TEST_ORIGIN ?? "http://127.0.0.1:3000";
@@ -99,16 +101,67 @@ test("Новые районы связаны с площадью, старое �
   old.flags.choice="delegate";
   old.npc={saniya:2,aruzhan:1};
   const migrated=migrateWorldState({...old,visitedDistricts:undefined,npcMemoryFlags:undefined,returnPositions:undefined,worldPhase:undefined});
-  assert.equal(migrated.version,3);
+  assert.equal(migrated.version,4);
+  assert.deepEqual(migrated.ownedCosmetics,[]);
+  assert.deepEqual(migrated.sideQuests,{});
+  assert.equal(sideQuests.length,10);
+  assert.equal(cosmetics.length,20);
   assert.deepEqual(migrated.roles,{});
   assert.equal(migrated.flags.completed,true);
   assert.equal(migrated.flags.choice,"delegate");
   assert.equal(migrated.worldPhase,"AFTER");
   assert.deepEqual(migrated.visitedDistricts,[]);
+  const discovered=migrateWorldState({...old,visitedDistricts:["maker"],discoveredSecrets:["maker-bird"]});
+  assert.ok(discovered.postcards.includes("visit-maker"));
+  assert.ok(discovered.postcards.includes("secret-maker-bird"));
   assert.equal(migrated.npcMemoryFlags["met:saniya"],true);
   assert.equal(migrated.npcMemoryFlags["met:aruzhan"],true);
   assert.deepEqual(safePosition("maker",480,160),initialWorldState().scene === "square" ? {x:128,y:352}:null);
   assert.match(dialogueFor("maker-door","Maker Yard",initialWorldState()).pages[0],/Maker Yard/);
+});
+test("World progression: магазин, гардероб, личный стол и побочная история сохраняются без повторной награды",{timeout:120000},async()=>{
+  const email=`world-progression-${randomUUID()}@qa.local`,candidate=new Session();
+  let userId="";
+  try {
+    await candidate.call("register",{email,name:"Игрок прогресса",password:"WorldTest2026!"});
+    userId=(await db.user.update({where:{email},data:{origin:"QA"}})).id;
+    await grantQaAccess(db,email);
+    const first=await candidate.call("world.get") as {revision:number;state:ReturnType<typeof initialWorldState>};
+    const creditEvent=await db.worldEvent.create({data:{userId,eventKey:randomUUID(),kind:"qa:credit",payload:{test:true},origin:"QA"}});
+    await db.uPointEntry.create({data:{userId,source:"QA",nodeId:"qa-credit",rewardVersion:1,amount:100,reason:"QA credit",idempotencyKey:`qa:${userId}:credit`,worldEventId:creditEvent.id}});
+    const atStore={...first.state,scene:"square" as const,x:12*32,y:25*32};
+    const storeSave=await db.worldSave.update({where:{userId},data:{state:atStore as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const key=randomUUID();
+    await candidate.call("world.purchase",{revision:storeSave.revision,eventKey:randomUUID(),itemId:"unknown",price:0},400);
+    const bought=await candidate.call("world.purchase",{revision:storeSave.revision,eventKey:key,itemId:"lime-hoodie",price:0}) as {state:ReturnType<typeof initialWorldState>;revision:number;points:number};
+    assert.equal(bought.points,45);
+    assert.deepEqual(bought.state.ownedCosmetics,["lime-hoodie"]);
+    const repeat=await candidate.call("world.purchase",{revision:bought.revision,eventKey:key,itemId:"lime-hoodie"}) as {revision:number;points:number};
+    assert.equal(repeat.revision,bought.revision);assert.equal(repeat.points,45);
+    await candidate.call("world.purchase",{revision:bought.revision,eventKey:randomUUID(),itemId:"cyan-jacket"},400);
+    const corner={...bought.state,scene:"corner" as const,x:5*32,y:5*32};
+    const cornerSave=await db.worldSave.update({where:{userId},data:{state:corner as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    await candidate.call("world.appearance",{revision:cornerSave.revision,eventKey:randomUUID(),appearance:{preset:"cyan",hair:"wave",bottom:"denim",top:"cyan-jacket",accessory:null}},400);
+    const dressed=await candidate.call("world.appearance",{revision:cornerSave.revision,eventKey:randomUUID(),appearance:{preset:"cyan",hair:"wave",bottom:"denim",top:"lime-hoodie",accessory:null}}) as {state:ReturnType<typeof initialWorldState>;revision:number};
+    assert.equal(dressed.state.appearance.top,"lime-hoodie");
+    await candidate.call("world.display",{revision:dressed.revision,eventKey:randomUUID(),displayedItems:["lime-hoodie"]},400);
+    const atTimur={...dressed.state,scene:"square" as const,x:32*32,y:16*32};
+    const timurSave=await db.worldSave.update({where:{userId},data:{state:atTimur as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const started=await candidate.call("world.quest",{revision:timurSave.revision,eventKey:randomUUID(),questId:"lost-cable"}) as {state:ReturnType<typeof initialWorldState>;revision:number};
+    assert.equal(started.state.sideQuests["lost-cable"].step,1);
+    await candidate.call("world.quest",{revision:started.revision,eventKey:randomUUID(),questId:"lost-cable"},400);
+    const atBench={...started.state,scene:"maker-room" as const,x:8*32,y:5*32};
+    const benchSave=await db.worldSave.update({where:{userId},data:{state:atBench as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const bench=await candidate.call("world.quest",{revision:benchSave.revision,eventKey:randomUUID(),questId:"lost-cable"}) as {state:ReturnType<typeof initialWorldState>;revision:number};
+    const atDisplay={...bench.state,scene:"square" as const,x:31*32,y:16*32};
+    const displaySave=await db.worldSave.update({where:{userId},data:{state:atDisplay as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    await candidate.call("world.quest",{revision:displaySave.revision,eventKey:randomUUID(),questId:"lost-cable"},400);
+    const done=await candidate.call("world.quest",{revision:displaySave.revision,eventKey:randomUUID(),questId:"lost-cable",questChoice:1}) as {state:ReturnType<typeof initialWorldState>;revision:number;points:number};
+    assert.equal(done.state.sideQuests["lost-cable"].choice,1);assert.deepEqual(done.state.postcards,["display"]);assert.equal(done.points,70);
+    await candidate.call("world.quest",{revision:done.revision,eventKey:randomUUID(),questId:"lost-cable",questChoice:1});
+    assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD_SIDE"}}),1);
+    assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD_STORE"}}),1);
+  } finally {if(userId)await cleanupRun(db,[email]);await db.$disconnect();}
 });
 test("Пять ролей имеют разные действия, проверку и изменяемое решение",()=>{
   assert.equal(roleIds.length,5);
@@ -148,8 +201,13 @@ test("World API: район, интерьер, возвращение к две�
     const entered=await candidate.call("world.move",{revision:gateSave.revision,scene:"maker",x:0,y:0}) as {revision:number;state:ReturnType<typeof initialWorldState>};
     assert.equal(entered.state.scene,"maker");
     assert.deepEqual(entered.state.visitedDistricts,["maker"]);
+    assert.ok(entered.state.postcards.includes("visit-maker"));
     await candidate.call("world.explore",{revision:entered.revision,targetId:"maker-bird",exploreAction:"discover",eventKey:randomUUID()},400);
-    const atProp={...entered.state,x:21*32,y:14*32};
+    const atSecret={...entered.state,x:6*32,y:17*32};
+    const secretSave=await db.worldSave.update({where:{userId},data:{state:atSecret as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
+    const secret=await candidate.call("world.explore",{revision:secretSave.revision,targetId:"maker-bird",exploreAction:"discover",eventKey:randomUUID()}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.ok(secret.state.postcards.includes("secret-maker-bird"));
+    const atProp={...secret.state,x:21*32,y:14*32};
     const propSave=await db.worldSave.update({where:{userId},data:{state:atProp as unknown as Prisma.InputJsonValue,revision:{increment:1}}});
     const key=randomUUID();
     const toggled=await candidate.call("world.explore",{revision:propSave.revision,targetId:"maker-rack",exploreAction:"toggle",eventKey:key}) as {revision:number;state:ReturnType<typeof initialWorldState>};
@@ -163,9 +221,15 @@ test("World API: район, интерьер, возвращение к две�
     const inside=await candidate.call("world.move",{revision:doorSave.revision,scene:"maker-room",x:0,y:0}) as {revision:number;state:ReturnType<typeof initialWorldState>};
     assert.equal(inside.state.scene,"maker-room");
     assert.deepEqual(inside.state.visitedInteriors,["maker-room"]);
-    const outside=await candidate.call("world.move",{revision:inside.revision,scene:"maker",x:0,y:0}) as {state:ReturnType<typeof initialWorldState>};
+    const outside=await candidate.call("world.move",{revision:inside.revision,scene:"maker",x:0,y:0}) as {revision:number;state:ReturnType<typeof initialWorldState>};
     assert.deepEqual({x:outside.state.x,y:outside.state.y},{x:480,y:288});
     assert.equal(outside.state.persistentPropStates["maker-rack"],true);
+    const focusKey=randomUUID();
+    const focused=await candidate.call("world.focus",{revision:outside.revision,questId:"before-opening",eventKey:focusKey}) as {revision:number;state:ReturnType<typeof initialWorldState>};
+    assert.equal(focused.state.scene,"square");
+    assert.deepEqual({x:focused.state.x,y:focused.state.y},spawn.square);
+    const focusRetry=await candidate.call("world.focus",{revision:focused.revision,questId:"before-opening",eventKey:focusKey}) as {revision:number};
+    assert.equal(focusRetry.revision,focused.revision);
     assert.equal(await db.uPointEntry.count({where:{userId,source:"WORLD"}}),0);
   } finally {if(userId) await cleanupRun(db,[email]);await db.$disconnect();}
 });

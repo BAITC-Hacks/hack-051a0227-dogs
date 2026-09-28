@@ -11,6 +11,8 @@ import { developmentRecommendations } from "./development.server";
 import type { ProfileScope } from "./profile-contract";
 import { visionConsentSchema, visionVersion } from "./vision-contract";
 import { digest } from "./scoring-input.server";
+import { migrateWorldState, objective as worldObjective } from "./world/model";
+import { sideQuests } from "./world/progression";
 export async function visionCapability(user: User) {
   const c = await db.openAIConnection.findUnique({
     where: { id: "local" },
@@ -73,6 +75,13 @@ export async function visionContext(
       c.sources.push(profileSource(`skill:${node.id}`, node.title, `${node.title}. ${node.prompt} Состояние: ${node.state === "completed" ? "завершено" : node.state === "in_progress" ? "в работе" : "доступно"}. Награда за первое завершение: ${node.reward} U.`, "resource", "Личное дерево навыков", { href: skillHref(node.id) }));
     const recommended = tree.nodes.find((node) => node.id === tree.recommendedId);
     if (recommended) skillNext = { title: recommended.title, href: skillHref(recommended.id) };
+    const save=await db.worldSave.findUnique({where:{userId:fresh.id},select:{state:true}});
+    if(save) {
+      const world=migrateWorldState(save.state);
+      const active=sideQuests.find(q=>{const p=world.sideQuests[q.id];return p&&p.step>0&&!p.completedAt;});
+      const summary=`Место: ${world.scene}. Текущий шаг: ${active?`${active.title}: ${active.steps[world.sideQuests[active.id].step]?.prompt}`:worldObjective(world)}. Завершённые истории ролей: ${Object.values(world.roles).filter(role=>role?.completedAt).length}. Открытки: ${world.postcards.length}. Личная заметка: ${world.reflection||"не записана"}.`;
+      c.sources.push(profileSource("world:progress","inVision World",summary,"resource","Личный прогресс World",{href:"/world"}));
+    }
   }
   if (access === "APPLICATION") {
     c.works = [];

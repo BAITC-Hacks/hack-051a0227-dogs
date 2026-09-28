@@ -20,6 +20,7 @@ import {
 import { districtScenes, interiorScenes, pointById, portalBetween, sceneKeys, zones } from "./scenes";
 import { npcById, npcLocation } from "./npcs";
 import { emptyRoleProgress, newCondition, resolveCrossMission, resolveDeeper, resolveMission, roleIds, roles, validateIntro, type RoleId, type MissionPayload } from "./missions";
+import { cosmeticById, questById } from "./progression";
 
 const sceneSchema = z.enum(sceneKeys as [WorldScene, ...WorldScene[]]);
 const kindSchema = z.enum([
@@ -37,7 +38,7 @@ const kindSchema = z.enum([
   "visit_cafe",
 ]);
 const inputSchema = z.object({
-  type: z.enum(["world.get", "world.move", "world.event", "world.explore", "world.mission"]),
+  type: z.enum(["world.get", "world.move", "world.event", "world.explore", "world.mission", "world.focus", "world.purchase", "world.appearance", "world.display", "world.quest", "world.reflection"]),
   revision: z.number().int().positive().optional(),
   scene: sceneSchema.optional(),
   x: z.number().finite().optional(),
@@ -50,6 +51,12 @@ const inputSchema = z.object({
   roleId: z.enum(roleIds).optional(),
   missionAction: z.enum(["intro", "test", "finish", "deeper", "replay", "preference", "cross"]).optional(),
   payload: z.partialRecord(z.enum(["check", "flow", "question", "zones", "fact", "sensor", "power", "mount", "connections", "problem", "testers", "interviews", "hypothesis", "evidence", "layout", "priority", "volunteers", "sources", "angle", "channel", "story", "headline", "update", "preference", "perspectives", "deeperChoice"]), z.union([z.string().max(40), z.array(z.string().max(40)).max(4)])).optional(),
+  itemId: z.string().max(50).optional(),
+  appearance: z.object({preset:z.enum(["classic","cyan","graphite"]),hair:z.enum(["short","wave","curl"]),bottom:z.enum(["graphite","denim","olive"]),top:z.string().max(50).nullable(),accessory:z.string().max(50).nullable()}).optional(),
+  displayedItems: z.array(z.string().max(50)).max(3).optional(),
+  questId: z.string().max(60).optional(),
+  questChoice: z.union([z.literal(0),z.literal(1)]).optional(),
+  reflection: z.string().max(800).optional(),
 });
 
 function parseState(raw: unknown): WorldState {
@@ -86,19 +93,22 @@ export async function worldAction(raw: unknown, user: User) {
         where: { userId: user.id },
       });
       if (!save) throw new AppError("Сначала открой мир.", 409);
-      if ((input.type === "world.event" || input.type === "world.explore" || input.type === "world.mission") && input.eventKey) {
+      if (input.type !== "world.move" && input.eventKey) {
         const previous = await tx.worldEvent.findUnique({
           where: {
             userId_eventKey: { userId: user.id, eventKey: input.eventKey },
           },
         });
-        if (previous)
+        if (previous) {
+          const balance=await tx.uPointEntry.aggregate({where:{userId:user.id},_sum:{amount:true}});
           return {
             state: parseState(save.state),
             revision: save.revision,
             savedAt: save.updatedAt,
+            points: balance._sum.amount ?? 0,
             repeated: true,
           };
+        }
       }
       if (save.revision !== input.revision)
         throw new AppError(
@@ -106,6 +116,78 @@ export async function worldAction(raw: unknown, user: User) {
           409,
         );
       let state = parseState(save.state);
+      const closeTo=(scene:WorldScene,x:number,y:number)=>state.scene===scene && Math.hypot(state.x-x,state.y-y)<=135;
+      if(input.type==="world.focus") {
+        const roleId=input.roleId;
+        const festival=input.questId==="before-opening" && !roleId;
+        if((!roleId&&!festival)||!input.eventKey) throw new AppError("Неизвестная история.");
+        const target=festival?"square":roles[roleId!].scene;
+        const prior={scene:state.scene,x:state.x,y:state.y};
+        state={...state,scene:target,...spawn[target],safeLocation:{scene:target,...spawn[target]},returnPositions:{...state.returnPositions,[prior.scene]:{x:prior.x,y:prior.y}},openedLocations:state.openedLocations.includes(target)?state.openedLocations:[...state.openedLocations,target],visitedDistricts:state.visitedDistricts.includes(target)?state.visitedDistricts:[...state.visitedDistricts,target]};
+        await tx.worldEvent.create({data:{userId:user.id,eventKey:input.eventKey,kind:"focus",payload:{roleId:roleId??null,questId:festival?"before-opening":null,from:prior.scene,to:target,worldVersion:WORLD_VERSION}}});
+        const updated=await tx.worldSave.updateMany({where:{userId:user.id,revision:save.revision},data:{state:encode(state),revision:{increment:1},worldVersion:WORLD_VERSION}});
+        if(!updated.count) throw new AppError("Мир изменился в другой вкладке. Обнови его.",409);
+        return {state,revision:save.revision+1,savedAt:new Date()};
+      }
+      if(["world.purchase","world.appearance","world.display","world.quest","world.reflection"].includes(input.type)) {
+        if(!input.eventKey) throw new AppError("Неизвестное действие.");
+        let earned=0;
+        let resultText="Сохранено";
+        if(input.type==="world.purchase") {
+          const item=input.itemId && cosmeticById[input.itemId];
+          if(!item || !closeTo("square",12*32,25*32)) throw new AppError("Подойди к лавке кампуса.");
+          if(state.ownedCosmetics.includes(item.id)) return {state,revision:save.revision,savedAt:save.updatedAt,repeated:true};
+          const balance=await tx.uPointEntry.aggregate({where:{userId:user.id},_sum:{amount:true}});
+          if((balance._sum.amount??0)<item.price) throw new AppError("Пока не хватает U для этого предмета.");
+          state.ownedCosmetics.push(item.id);
+          earned=-item.price;
+          resultText=`${item.title} добавлен в твои вещи.`;
+        } else if(input.type==="world.appearance") {
+          if(!input.appearance || !closeTo("corner",5*32,5*32)) throw new AppError("Открой гардероб в личном уголке.");
+          for(const id of [input.appearance.top,input.appearance.accessory]) if(id && !state.ownedCosmetics.includes(id)) throw new AppError("Эта вещь ещё не открыта.");
+          if(input.appearance.top && cosmeticById[input.appearance.top]?.category!=="outfit") throw new AppError("Неверная вещь для образа.");
+          if(input.appearance.accessory && cosmeticById[input.appearance.accessory]?.category!=="accessory") throw new AppError("Неверный аксессуар.");
+          state.appearance=input.appearance;
+          resultText="Образ сохранён.";
+        } else if(input.type==="world.display") {
+          if(!input.displayedItems || !closeTo("corner",11*32,5*32)) throw new AppError("Подойди к личному столу.");
+          if(new Set(input.displayedItems).size!==input.displayedItems.length || input.displayedItems.some(id=>!state.ownedCosmetics.includes(id) || !["desk","world","display"].includes(cosmeticById[id]?.category))) throw new AppError("Предмет недоступен для стола.");
+          state.displayedItems=input.displayedItems;
+          resultText="Личный стол обновлён.";
+        } else if(input.type==="world.reflection") {
+          if(input.reflection===undefined || !Object.values(state.roles).some(role=>role?.completedAt) && !state.crossMission) throw new AppError("Сначала заверши историю роли.");
+          state.reflection=input.reflection.trim();
+          resultText="Мысль сохранена в личном журнале.";
+        } else {
+          const quest=input.questId && questById[input.questId];
+          if(!quest) throw new AppError("История не найдена.");
+          const progress=state.sideQuests[quest.id]??{step:0,choice:null,completedAt:null};
+          if(progress.completedAt) return {state,revision:save.revision,savedAt:save.updatedAt,repeated:true};
+          const step=quest.steps[progress.step];
+          if(!step) throw new AppError("Эта часть истории уже завершена.");
+          const base=points[step.point.id as WorldEventKind];
+          const npc=npcById[step.point.id];
+          const loc=npc?npcLocation(npc,state):pointById(step.point.scene,step.point.id)??base;
+          if(!loc || !closeTo(step.point.scene,loc.x,loc.y)) throw new AppError("Подойди к месту следующего шага.");
+          const isLast=progress.step===quest.steps.length-1;
+          if(isLast && input.questChoice===undefined) throw new AppError("Выбери, как завершить историю.");
+          progress.step++;
+          if(isLast) {
+            progress.choice=input.questChoice!;
+            progress.completedAt=new Date().toISOString();
+            earned=quest.reward;
+            if(quest.postcard && !state.postcards.includes(quest.postcard)) state.postcards.push(quest.postcard);
+          }
+          state.sideQuests[quest.id]=progress;
+          resultText=step.story;
+        }
+        const event=await tx.worldEvent.create({data:{userId:user.id,eventKey:input.eventKey,kind:input.type,payload:{itemId:input.itemId??null,questId:input.questId??null,step:input.questId?state.sideQuests[input.questId]?.step:null,worldVersion:WORLD_VERSION}}});
+        if(earned) await tx.uPointEntry.create({data:{userId:user.id,source:earned<0?"WORLD_STORE":"WORLD_SIDE",nodeId:earned<0?`store:${input.itemId}`:`side:${input.questId}`,rewardVersion:1,amount:earned,reason:earned<0?`Предмет «${cosmeticById[input.itemId!].title}»`:`История «${questById[input.questId!].title}»`,idempotencyKey:earned<0?`world:${user.id}:purchase:${input.itemId}:v1`:`world:${user.id}:side:${input.questId}:v1`,worldEventId:event.id}});
+        const updated=await tx.worldSave.updateMany({where:{userId:user.id,revision:save.revision},data:{state:encode(state),revision:{increment:1},worldVersion:WORLD_VERSION}});
+        if(!updated.count) throw new AppError("Мир изменился в другой вкладке. Обнови его.",409);
+        const balance=await tx.uPointEntry.aggregate({where:{userId:user.id},_sum:{amount:true}});
+        return {state,revision:save.revision+1,savedAt:new Date(),points:balance._sum.amount??0,earned,resultText};
+      }
       if (input.type === "world.move") {
         if (input.x === undefined || input.y === undefined || !input.scene)
           throw new AppError("Неизвестная позиция.");
@@ -129,6 +211,8 @@ export async function worldAction(raw: unknown, user: User) {
             visitedInteriors:interiorScenes.includes(input.scene as typeof interiorScenes[number]) && !state.visitedInteriors.includes(input.scene) ? [...state.visitedInteriors,input.scene]:state.visitedInteriors,
             openedLocations:state.openedLocations.includes(input.scene)?state.openedLocations:[...state.openedLocations,input.scene],
           };
+          const visitCard=`visit-${input.scene}`;
+          if(districtScenes.includes(input.scene as typeof districtScenes[number]) && !state.postcards.includes(visitCard)) state.postcards.push(visitCard);
         } else {
           const safe = safePosition(input.scene, input.x, input.y);
           if (safe.x !== input.x || safe.y !== input.y)
@@ -186,6 +270,7 @@ export async function worldAction(raw: unknown, user: User) {
             resultText=progress.final.consequence;
             if (!progress.completedAt) { progress.completedAt=now; earned=role.mainReward; }
             else progress.replayCount += 1;
+            if (!state.postcards.includes(`role-${roleId}`)) state.postcards.push(`role-${roleId}`);
             progress.history.push({first:progress.first,final:progress.final,at:now});
             state.persistentPropStates[role.prop]=true;
           } else if (action === "deeper") {
@@ -230,7 +315,10 @@ export async function worldAction(raw: unknown, user: User) {
           state.npcStates[npc.id]=npc.activity==="patrol"?"patrolling":npc.activity==="work"?"working":"idle";
         } else if(prop && ((action==="toggle" && prop.kind==="toggle") || (action==="discover" && prop.kind==="secret"))) {
           if(action==="toggle") state.persistentPropStates[prop.id]=true;
-          else if(!state.discoveredSecrets.includes(prop.id)) state.discoveredSecrets.push(prop.id);
+          else if(!state.discoveredSecrets.includes(prop.id)) {
+            state.discoveredSecrets.push(prop.id);
+            state.postcards.push(`secret-${prop.id}`);
+          }
         } else throw new AppError("Действие недоступно.");
         await tx.worldEvent.create({data:{userId:user.id,eventKey:input.eventKey,kind:`explore:${action}`,payload:{targetId:input.targetId,worldVersion:WORLD_VERSION}}});
       } else {

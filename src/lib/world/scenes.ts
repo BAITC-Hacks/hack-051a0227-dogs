@@ -45,16 +45,26 @@ export const zones: Record<WorldScene, Zone> = {
       { id: "house-door", label: "Media House", ...p(5,32), to: "house" },
     ],
     props: [
+      prop("supply-corner", "Лавка кампуса", "notebooks", 12, 25, "Здесь можно обменять U на вещи для образа и личного уголка."),
       prop("square-map", "Карта кампуса", "map-kiosk", 35, 25, "Пять дорожек расходятся от площади. Если свернуть за зелёную стену, виден тихий дворик."),
       prop("square-birds", "Заглянуть за сцену", "origami", 27, 26, "За кулисами лежит бумажная птица с нарисованной буквой U. Кто-то оставил её на удачу.", "secret"),
     ],
   },
   cafe: {
     title: "Campus Cafe", width: 18, height: 12, interior: true,
-    portals: [{ id: "square-door", label: "Выйти на площадь", ...p(9,10), to: "square" }],
+    portals: [{ id: "square-door", label: "Выйти на площадь", ...p(9,10), to: "square" }, {id:"corner-door",label:"Мой уголок",...p(15,8),to:"corner"}],
     props: [
       prop("cafe-counter", "Посмотреть меню", "coffee", 9, 5, "На доске только рисунки напитков. На соседнем столе обсуждают афишу фестиваля."),
       prop("cafe-note", "Прочитать записку", "notebooks", 5, 7, "Кто-то записал: «Спросить гостей, какую историю они запомнили». Имя на полях не разобрать.", "secret"),
+    ],
+  },
+  corner: {
+    title: "Мой уголок", width: 18, height: 12, interior: true,
+    portals: [{id:"cafe-door",label:"В кофейню",...p(9,10),to:"cafe"}],
+    props: [
+      prop("corner-wardrobe","Открыть гардероб","desk",5,5,"Здесь можно подобрать образ из вещей, которые уже есть."),
+      prop("corner-desk","Личный стол","desk",11,5,"На столе можно разместить любимые предметы и найденные открытки."),
+      prop("corner-journal","Открыть журнал","notebooks",9,7,"Здесь остаются истории твоих прогулок по кампусу."),
     ],
   },
   maker: {
@@ -150,7 +160,7 @@ export const zones: Record<WorldScene, Zone> = {
 };
 
 export const districtScenes = ["maker", "garage", "people", "urban", "house"] as const;
-export const interiorScenes = ["maker-room", "garage-room", "people-room", "urban-room", "house-room", "cafe"] as const;
+export const interiorScenes = ["maker-room", "garage-room", "people-room", "urban-room", "house-room", "cafe", "corner"] as const;
 export const sceneKeys = Object.keys(zones) as WorldScene[];
 export function portalBetween(from: WorldScene, to: WorldScene) {
   return zones[from].portals.find((portal) => portal.to === to);

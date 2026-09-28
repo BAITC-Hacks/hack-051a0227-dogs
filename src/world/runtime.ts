@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import type { WorldScene, WorldState } from "@/lib/world/model";
 import { zones, sceneKeys } from "@/lib/world/scenes";
 import { npcsIn, npcLocation } from "@/lib/world/npcs";
+import { cosmeticById } from "@/lib/world/progression";
 
 export type Interaction = {
   id: string;
@@ -57,13 +58,17 @@ export function mountWorld(
   let touch = { x: 0, y: 0, action: false };
   const queueZone = (scene: Phaser.Scene, zone: WorldScene) => {
     if (!scene.cache.json.exists(`${zone}-map`))
-      scene.load.json(`${zone}-map`, `/world/maps/${zone === "square" ? "campus-square" : zone}.json`);
+      scene.load.json(`${zone}-map`, `/world/maps/${zone === "square" ? "campus-square" : zone === "corner" ? "cafe" : zone}.json`);
     const images = [zones[zone].facade, zones[zone].landmark, ...zones[zone].props.map((item) => item.art), ...(zone==="square"?["bike-rack","event-stage","green-wall"]:[]), ...(zones[zone].interior?["desk","green-wall"]:[])].filter((v):v is string=>Boolean(v));
     for (const key of new Set(images))
       if (!scene.textures.exists(key)) scene.load.image(key,url(`${key}.webp`));
+    if(zone==="corner") for(const id of state.displayedItems)
+      if(!scene.textures.exists(`cosmetic-${id}`)) scene.load.image(`cosmetic-${id}`,url(`cosmetic-${id}.webp`));
     for (const npc of npcsIn(zone,state))
       if (!scene.textures.exists(npc.sprite))
         scene.load.spritesheet(npc.sprite,url(`${npc.sprite}-walk.png`),{frameWidth:32,frameHeight:32});
+    if(state.appearance.accessory && !scene.textures.exists(`cosmetic-${state.appearance.accessory}`))
+      scene.load.image(`cosmetic-${state.appearance.accessory}`,url(`cosmetic-${state.appearance.accessory}.webp`));
   };
   class LoadingScene extends Phaser.Scene {
     constructor() {
@@ -99,6 +104,8 @@ export function mountWorld(
     keys!: Record<string, Phaser.Input.Keyboard.Key>;
     objects: Interaction[] = [];
     npcBodies: Phaser.Physics.Arcade.Sprite[] = [];
+    accessorySprite: Phaser.GameObjects.Image | null = null;
+    avatarTexture = "player";
     current: Interaction | null = null;
     destination: { x: number; y: number; point: Interaction | null } | null =
       null;
@@ -263,6 +270,8 @@ export function mountWorld(
           point(item.id,item.label,item.x,item.y);
         }
         point("square-door", "Выйти на площадь", 9 * 32, 10 * 32);
+        art("desk", 15*32, 8*32, 56);
+        point("corner-door", "Мой уголок", 15*32, 8*32);
         for(const npcDef of npcsIn("cafe",state)) {
           const npc=this.physics.add.sprite(npcDef.x,npcDef.y,npcDef.sprite,0).setDepth(4).setScale(1.7).setImmovable(true);
           npc.body?.setSize(18,14).setOffset(7,18);
@@ -290,6 +299,12 @@ export function mountWorld(
           if(state.persistentPropStates[item.id]) image.setTint(0xc8f79a);
           point(item.id,item.label,item.x,item.y);
         }
+        if(this.zone==="corner") {
+          const shown=state.displayedItems.slice(0,3);
+          shown.forEach((id,index)=>{
+            if(this.textures.exists(`cosmetic-${id}`)) art(`cosmetic-${id}`,(5+index*4)*32,4*32,46,4);
+          });
+        }
         for(const portal of zone.portals) {
           point(portal.id,portal.label,portal.x,portal.y);
           if(!zone.interior) this.add.text(portal.x,portal.y-38,portal.label,{fontFamily:"Arial",fontSize:"12px",color:"#18231e",backgroundColor:"#ecf5d7",padding:{x:5,y:3}}).setOrigin(.5).setDepth(5);
@@ -316,22 +331,48 @@ export function mountWorld(
               x: zoneSpawn(this.zone).x,
               y: zoneSpawn(this.zone).y,
             };
+      const look=state.appearance;
+      const avatarKey=`player-${look.preset}-${look.hair}-${look.bottom}-${look.top??"base"}`;
+      if(!this.textures.exists(avatarKey)) {
+        const canvas=document.createElement("canvas");canvas.width=96;canvas.height=128;
+        const ctx=canvas.getContext("2d",{willReadFrequently:true})!;
+        ctx.drawImage(this.textures.get("player").getSourceImage() as HTMLImageElement,0,0);
+        const image=ctx.getImageData(0,0,96,128),d=image.data;
+        const top=look.top?cosmeticById[look.top]?.tint:({classic:0xd5fc48,cyan:0x65cee2,graphite:0xb5c2b2} as const)[look.preset];
+        const bottom=({graphite:0x35424b,denim:0x3a7599,olive:0x6c8350} as const)[look.bottom];
+        const hair=({short:0x2f3132,wave:0x614334,curl:0x333940} as const)[look.hair];
+        for(let y=0;y<128;y++)for(let x=0;x<96;x++){
+          const i=(y*96+x)*4;if(!d[i+3])continue;const local=y%32;
+          const color=d[i]===213&&d[i+1]===252&&d[i+2]===72?top:local>=28&&local<=30?bottom:local>=5&&local<=10&&d[i]===47&&d[i+1]===49&&d[i+2]===50?hair:null;
+          if(color!=null){d[i]=(color>>16)&255;d[i+1]=(color>>8)&255;d[i+2]=color&255;}
+        }
+        ctx.putImageData(image,0,0);
+        if(look.hair!=="short") for(let row=0;row<4;row++)for(let col=0;col<3;col++){
+          ctx.fillStyle=`#${hair.toString(16).padStart(6,"0")}`;
+          if(look.hair==="wave") {ctx.fillRect(col*32+9,row*32+10,2,3);ctx.fillRect(col*32+23,row*32+10,2,3);}
+          else {ctx.fillRect(col*32+9,row*32+8,3,4);ctx.fillRect(col*32+22,row*32+8,3,4);}
+        }
+        const texture=this.textures.addCanvas(avatarKey,canvas);
+        for(let row=0;row<4;row++)for(let col=0;col<3;col++) texture?.add(String(row*3+col),0,col*32,row*32,32,32);
+      }
+      this.avatarTexture=avatarKey;
       this.player = this.physics.add
-        .sprite(position.x, position.y, "player", 0)
+        .sprite(position.x, position.y, avatarKey, 0)
         .setDepth(5)
         .setScale(1.7)
         .setCollideWorldBounds(true);
+      if(look.accessory) this.accessorySprite=this.add.image(position.x,position.y-23,`cosmetic-${look.accessory}`).setDisplaySize(21,21).setDepth(6);
       this.player.body?.setSize(15, 12).setOffset(9, 20);
       this.physics.add.collider(this.player, walls);
       for (const npc of npcBodies) if(!this.zone || npc.texture.key === "saniya" || !npcsIn(this.zone,state).find((item)=>item.id===npc.texture.key && item.activity==="patrol")) this.physics.add.collider(this.player, npc);
       for (const dir of ["down", "left", "right", "up"] as const) {
         const row = { down: 0, left: 1, right: 2, up: 3 }[dir];
-        if (!this.anims.exists(`walk-${dir}`))
+          if (!this.anims.exists(`walk-${dir}-${avatarKey}`))
           this.anims.create({
-            key: `walk-${dir}`,
+            key: `walk-${dir}-${avatarKey}`,
             frames: [0, 1, 2].map((i) => ({
-              key: "player",
-              frame: row * 3 + i,
+              key: avatarKey,
+              frame: String(row * 3 + i),
             })),
             frameRate: 8,
             repeat: -1,
@@ -417,8 +458,9 @@ export function mountWorld(
             : dy > 0
               ? "down"
               : "up";
-        this.player.anims.play(`walk-${dir}`, true);
+        this.player.anims.play(`walk-${dir}-${this.avatarTexture}`, true);
       } else this.player.anims.stop();
+      if(this.accessorySprite) this.accessorySprite.setPosition(this.player.x,this.player.y-23);
       const nearest = this.objects.reduce<Interaction | null>((best, p) => {
         const moving = this.npcBodies.find((sprite)=>sprite.getData("interactionId")===p.id);
         if(moving) {p.x=moving.x;p.y=moving.y;}
@@ -488,7 +530,7 @@ export function mountWorld(
       };
     },
     setState(next) {
-      const refresh = active?.zone === next.scene && JSON.stringify(state.persistentPropStates)!==JSON.stringify(next.persistentPropStates);
+      const refresh = active?.zone === next.scene && (JSON.stringify(state.persistentPropStates)!==JSON.stringify(next.persistentPropStates) || JSON.stringify(state.appearance)!==JSON.stringify(next.appearance) || JSON.stringify(state.displayedItems)!==JSON.stringify(next.displayedItems));
       state = next;
       if (active?.zone === next.scene && active.player)
         active.player.setPosition(next.x, next.y);

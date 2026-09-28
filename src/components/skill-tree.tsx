@@ -26,6 +26,7 @@ export function SkillTree({ initial, selectedId }: { initial: SkillView; selecte
   const node = view.nodes.find((n) => n.id === selected)!;
   const branchNodes = view.nodes.filter((n) => n.domain === domain && n.branch === branch);
   const selectedDomain = view.domains.find((d) => d.id === domain)!;
+  const continuation=view.nodes.find(n=>n.domain===node.domain&&n.id!==node.id&&n.state==="available")??view.nodes.find(n=>n.state==="available"&&n.id!==node.id);
   function choose(id: string) {
     const next = view.nodes.find((n) => n.id === id)!;
     setDomain(next.domain); setBranch(next.branch); setSelected(id);
@@ -34,12 +35,13 @@ export function SkillTree({ initial, selectedId }: { initial: SkillView; selecte
   }
   async function reload() { setView(await action<SkillView>("skill.view")); router.refresh(); }
   return <section className="skill-v2" aria-label="Дерево навыков">
-    <header className="skill-v2-head"><div><span className="eyebrow">Личное развитие</span><h2>Древо навыков</h2><p>Выбирай ветвь, пробуй новые ситуации и сохраняй свои решения.</p></div><div className="skill-v2-balance"><Coins size={20} aria-hidden="true"/><strong>{view.balance} U</strong><small>за завершённые шаги</small></div></header>
+    <header className="skill-v2-head"><div><span className="eyebrow">Личное развитие</span><h2>Древо навыков</h2><p>Выбирай ветвь, пробуй новые ситуации и сохраняй свои решения.</p></div><div className="skill-v2-balance"><Coins size={20} aria-hidden="true"/><strong>{view.balance} U</strong><small>Твой баланс</small></div></header>
     <div className="skill-v2-roots" aria-label="Направления">
       {view.domains.map((d, index) => <button key={d.id} className={`skill-v2-root root-${index}`} aria-pressed={domain === d.id} onClick={() => { setDomain(d.id); const target = view.nodes.find((n) => n.id === d.nextId) ?? view.nodes.find((n) => n.domain === d.id)!; setBranch(target.branch); choose(target.id); }}>
         <span className="skill-v2-root-symbol" aria-hidden="true">{["✳", "◌", "✦", "Aa"][index]}</span><span><strong>{d.title}</strong><small>{d.done} из {d.total} шагов</small></span><span className="skill-v2-root-progress"><i style={{ width: `${d.done / d.total * 100}%` }}/></span><span className="skill-v2-root-next">{d.nextId ? <><span>Дальше: {d.nextTitle}</span><b>+{view.nodes.find((n) => n.id === d.nextId)?.reward} U</b></> : "Все шаги пройдены"}</span>
       </button>)}
     </div>
+    {view.ledger.length>0&&<div className="skill-v2-recap"><strong>За последнее время</strong><div>{view.ledger.slice(0,3).map(entry=><span key={entry.id}>{entry.reason} <b>{entry.amount>0?"+":""}{entry.amount} U</b></span>)}</div></div>}
     <div className="skill-v2-stage">
       <div className="skill-v2-map"><div className="skill-v2-map-head"><div><span className="eyebrow">Выбранное направление</span><h3>{selectedDomain.title}</h3><p>{selectedDomain.intro}</p></div><span className="skill-v2-smallcount">{selectedDomain.done}/{selectedDomain.total}</span></div>
         <div className="skill-v2-branch-layout"><div className="skill-v2-trunk" aria-hidden="true"><span>{skillDomains.findIndex((d) => d.id === domain) === 3 ? "Aa" : "✳"}</span></div><div className="skill-v2-branches" aria-label="Ветви">
@@ -47,7 +49,7 @@ export function SkillTree({ initial, selectedId }: { initial: SkillView; selecte
         </div><div className="skill-v2-node-path" aria-label={`Шаги ветви ${branch}`}>
           <span className="skill-v2-path-label">{branch}</span>{branchNodes.map((n, index) => <button key={n.id} className={`skill-v2-node ${n.state} ${n.id === node.id ? "selected" : ""}`} aria-current={n.id === node.id ? "step" : undefined} onClick={() => choose(n.id)}><span className="skill-v2-node-orb">{n.state === "completed" ? <Check size={21}/> : n.state === "locked" ? <LockKeyhole size={18}/> : String(index + 1).padStart(2, "0")}</span><span><strong>{n.title}</strong><small>{n.state === "completed" ? "Завершено" : n.state === "in_progress" ? "В работе" : n.state === "locked" ? "Откроется после предыдущего шага" : `+${n.reward} U`}</small></span><ArrowRight size={17} aria-hidden="true"/></button>)}</div></div>
       </div>
-      <div className="skill-v2-detail"><span className="eyebrow">{node.branch} · шаг {node.tier}</span><h3 tabIndex={-1} ref={title}>{node.title}</h3><p className="skill-v2-prompt">{node.prompt}</p><div className="skill-v2-meta"><span>{activityLabel(node.type)}</span><span>+{node.reward} U</span>{node.optional && <span>По желанию</span>}</div>{node.state === "locked" ? <p className="skill-v2-locked"><LockKeyhole size={18}/> Заверши предыдущий шаг: {node.prerequisites.map((id) => view.nodes.find((n) => n.id === id)?.title).join(", ")}.</p> : <SkillActivity key={node.id} node={node} saved={node.latest?.response} completed={node.state === "completed"} reload={reload}/>}
+      <div className="skill-v2-detail"><span className="eyebrow">{node.branch} · шаг {node.tier}</span><h3 tabIndex={-1} ref={title}>{node.title}</h3><p className="skill-v2-prompt">{node.prompt}</p><div className="skill-v2-meta"><span>{activityLabel(node.type)}</span><span>+{node.reward} U</span>{node.optional && <span>По желанию</span>}</div>{node.state === "locked" ? <p className="skill-v2-locked"><LockKeyhole size={18}/> Заверши предыдущий шаг: {node.prerequisites.map((id) => view.nodes.find((n) => n.id === id)?.title).join(", ")}.</p> : <SkillActivity key={node.id} node={node} saved={node.latest?.response} completed={node.state === "completed"} reload={reload}/>} {node.state==="completed"&&continuation&&<button className="skill-v2-continue" onClick={()=>choose(continuation.id)}>Попробовать дальше: {continuation.title} <ArrowRight size={16}/></button>}
       </div>
     </div>
     <p className="skill-v2-foot">Прогресс показывает выполненные учебные шаги. Он не меняет оценку заявки.</p>
@@ -68,7 +70,7 @@ function SkillActivity({ node, saved, completed, reload }: { node: SkillView["no
     finally { setBusy(false); }
   }
   return <div className="skill-v2-activity">
-    {node.type === "WORLD_MISSION" ? <div className="skill-v2-actions"><a className="button primary" href={(() => { const role=roleIds.find((id)=>roles[id].skillNode===node.id); return role?`/world?mission=${role}&returnTo=${node.id}`:"/world"; })()}>{completed ? "Вернуться в inVision World" : "Пройти в inVision World"}<ArrowRight size={17}/></a></div> : null}
+    {node.type === "WORLD_MISSION" ? <div className="skill-v2-actions"><a className="button primary" href={(() => { const role=roleIds.find((id)=>roles[id].skillNode===node.id); return role?`/world?mission=${role}&returnTo=${node.id}`:`/world?returnTo=${node.id}`; })()}>{completed ? "Вернуться в inVision World" : "Пройти в inVision World"}<ArrowRight size={17}/></a></div> : null}
     {completed && !retry && <div className="skill-v2-done"><Check size={18}/> Шаг завершён. Ответ сохранён в личном дереве.</div>}
     {node.passage && <blockquote className="skill-v2-passage">{node.passage}</blockquote>}
     {node.type === "VIDEO" && <div className="skill-v2-video"><video controls preload="metadata" playsInline aria-label="История про обмен книгами"><source src={node.mediaSrc} type="video/mp4"/><track kind="captions" src="/media/skill-listen.en.vtt" srcLang="en" label="English" default/></video><details><summary>Текст записи</summary><p lang="en">{node.mediaTranscript}</p></details></div>}
