@@ -43,6 +43,8 @@ model User {
   learningCompletions LearningCompletion[]
   learningMedia LearningMedia[]
   uPointEntries UPointEntry[]
+  worldSave WorldSave?
+  worldEvents WorldEvent[]
   workflowSessions WorkflowSession[]
   connection OpenAIConnection?
 }
@@ -364,9 +366,35 @@ model UPointEntry {
   amount Int
   reason String
   idempotencyKey String @unique
-  completionId String @unique
-  completion LearningCompletion @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  completionId String? @unique
+  completion LearningCompletion? @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  worldEventId String? @unique
+  worldEvent WorldEvent? @relation(fields: [worldEventId], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
+model WorldSave {
+  userId String @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state Json
+  revision Int @default(1)
+  worldVersion Int @default(1)
+  origin String @default("USER")
+  updatedAt DateTime @updatedAt
+}
+
+model WorldEvent {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey String
+  kind String
+  payload Json
+  origin String @default("USER")
+  createdAt DateTime @default(now())
+  award UPointEntry?
+  @@unique([userId, eventKey])
   @@index([userId, createdAt])
 }
 

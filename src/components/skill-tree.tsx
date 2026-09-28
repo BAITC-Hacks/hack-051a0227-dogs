@@ -52,7 +52,7 @@ export function SkillTree({ initial, selectedId }: { initial: SkillView; selecte
     <p className="skill-v2-foot">Прогресс показывает выполненные учебные шаги. Он не меняет оценку заявки.</p>
   </section>;
 }
-function activityLabel(type: SkillNode["type"]) { return ({ VIDEO: "Видео и вопрос", READING: "Чтение", QUIZ: "Короткий вопрос", BRANCHING_SCENARIO: "Ситуация с поворотом", REFLECTION: "Размышление", TEXT_RESPONSE: "Письменный ответ", AUDIO_RESPONSE: "Устный ответ", SORTING: "Расставь шаги", DIALOGUE: "Диалог", SUBMISSION: "Личная работа" })[type]; }
+function activityLabel(type: SkillNode["type"]) { return ({ VIDEO: "Видео и вопрос", READING: "Чтение", QUIZ: "Короткий вопрос", BRANCHING_SCENARIO: "Ситуация с поворотом", REFLECTION: "Размышление", TEXT_RESPONSE: "Письменный ответ", AUDIO_RESPONSE: "Устный ответ", SORTING: "Расставь шаги", DIALOGUE: "Диалог", SUBMISSION: "Личная работа", WORLD_MISSION: "Игровое событие" })[type]; }
 function SkillActivity({ node, saved, completed, reload }: { node: SkillView["nodes"][number]; saved?: { choice?: string; followup?: string; text?: string; order?: string[]; mediaId?: string } | null; completed: boolean; reload: () => Promise<void> }) {
   const [choice, setChoice] = useState(saved?.choice ?? "");
   const [followup, setFollowup] = useState(saved?.followup ?? "");
@@ -67,6 +67,7 @@ function SkillActivity({ node, saved, completed, reload }: { node: SkillView["no
     finally { setBusy(false); }
   }
   return <div className="skill-v2-activity">
+    {node.type === "WORLD_MISSION" ? <div className="skill-v2-actions"><a className="button primary" href="/world">{completed ? "Вернуться на площадь" : "Начать в inVision World"}<ArrowRight size={17}/></a></div> : null}
     {completed && !retry && <div className="skill-v2-done"><Check size={18}/> Шаг завершён. Ответ сохранён в личном дереве.</div>}
     {node.passage && <blockquote className="skill-v2-passage">{node.passage}</blockquote>}
     {node.type === "VIDEO" && <div className="skill-v2-video"><video controls preload="metadata" playsInline aria-label="История про обмен книгами"><source src={node.mediaSrc} type="video/mp4"/><track kind="captions" src="/media/skill-listen.en.vtt" srcLang="en" label="English" default/></video><details><summary>Текст записи</summary><p lang="en">{node.mediaTranscript}</p></details></div>}
@@ -76,7 +77,7 @@ function SkillActivity({ node, saved, completed, reload }: { node: SkillView["no
     {["REFLECTION", "TEXT_RESPONSE", "SUBMISSION"].includes(node.type) && <label className="skill-v2-text">Твой ответ<textarea value={answer} onChange={(e) => setAnswer(e.target.value)} disabled={completed && !retry} rows={6} placeholder="Начни с конкретного действия или наблюдения"/><small>От {node.minWords} слов. Смысл не оценивается автоматически.</small></label>}
     {node.type === "AUDIO_RESPONSE" && <SkillAudio nodeId={node.id} mediaId={mediaId} onSaved={setMediaId}/>}
     {notice && <p className="skill-v2-notice" role="status">{notice}</p>}
-    <div className="skill-v2-actions">{!completed || retry ? <><button type="button" className="button primary" disabled={busy} onClick={() => submit("skill.complete")}>{busy ? "Сохраняем…" : "Завершить шаг"}<ArrowRight size={17}/></button>{["REFLECTION", "TEXT_RESPONSE", "SUBMISSION"].includes(node.type) && <button type="button" className="button secondary" disabled={busy} onClick={() => submit("skill.save")}>Сохранить черновик</button>}</> : <button type="button" className="button secondary" onClick={() => setRetry(true)}><RotateCcw size={16}/> Попробовать ещё</button>}</div>
+    {node.type !== "WORLD_MISSION" && <div className="skill-v2-actions">{!completed || retry ? <><button type="button" className="button primary" disabled={busy} onClick={() => submit("skill.complete")}>{busy ? "Сохраняем…" : "Завершить шаг"}<ArrowRight size={17}/></button>{["REFLECTION", "TEXT_RESPONSE", "SUBMISSION"].includes(node.type) && <button type="button" className="button secondary" disabled={busy} onClick={() => submit("skill.save")}>Сохранить черновик</button>}</> : <button type="button" className="button secondary" onClick={() => setRetry(true)}><RotateCcw size={16}/> Попробовать ещё</button>}</div>}
   </div>;
 }
 function SkillAudio({ nodeId, mediaId, onSaved }: { nodeId: string; mediaId: string; onSaved: (id: string) => void }) {

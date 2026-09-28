@@ -1,5 +1,5 @@
 // Versioned, author-owned learning content. It does not define admission criteria.
-export const skillVersion = 2;
+export const skillVersion = 3;
 export const skillDomains = [
   { id: "LEADERSHIP", title: "Лидерство", intro: "Пробуй решения, распределяй ответственность и меняй план, когда меняются обстоятельства." },
   { id: "TEAMWORK", title: "Работа в команде", intro: "Слушай разные позиции и собирай решение вместе с другими." },
@@ -7,7 +7,7 @@ export const skillDomains = [
   { id: "ENGLISH", title: "Английский", intro: "Пробуй объяснять идеи и участвовать в разговоре на английском." },
 ] as const;
 export type SkillDomainId = (typeof skillDomains)[number]["id"];
-export type ActivityType = "VIDEO" | "READING" | "QUIZ" | "BRANCHING_SCENARIO" | "REFLECTION" | "TEXT_RESPONSE" | "AUDIO_RESPONSE" | "SORTING" | "DIALOGUE" | "SUBMISSION";
+export type ActivityType = "VIDEO" | "READING" | "QUIZ" | "BRANCHING_SCENARIO" | "REFLECTION" | "TEXT_RESPONSE" | "AUDIO_RESPONSE" | "SORTING" | "DIALOGUE" | "SUBMISSION" | "WORLD_MISSION";
 type Choice = { id: string; label: string; consequence: string; correct?: boolean };
 export type SkillNode = {
   id: string; domain: SkillDomainId; branch: string; title: string; shortDescription: string;
@@ -22,11 +22,12 @@ const N = (domain: SkillDomainId, branch: string, id: string, title: string, typ
   extra: Partial<SkillNode> = {}): SkillNode => ({
   id, domain, branch, title, type, prompt, shortDescription: extra.shortDescription ?? prompt,
   tier: extra.tier ?? 1, prerequisites: extra.prerequisites ?? [], optional: extra.optional ?? false,
-  reward: extra.reward ?? ({ QUIZ: 15, READING: 15, VIDEO: 15, BRANCHING_SCENARIO: 30, SORTING: 20, DIALOGUE: 30, AUDIO_RESPONSE: 40, SUBMISSION: 40, REFLECTION: 25, TEXT_RESPONSE: 25 }[type]),
+  reward: extra.reward ?? ({ QUIZ: 15, READING: 15, VIDEO: 15, BRANCHING_SCENARIO: 30, SORTING: 20, DIALOGUE: 30, AUDIO_RESPONSE: 40, SUBMISSION: 40, REFLECTION: 25, TEXT_RESPONSE: 25, WORLD_MISSION: 60 }[type]),
   rewardVersion: 1, version: 1, ...extra,
 });
 
 export const skillNodes: SkillNode[] = [
+  N("LEADERSHIP", "Решения", "world-before-opening", "Перед открытием", "WORLD_MISSION", "Загляни на Campus Square и помоги подготовить Festival of Ideas. Твои решения изменят разговоры на площади.", { shortDescription: "Игровое событие в inVision World", optional: true, reward: 60 }),
   N("LEADERSHIP", "Решения", "l-choice", "Два хороших решения", "BRANCHING_SCENARIO", "Для школьной выставки осталось два дня. Команда может доработать работающий стенд или добавить интерактивную часть. Что выберешь?", { choices: [
     C("steady", "Довести стенд и заранее проверить демонстрацию", "Гости увидят надёжный результат, но команда не попробует новую идею."),
     C("new", "Сделать интерактивную часть с запасным вариантом", "Новая идея привлечёт внимание, но времени на проверку станет меньше."),
@@ -154,5 +155,4 @@ export const skillBranches: Record<SkillDomainId, string[]> = {
 export const skillNode = (id: string) => skillNodes.find((n) => n.id === id);
 export const skillHref = (id?: string) => `/my?view=route${id ? `&node=${encodeURIComponent(id)}` : ""}`;
 
-// Future runtime contract. No WORLD_MISSION node is exposed until its runtime exists.
 export type WorldMissionContract = { worldMissionId: string; skillDomain: SkillDomainId; skillBranch: string; prerequisites: string[]; reward: number; completionEvent: string; returnToNode: string };

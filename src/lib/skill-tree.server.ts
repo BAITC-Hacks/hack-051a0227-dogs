@@ -62,13 +62,16 @@ export function mapDevelopmentProfile(input: { result?: unknown; resultVersion?:
 
 export async function skillView(user: User | null) {
   if (!user || await accessFor(user) !== "FULL") throw new AppError("Дерево навыков откроется после подачи заявки.", 403);
-  const [completions, attempts, entries, application] = await Promise.all([
+  const [completions, attempts, entries, application, worldSave] = await Promise.all([
     db.learningCompletion.findMany({ where: { userId: user.id }, orderBy: { completedAt: "desc" } }),
     db.learningAttempt.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 160 }),
     db.uPointEntry.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
     db.application.findUnique({ where: { userId: user.id }, select: { id: true, language: { select: { status: true } }, scoringRuns: { where: { context: "OFFICIAL", status: "COMPLETED" }, orderBy: { completedAt: "desc" }, take: 1, select: { id: true, result: true } } } }),
+    db.worldSave.findUnique({ where: { userId: user.id }, select: { state: true, updatedAt: true } }),
   ]);
   const done = new Set(completions.map((c) => c.nodeId));
+  const worldFlags = (worldSave?.state as { flags?: { completed?: boolean } } | null)?.flags;
+  if (worldFlags?.completed) done.add("world-before-opening");
   const profile = mapDevelopmentProfile({ result: application?.scoringRuns[0]?.result, resultVersion: application?.scoringRuns[0]?.id, languageStatus: application?.language?.status });
   const nodes = skillNodes.map((node) => {
     const latest = attempts.find((a) => a.nodeId === node.id);
@@ -76,7 +79,7 @@ export async function skillView(user: User | null) {
     const unlocked = node.prerequisites.every((id) => done.has(id));
     return { ...node, state: completed ? "completed" as const : unlocked ? latest?.status === "DRAFT" ? "in_progress" as const : "available" as const : "locked" as const,
       latest: latest ? { id: latest.id, status: latest.status, response: latest.response as ResponseValue, createdAt: latest.createdAt.toISOString() } : null,
-      completedAt: completions.find((c) => c.nodeId === node.id)?.completedAt.toISOString() ?? null };
+      completedAt: completions.find((c) => c.nodeId === node.id)?.completedAt.toISOString() ?? (node.id === "world-before-opening" && worldFlags?.completed ? worldSave?.updatedAt.toISOString() ?? null : null) };
   });
   const domainViews = skillDomains.map((domain) => {
     const own = nodes.filter((n) => n.domain === domain.id);
@@ -89,7 +92,7 @@ export async function skillView(user: User | null) {
     balance: entries.reduce((sum, e) => sum + e.amount, 0),
     ledger: entries.map((e) => ({ id: e.id, nodeId: e.nodeId, amount: e.amount, reason: e.reason, at: e.createdAt.toISOString() })),
     recommendedId: suggested.nextId ?? nodes.find((n) => n.state !== "completed")?.id ?? nodes[0].id,
-    completedCount: completions.length,
+    completedCount: done.size,
   };
 }
 export type SkillView = Awaited<ReturnType<typeof skillView>>;
@@ -100,6 +103,7 @@ export async function skillAction(type: string, body: Record<string, unknown>, u
   await rateLimit(`skill:${user.id}`, 90);
   const node = skillNode(z.string().max(80).parse(body.nodeId));
   if (!node) throw new AppError("Шаг не найден.", 404);
+  if (node.type === "WORLD_MISSION") throw new AppError("Это событие завершается только в inVision World.", 409);
   if (!['skill.save', 'skill.complete'].includes(type)) throw new AppError("Действие недоступно.", 404);
   const requestKey = z.string().uuid().parse(body.requestKey);
   const response = responseSchema.parse(body.response);
