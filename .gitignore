@@ -15,6 +15,7 @@ public/uploads/
 *.log
 *.dump
 *.sql.gz
+backup-*/
 *.pem
 *.key
 .DS_Store
