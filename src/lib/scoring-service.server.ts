@@ -15,7 +15,7 @@ import {
 import {
   configuredAssessmentProvider,
   assertPreparedScope,
-  isolatedAssessmentEnvironment,
+  preparedShowcaseAllowed,
   LocalAssessmentProvider,
   ExternalAssessmentProvider,
   factualAssessment,
@@ -151,8 +151,7 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
           hash === r.inputHash &&
           r.status === "COMPLETED" &&
           r.scenarioVersion === "showcase-scoring-v1" &&
-          isolatedAssessmentEnvironment() &&
-          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
+          preparedShowcaseAllowed(app.origin, r.scenarioVersion) &&
           r.showcaseScore !== null &&
           r.showcaseScore >= 0 &&
           r.showcaseScore <= 100 &&
@@ -172,15 +171,13 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
             : null,
         showcaseEnglishScore:
           allowed && hash === r.inputHash && r.status === "COMPLETED" &&
-          r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&
-          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
+          preparedShowcaseAllowed(app.origin, r.scenarioVersion) &&
           r.showcaseEnglishScore !== null && r.showcaseEnglishScore >= 0 && r.showcaseEnglishScore <= 100
             ? { value: r.showcaseEnglishScore, maximum: 100 as const }
             : null,
         showcaseEssaySignal:
           allowed && hash === r.inputHash && r.status === "COMPLETED" &&
-          r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&
-          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) &&
+          preparedShowcaseAllowed(app.origin, r.scenarioVersion) &&
           r.showcaseEssaySignal !== null && r.showcaseEssaySignal >= 0 && r.showcaseEssaySignal <= 100 &&
           !!r.showcaseEssaySourceId &&
           (r.input as unknown as ScoringInput).sources.some((source) => source.id === r.showcaseEssaySourceId && source.kind === "Эссе" && source.text.length > 0)
@@ -188,8 +185,7 @@ export async function scoringView(applicationId: string): Promise<ScoringView> {
             : null,
         showcaseAxis:
           allowed && hash === r.inputHash && r.status === "COMPLETED" &&
-          r.scenarioVersion === "showcase-scoring-v1" && isolatedAssessmentEnvironment() &&
-          ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(app.origin) && Array.isArray(r.showcaseAxis) &&
+          preparedShowcaseAllowed(app.origin, r.scenarioVersion) && Array.isArray(r.showcaseAxis) &&
           r.showcaseAxis.length === domains.length &&
           r.showcaseAxis.every((entry, index) => {
             if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;

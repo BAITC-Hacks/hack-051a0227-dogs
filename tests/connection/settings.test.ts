@@ -176,6 +176,17 @@ test("local OpenAI connection: ownership, encrypted persistence, dispatch and at
           }),
         ])
           assert.throws(() => checkConnectionRequest(bad, true));
+        process.env.APP_ORIGIN = "https://dogs.govtech-kz.com";
+        checkConnectionRequest(new Headers({
+          host: "dogs.govtech-kz.com",
+          origin: "https://dogs.govtech-kz.com",
+        }), true);
+        assert.throws(() => checkConnectionRequest(new Headers({
+          host: "dogs.govtech-kz.com",
+          origin: "https://other.example",
+        }), true));
+        await assert.rejects(beginOwnerSetup(ordinary, "new-owner@qa.local", async () => {}));
+        process.env.APP_ORIGIN = "http://localhost:3100";
         await connection();
         await assert.rejects(assertConnectionOwner(ordinary));
         await assert.rejects(assertConnectionOwner(candidate));

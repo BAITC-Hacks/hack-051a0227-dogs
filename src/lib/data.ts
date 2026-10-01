@@ -46,7 +46,7 @@ export async function myData() {
           orderBy: { createdAt: "asc" },
         },
         language: {
-          select: { id: true, state: true, revision: true, status: true },
+          select: { id: true, state: true, revision: true, status: true, result: true },
         },
         interviews: {
           where: { invitationPublishedAt: { not: null } },

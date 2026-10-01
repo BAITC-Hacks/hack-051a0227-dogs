@@ -5,15 +5,18 @@ import { PrismaClient } from "@prisma/client";
 async function main() {
   const email = process.argv[2]?.trim().toLowerCase();
   const name = process.argv[3]?.trim();
+  const openAIOwner = process.argv[4] === "--openai-owner";
   if (
     !email ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     !name ||
     name.length > 120 ||
+    (process.argv[4] && !openAIOwner) ||
+    process.argv.length > 5 ||
     process.stdin.isTTY
   ) {
     console.error(
-      "Usage: password on stdin | npm run staff:bootstrap -- email 'Full name'",
+      "Usage: password on stdin | npm run staff:bootstrap -- email 'Full name' [--openai-owner]",
     );
     process.exit(1);
   }
@@ -50,15 +53,26 @@ async function main() {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(117211, 4091)`;
       if (await tx.user.count({ where: { role: "STAFF" } }))
         throw new Error("STAFF_EXISTS");
-      await tx.user.create({
+      const staff = await tx.user.create({
         data: { email, name, role: "STAFF", origin: "BOOTSTRAP", passwordHash },
       });
+      if (openAIOwner) {
+        const connection = await tx.openAIConnection.findUnique({ where: { id: "local" } });
+        if (connection?.ownerId) throw new Error("OWNER_EXISTS");
+        await tx.openAIConnection.upsert({
+          where: { id: "local" },
+          create: { ownerId: staff.id },
+          update: { ownerId: staff.id, revision: { increment: 1 } },
+        });
+      }
     });
-    console.log(`First staff account created: ${email}`);
+    console.log(`First staff account created: ${email}${openAIOwner ? " (OpenAI connection owner)" : ""}`);
   } catch (error) {
     console.error(
       error instanceof Error && error.message === "STAFF_EXISTS"
         ? "A staff account already exists; bootstrap is closed."
+        : error instanceof Error && error.message === "OWNER_EXISTS"
+        ? "An OpenAI owner already exists; bootstrap is closed."
         : "Staff bootstrap failed. Check the database, arguments and email uniqueness.",
     );
     process.exitCode = 1;

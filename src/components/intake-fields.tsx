@@ -1,6 +1,9 @@
 "use client";
 import {
+  additionalExamTypes,
+  certificateScaleIssue,
   emptyCredential,
+  entSubjectPair,
   materialPurposes,
   routeFor,
   wordCount,
@@ -22,15 +25,17 @@ function Field({
   value,
   onChange,
   type = "text",
+  className,
 }: {
   label: string;
   id: string;
   value: string;
   onChange: (s: string) => void;
   type?: string;
+  className?: string;
 }) {
   return (
-    <label className="field">
+    <label className={`field ${className ?? ""}`}>
       {label}
       <input
         id={id}
@@ -46,15 +51,17 @@ function Proof({
   onChange,
   materials,
   purpose,
+  className,
 }: {
   value: string;
   onChange: (s: string) => void;
   materials: Material[];
   purpose: string;
+  className?: string;
 }) {
   return (
-    <label className="field">
-      Подтверждающий файл
+    <label className={`field ${className ?? ""}`}>
+      {purpose === "EXAM" ? "Сертификат ЕНТ" : purpose === "OTHER_EXAM" ? "Документ с результатом экзамена" : "Подтверждающий файл"}
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Пока не приложен</option>
         {materials
@@ -65,11 +72,25 @@ function Proof({
             </option>
           ))}
       </select>
-      <small>Добавить файл можно в разделе «Материалы».</small>
+      <small>
+        {purpose === "LANGUAGE"
+          ? "Загрузи сертификат ниже или выбери уже добавленный файл."
+          : "Добавить файл можно в разделе «Материалы»."}
+      </small>
     </label>
   );
 }
-export function EducationFields({ value: v, onChange: set, materials }: Props) {
+export function EducationFields({ value: v, onChange: set, materials, rules, program }: Props) {
+  const r = routeFor(rules, v.entryType, program);
+  const entIndex = v.exams.findIndex((exam) => exam.type.toUpperCase() === "ЕНТ");
+  const ent = entIndex < 0 ? { ...emptyCredential, type: "ЕНТ", scaleMin: "0", scaleMax: "140", period: entSubjectPair[program] ?? "" } : v.exams[entIndex];
+  const setEnt = (patch: Partial<typeof ent>) => {
+    const updated = { ...ent, ...patch };
+    set({ ...v, exams: entIndex < 0 ? [...v.exams, updated] : v.exams.map((exam, index) => index === entIndex ? updated : exam) });
+  };
+  const setOtherExam = (index: number, patch: Partial<IntakeFields["exams"][number]>) =>
+    set({ ...v, exams: v.exams.map((exam, current) => current === index ? { ...exam, ...patch } : exam) });
+  const entRequired = r.exams.some((exam) => exam.type === "ЕНТ" && exam.required);
   return (
     <div className="stack intake-fields">
       <h2>Образование и результаты</h2>
@@ -151,7 +172,7 @@ export function EducationFields({ value: v, onChange: set, materials }: Props) {
             })
           }
         >
-          <option value="UNSPECIFIED">Пока не указываю</option>
+          <option value="UNSPECIFIED">Выбери вариант</option>
           <option value="PROVIDED">Есть средний балл</option>
           <option value="NOT_USED">В моей системе нет GPA</option>
         </select>
@@ -221,23 +242,39 @@ export function EducationFields({ value: v, onChange: set, materials }: Props) {
           purpose="GRADES"
         />
       )}
-      <h3 id="exams">Экзамены</h3>
-      <p className="subtle">
-        Добавляй только применимые к тебе экзамены. У каждого сохраняется
-        собственная шкала.
-      </p>
-      {v.exams.map((exam, i) => (
-        <fieldset key={i} className="panel">
-          <legend>Экзамен {i + 1}</legend>
+      <h3 id="exams">Вступительные экзамены</h3>
+      {v.entryType === "BACHELOR" && (
+        <fieldset className="panel intake-exam-card">
+          <legend>ЕНТ {entRequired ? "· для граждан Казахстана" : "· если сдавал"}</legend>
+          <p className="subtle">Для бакалавриата inVision U указывает минимум 80 из 140 баллов. Профильные предметы для этой программы: {entSubjectPair[program] ?? "уточни у приёмной комиссии"}.</p>
           <div className="form-grid two">
+            <Field id="ent-result" label="Результат ЕНТ · из 140" value={ent.value} onChange={(value) => setEnt({ value })} />
+            <Field id="ent-date" label="Дата сдачи" type="date" value={ent.date} onChange={(date) => setEnt({ date })} />
+            <Proof value={ent.materialId} onChange={(materialId) => setEnt({ materialId })} materials={materials} purpose="EXAM" className="intake-full-row" />
+          </div>
+          {entIndex >= 0 && <button type="button" className="button quiet" onClick={() => set({ ...v, exams: v.exams.filter((_, index) => index !== entIndex) })}>ЕНТ ещё не сдавал</button>}
+        </fieldset>
+      )}
+      <p className="subtle">Если есть другой экзамен, добавь его отдельно. SAT, ACT и IB Diploma сохраняются в своих шкалах; они не заменяют требование ЕНТ для граждан Казахстана без решения приёмной комиссии.</p>
+      {v.exams.map((exam, i) => exam.type.toUpperCase() === "ЕНТ" ? null : (
+        <fieldset key={i} className="panel">
+          <legend>Другой экзамен</legend>
+          <div className="form-grid two">
+            <label className="field intake-full-row">Название экзамена
+              <select value={exam.type} onChange={(event) => {
+                const type = event.target.value as keyof typeof additionalExamTypes;
+                const scale = additionalExamTypes[type];
+                setOtherExam(i, { type, scaleMin: scale?.min ?? "", scaleMax: scale?.max ?? "", materialId: "" });
+              }}>
+                <option value="">Выбери экзамен</option>
+                {!Object.keys(additionalExamTypes).includes(exam.type) && exam.type && <option value={exam.type}>{exam.type}</option>}
+                {Object.entries(additionalExamTypes).map(([key, option]) => <option key={key} value={key}>{option.label}</option>)}
+              </select>
+            </label>
             {(
               [
-                ["type", "Тип экзамена"],
                 ["value", "Результат"],
-                ["scaleMin", "Минимум шкалы"],
-                ["scaleMax", "Максимум шкалы"],
                 ["date", "Дата"],
-                ["period", "Период / сессия"],
               ] as const
             ).map(([k, l]) => (
               <Field
@@ -246,28 +283,16 @@ export function EducationFields({ value: v, onChange: set, materials }: Props) {
                 type={k === "date" ? "date" : "text"}
                 label={l}
                 value={exam[k]}
-                onChange={(x) =>
-                  set({
-                    ...v,
-                    exams: v.exams.map((e, j) =>
-                      j === i ? { ...e, [k]: x } : e,
-                    ),
-                  })
-                }
+                onChange={(x) => setOtherExam(i, { [k]: x })}
               />
             ))}
+            <p className="subtle intake-full-row">Шкала: {exam.scaleMin || "—"}–{exam.scaleMax || "—"}. Значение и документ проверит сотрудник.</p>
             <Proof
               value={exam.materialId}
-              onChange={(materialId) =>
-                set({
-                  ...v,
-                  exams: v.exams.map((e, j) =>
-                    j === i ? { ...e, materialId } : e,
-                  ),
-                })
-              }
+              onChange={(materialId) => setOtherExam(i, { materialId })}
               materials={materials}
-              purpose="EXAM"
+              purpose="OTHER_EXAM"
+              className="intake-full-row"
             />
           </div>
           <button
@@ -289,7 +314,7 @@ export function EducationFields({ value: v, onChange: set, materials }: Props) {
           set({ ...v, exams: [...v.exams, { ...emptyCredential }] })
         }
       >
-        Добавить экзамен
+        Добавить другой экзамен
       </button>
     </div>
   );
@@ -307,7 +332,7 @@ export function MotivationFields({
       <div className="form-grid two">
         <Field
           id="experience-title"
-          label="Название проекта или деятельности"
+          label="Название деятельности или инициативы"
           value={v.experienceTitle}
           onChange={(experienceTitle) => set({ ...v, experienceTitle })}
         />
@@ -410,7 +435,9 @@ export function CertificateFields({
   program,
 }: Props) {
   const r = routeFor(rules, v.entryType, program),
-    c = v.english.certificate;
+    c = v.english.certificate,
+    scaleIssue =
+      v.english.method === "CERTIFICATE" ? certificateScaleIssue(c) : null;
   return (
     <section className="stack intake-fields">
       <h2>Английский</h2>
@@ -430,7 +457,11 @@ export function CertificateFields({
             })
           }
         >
-          <option value="UNDECIDED">Уточню способ проверки</option>
+          <option value="UNDECIDED">
+            {r.language.required
+              ? "Выбери способ проверки"
+              : "Уточню способ проверки"}
+          </option>
           {r.language.methods.map((m) => (
             <option key={m} value={m}>
               {m === "INTERNAL" ? "Ответы в приложении" : "Языковой сертификат"}
@@ -438,21 +469,55 @@ export function CertificateFields({
           ))}
         </select>
       </label>
+      <p className="subtle">
+        Нет сертификата? Выбери «Ответы в приложении». После сохранения ответов
+        заявку можно отправить; результат проверит сотрудник.
+      </p>
       {v.english.method === "CERTIFICATE" && (
-        <div className="form-grid two">
+        <div className="form-grid two intake-certificate-fields">
+          <p className="subtle intake-full-row">
+            Укажи результат точно как в документе: число в числовой шкале или
+            уровень A1–C2 в шкале CEFR. Приложи файл; сотрудник проверит его
+            после отправки.
+          </p>
+          <label className="field intake-full-row">
+            Тип сертификата
+            <input
+              id="language-type"
+              list="language-certificate-types"
+              value={c.type}
+              onChange={(event) =>
+                set({
+                  ...v,
+                  english: {
+                    ...v.english,
+                    certificate: { ...c, type: event.target.value },
+                  },
+                })
+              }
+            />
+            <datalist id="language-certificate-types">
+              {r.language.certificates.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            <small>
+              Выбери из списка или впиши название из своего документа.
+            </small>
+          </label>
           {(
             [
-              ["type", "Тип сертификата"],
-              ["value", "Результат"],
-              ["scaleMin", "Минимум шкалы"],
-              ["scaleMax", "Максимум шкалы"],
-              ["date", "Дата экзамена"],
+              ["value", "Результат", "intake-full-row"],
+              ["scaleMin", "Минимум шкалы", ""],
+              ["scaleMax", "Максимум шкалы", ""],
+              ["date", "Дата экзамена", "intake-full-row"],
             ] as const
-          ).map(([k, l]) => (
+          ).map(([k, l, className]) => (
             <Field
               key={k}
               id={"language-" + k}
               label={l}
+              className={className}
               type={k === "date" ? "date" : "text"}
               value={c[k]}
               onChange={(x) =>
@@ -463,6 +528,11 @@ export function CertificateFields({
               }
             />
           ))}
+          {scaleIssue && (
+            <p className="intake-full-row intake-field-error" role="alert">
+              {scaleIssue.text}
+            </p>
+          )}
           <Proof
             value={c.materialId}
             onChange={(materialId) =>
@@ -473,6 +543,7 @@ export function CertificateFields({
             }
             materials={materials}
             purpose="LANGUAGE"
+            className="intake-full-row"
           />
         </div>
       )}

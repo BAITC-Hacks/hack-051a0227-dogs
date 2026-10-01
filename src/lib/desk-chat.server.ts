@@ -15,6 +15,7 @@ import { connection } from "./openai-settings.server";
 import { requestOpenAI, OpenAIError } from "./openai-gateway.server";
 import { openaiMessages } from "./openai-policy";
 import { digest } from "./scoring-input.server";
+import { knowledgeMatches } from "./knowledge-match";
 import {
   deskChatRequest,
   deskChatOutput,
@@ -42,18 +43,21 @@ export async function deskChatContext(user: User, ids: string[]) {
   });
   if (ids.length && rows.length !== ids.length)
     throw new AppError("Заявка недоступна.", 404);
-  const permitted = rows.filter(
+  const config = await connection();
+  const provider = config.deskEnabled && config.secretCipher ? "openai" : "local";
+  const permitted = provider === "local" ? rows : rows.filter(
     (r) => deskConsentSchema.safeParse(r.deskConsent).data?.granted,
   );
-  if (ids.length && permitted.length !== ids.length)
+  if (provider === "openai" && ids.length && permitted.length !== ids.length)
     throw new AppError(
       "Для этой заявки ещё нет разрешения на передачу материалов в Vision Desk. Источники можно просмотреть в карточке; общий вопрос задайте без выбора кандидата.",
       403,
     );
   const inputs: DeskInput[] = [];
   for (const row of permitted.slice(0, 12))
-    inputs.push(await deskInput(fresh, row.id, "openai"));
+    inputs.push(await deskInput(fresh, row.id, provider));
   const value = {
+    provider,
     inputs,
     covered: inputs.length,
     total: rows.length,
@@ -62,6 +66,39 @@ export async function deskChatContext(user: User, ids: string[]) {
   return { ...value, hash: digest(value) };
 }
 type Context = Awaited<ReturnType<typeof deskChatContext>>;
+function localDeskAnswer(question: string, c: Context, sourceId?: string): DeskChatOutput {
+  const processAnswer = !sourceId && !c.inputs.length
+    ? /сравн|рейтинг|ранжир/iu.test(question)
+      ? "Сравнение помогает увидеть, какие материалы требуют проверки в первую очередь. Окончательное решение принимает сотрудник по конкретной заявке; отсутствие сведений не считается низким баллом."
+      : /оцен|балл|axis|скоринг/iu.test(question)
+        ? "Откройте карточку кандидата и выставьте балл по каждой области AXIS на основе точного источника. Языковой результат рассматривается отдельно. Сохранённые оценки и изменения фиксируются в истории заявки."
+        : /интервью|встреч/iu.test(question)
+          ? "Откройте профиль кандидата и выберите «Интервью». Укажите дату, время и интервьюера; приглашение появится у кандидата после подтверждения. Ссылку можно добавить позже."
+          : /этап|рассмотр|заявк/iu.test(question)
+            ? "Начните с отправленной заявки: посмотрите материалы, проверьте языковой этап и основания оценки. Затем в профиле кандидата можно назначить интервью, перевести заявку на следующий этап или сохранить решение с основанием."
+            : null
+    : null;
+  if (processAnswer) return { paragraphs: [{ text: processAnswer, evidenceKeys: [] }], evidence: [], question: null, interview: [] };
+  const candidates = c.inputs.flatMap((input) => input.sources.map((source) => ({ ...source, text: source.quote, candidateName: input.candidateName, applicationId: input.applicationId, pending: input.pending })));
+  const focused = sourceId ? candidates.filter((source) => source.sourceId === sourceId) : candidates;
+  const matches = knowledgeMatches(question, focused, 2);
+  if (!matches.length && sourceId && focused.length) matches.push(focused[0]);
+  if (!matches.length && c.inputs.length === 1 && /вопрос|уточн|интервью|материал|кандидат/iu.test(question) && focused.length) matches.push(focused[0]);
+  if (!matches.length) return {
+    paragraphs: [{ text: c.inputs.length ? "По доступным материалам не нашёл точного ответа на этот вопрос. Уточните, какой эпизод или этап проверить, либо откройте источник в карточке кандидата." : "Начните с отправленной заявки: проверьте материалы и языковой этап, затем назначьте интервью или сохраните решение с конкретным основанием. Числовые оценки выставляются по проверенным источникам в карточке кандидата.", evidenceKeys: [] }],
+    evidence: [], question: null, interview: [],
+  };
+  const evidence = matches.map((source) => ({ key: source.key, quote: source.quote.slice(0, 600) }));
+  const focus = matches[0];
+  const wantsQuestion = /вопрос|уточн/iu.test(question) && !focus.pending;
+  const wantsInterview = /интервью|atola/iu.test(question);
+  return {
+    paragraphs: matches.map((source, index) => ({ text: `В материале кандидата ${source.candidateName} «${source.title}» сказано: «${evidence[index].quote}». Это сведения из заявки; их можно сверить с оригиналом перед решением.`, evidenceKeys: [source.key] })),
+    evidence,
+    question: wantsQuestion ? { applicationId: focus.applicationId, sourceKeys: [focus.key], text: `Какую часть описанного в материале «${focus.title}» вы выполнили лично и что подтверждает результат?` } : null,
+    interview: wantsInterview ? [{ applicationId: focus.applicationId, sourceKey: focus.key, section: "action", text: `Расскажите, какое действие в эпизоде «${focus.title}» было вашим.` }, { applicationId: focus.applicationId, sourceKey: focus.key, section: "outcome", text: "Как вы проверили результат и что изменили после обратной связи?" }] : [],
+  };
+}
 export function validateDeskChat(raw: unknown, c: Context) {
   const answer = deskChatOutput.parse(raw);
   const sources = answer.evidence.map((e) => {
@@ -160,11 +197,6 @@ export async function askDeskChat(
   )
     throw new AppError("Источник не разрешён для этого диалога.", 404);
   const config = await connection();
-  if (!config.deskEnabled)
-    throw new AppError(
-      "Владелец подключения ещё не включил Vision Desk в настройках OpenAI.",
-      403,
-    );
   const existing = await db.profileAnswer.findUnique({
     where: { requestKey: r.requestKey },
   });
@@ -205,7 +237,7 @@ export async function askDeskChat(
         answer: {},
         status: "RUNNING",
         inputHash: c.hash,
-        provider: "openai-desk-chat",
+        provider: c.provider === "local" ? "local-desk-chat" : "openai-desk-chat",
         instructionVersion: deskChatVersion,
       },
     });
@@ -230,6 +262,12 @@ export async function askDeskChat(
       );
   };
   try {
+    if (c.provider === "local") {
+      const answer = validateDeskChat(localDeskAnswer(r.question, c, r.sourceId), c);
+      await authorize();
+      row = await db.profileAnswer.update({ where: { id: row.id }, data: { answer: json(answer), status: "COMPLETED", metadata: json({ provider: "local", coverage: c.covered }) } });
+      return visible(user, row);
+    }
     const response = await dispatch({
       task: "text",
       model: config.textModel,
@@ -355,7 +393,7 @@ export async function deskChatAction(
   if (type === "desk.chatSource") {
     const s = turn.answer.sources.find((s) => s.key === b.sourceKey);
     if (!s) throw new AppError("Источник недоступен.", 404);
-    const input = await deskInput(user, s.applicationId, "openai");
+    const input = await deskInput(user, s.applicationId, row.provider === "local-desk-chat" ? "local" : "openai");
     return input.sources.find(
       (ref) => ref.key === s.key && ref.version === s.version,
     )!;
@@ -364,7 +402,7 @@ export async function deskChatAction(
     const a = turn.answer;
     const proposal = b.kind === "QUESTION" ? a.question : a.interview[0];
     if (!proposal) throw new AppError("В ответе нет такого действия.", 404);
-    const input = await deskInput(user, proposal.applicationId, "openai");
+    const input = await deskInput(user, proposal.applicationId, row.provider === "local-desk-chat" ? "local" : "openai");
     const grounds = a.sources.filter(
       (s) => s.applicationId === input.applicationId,
     );
@@ -399,7 +437,7 @@ export async function deskChatAction(
         applicationId: input.applicationId,
         context: "DESK",
         status: "COMPLETED",
-        provider: "openai-desk-chat",
+        provider: row.provider,
         scenarioVersion: deskChatVersion,
         input: json(input),
         inputHash: input.hash,

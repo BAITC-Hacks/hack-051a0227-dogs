@@ -18,13 +18,16 @@ export function isolatedAssessmentEnvironment() {
     )
   );
 }
+/** Fixed fictional showcase accounts are allowed on the public demo installation. */
+export function preparedShowcaseAllowed(origin: string, scenarioVersion: string) {
+  if (scenarioVersion !== "showcase-scoring-v1") return false;
+  return origin === "SHOWCASE_PUBLIC_20260930" ||
+    (isolatedAssessmentEnvironment() &&
+      ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(origin));
+}
 export function assertPreparedScope(origin: string, scenarioVersion = "") {
-  const showcase = scenarioVersion === "showcase-scoring-v1";
-  if (
-    !isolatedAssessmentEnvironment() ||
-    (origin !== "ASSESSMENT_QA" &&
-      !(showcase && ["SEED", "QA", "INTAKE_EXAMPLES_20260927", "INTAKE_BROWSER_20260927"].includes(origin)))
-  )
+  if (!(preparedShowcaseAllowed(origin, scenarioVersion) ||
+    (isolatedAssessmentEnvironment() && origin === "ASSESSMENT_QA")))
     throw new Error("PREPARED_SCOPE_BLOCKED");
 }
 /** No keyword scoring. Unknown records get only attributed fields and explicit gaps. */
@@ -32,9 +35,20 @@ export function factualAssessment(input: ScoringInput): ScoringResult {
   const s =
     input.sources.find((s) => s.assessable && s.text) ?? input.sources[0];
   if (!s) throw new Error("NO_SOURCES");
+  const brief = (value: string) => {
+    const clean = value.replace(/\s+/gu, " ").trim();
+    if (clean.length <= 200) return clean;
+    return `${clean.slice(0, 197).replace(/\s+\S*$/u, "")}…`;
+  };
+  const profile = [
+    `Кандидат выбрал программу «${input.facts.program}».`,
+    input.facts.motivation && `Мотивация: ${brief(input.facts.motivation)}.`,
+    input.facts.experience && `Описанный опыт: ${brief(input.facts.experience)}.`,
+    input.facts.personalRole && `Личная роль по заявке: ${brief(input.facts.personalRole)}.`,
+  ].filter(Boolean).join(" ");
   return {
     state: "REQUIRES_REVIEW",
-    summary: `Выбрана программа «${input.facts.program}». Мотивация и личная роль сохранены как ответы кандидата. Требуется содержательная проверка оснований по областям.`,
+    summary: `${profile} Это сведения кандидата; сотрудник сверяет действия и результаты с материалами заявки.`,
     domains: domains.map((domain) => ({
       domain,
       rating: null,

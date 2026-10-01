@@ -99,16 +99,29 @@ export const emptyIntake: IntakeFields = {
   aiConsent: false,
 };
 export const materialPurposes = {
-  GENERAL: "Материал об опыте",
-  EDUCATION: "Документ об образовании",
-  GRADES: "Академические результаты",
-  EXAM: "Результат экзамена",
-  LANGUAGE: "Языковой сертификат",
+  GENERAL: "Дополнительный материал",
+  EDUCATION: "Аттестат или документ об образовании",
+  GRADES: "Табель или выписка оценок",
+  EXAM: "Сертификат ЕНТ",
+  OTHER_EXAM: "Результат другого экзамена",
+  LANGUAGE: "Сертификат английского языка",
   ESSAY: "Эссе",
   IDENTITY: "Удостоверение личности",
   SUPPORT: "Административные сведения о поддержке",
   VIDEO: "Видеопрезентация",
 } as const;
+/** These are recognizable additional results, not university-approved ЕНТ equivalents. */
+export const additionalExamTypes = {
+  SAT: { label: "SAT", min: "400", max: "1600" },
+  ACT: { label: "ACT", min: "1", max: "36" },
+  IB: { label: "IB Diploma", min: "0", max: "45" },
+} as const;
+export const entSubjectPair: Record<string, string> = {
+  "digital-products": "Математика + Информатика",
+  "creative-engineering": "Математика + Физика",
+  "digital-media": "Математика + География",
+  sociology: "Математика + География",
+};
 export type MaterialPurpose = keyof typeof materialPurposes;
 export const privatePurposes = ["IDENTITY", "SUPPORT"];
 export const ruleSchema = z.object({
@@ -165,6 +178,7 @@ export const ruleSchema = z.object({
           origin: z.enum(["UNIVERSITY", "ADDITIONAL", "AUTHORED"]),
         }),
         language: z.object({
+          required: z.boolean().default(false),
           methods: z.array(z.enum(["INTERNAL", "CERTIFICATE"])),
           certificates: z.array(z.string().max(100)),
           note: z.string().max(1500),
@@ -182,14 +196,14 @@ const essay = {
   version: 1,
   question:
     "Опиши решение, которое ты пересмотрел после нового факта. Что ты сделал и чему научился?",
-  required: false,
+  required: true,
   minWords: null,
   maxWords: null,
   allowFile: true,
   origin: "ADDITIONAL" as const,
 };
 export const defaultIntakeRules: IntakeRules = {
-  version: "invision-2026-20260927-v1",
+  version: "invision-2026-20260929-v2",
   intake: "2026",
   checkedAt: "2026-09-27",
   routes: [
@@ -198,8 +212,8 @@ export const defaultIntakeRules: IntakeRules = {
       programs: [],
       source: "https://www.invisionu.education/ru/undergraduate",
       videoRequired: true,
-      educationRequired: false,
-      gpaRequired: false,
+      educationRequired: true,
+      gpaRequired: true,
       forcedChoiceRequired: false,
       documents: [
         {
@@ -216,13 +230,6 @@ export const defaultIntakeRules: IntakeRules = {
           origin: "UNIVERSITY",
           label: "Сертификат ЕНТ",
         },
-        {
-          purpose: "LANGUAGE",
-          required: true,
-          applies: "ALL",
-          origin: "UNIVERSITY",
-          label: "Подтверждение английского",
-        },
       ],
       exams: [
         {
@@ -235,6 +242,7 @@ export const defaultIntakeRules: IntakeRules = {
       ],
       essay,
       language: {
+        required: true,
         methods: ["CERTIFICATE", "INTERNAL"],
         certificates: ["IELTS", "TOEFL iBT", "Duolingo"],
         note: "На странице набора 2026 указаны IELTS 6.0, TOEFL iBT 60–78, Duolingo 105–115 для иностранных кандидатов без возможности сдать IELTS/TOEFL. Применимость и освобождение от внутренней проверки подтверждает сотрудник. Внутренняя проверка дополняет сертификат.",
@@ -247,8 +255,8 @@ export const defaultIntakeRules: IntakeRules = {
       programs: [],
       source: "https://www.invisionu.education/ru/foundation",
       videoRequired: true,
-      educationRequired: false,
-      gpaRequired: false,
+      educationRequired: true,
+      gpaRequired: true,
       forcedChoiceRequired: false,
       documents: [],
       exams: [],
@@ -259,6 +267,7 @@ export const defaultIntakeRules: IntakeRules = {
           "Какую задачу ты хочешь научиться решать за подготовительный год?",
       },
       language: {
+        required: true,
         methods: ["INTERNAL", "CERTIFICATE"],
         certificates: ["IELTS", "TOEFL iBT", "Duolingo"],
         note: "Foundation предусматривает собеседование на английском, казахском или русском. Страница описывает ЕНТ и предметные сочетания, но не устанавливает отдельный порог Foundation. Применимость уточняет комиссия.",
@@ -274,6 +283,64 @@ export const routeFor = (rules: IntakeRules, entry: string, program: string) =>
   ) ?? rules.routes.find((r) => r.entryType === entry && !r.programs.length)!;
 export const wordCount = (value: string) =>
   value.trim().split(/\s+/u).filter(Boolean).length;
+const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+type CertificateIssue = { text: string; field: string };
+export function certificateScaleIssue(
+  certificate: Pick<
+    z.infer<typeof credentialSchema>,
+    "type" | "value" | "scaleMin" | "scaleMax" | "date"
+  >,
+): CertificateIssue | null {
+  const { type, value, scaleMin, scaleMax, date } = certificate;
+  if (![value, scaleMin, scaleMax, date].every((part) => part.trim()))
+    return null;
+  const parse = (part: string) => {
+    const normalized = part.trim().replace(",", ".");
+    if (/^(?:\d+(?:\.\d+)?|\.\d+)$/u.test(normalized))
+      return { kind: "number", value: Number(normalized) };
+    const level = cefrLevels.indexOf(
+      part.trim().toUpperCase() as (typeof cefrLevels)[number],
+    );
+    return level < 0 ? null : { kind: "cefr", value: level };
+  };
+  const result = parse(value),
+    min = parse(scaleMin),
+    max = parse(scaleMax);
+  const numericType = ["ielts", "toefl ibt", "duolingo"].includes(
+    type.trim().toLowerCase(),
+  );
+  if (!result || (numericType && result.kind !== "number"))
+    return {
+      field: "language-value",
+      text: "Укажи результат как в сертификате: число для IELTS, TOEFL или Duolingo; для другого документа возможен уровень A1–C2.",
+    };
+  if (!min || min.kind !== result.kind)
+    return {
+      field: "language-scaleMin",
+      text: "Минимум шкалы должен быть в том же формате, что результат: число или уровень A1–C2.",
+    };
+  if (!max || max.kind !== result.kind)
+    return {
+      field: "language-scaleMax",
+      text: "Максимум шкалы должен быть в том же формате, что результат: число или уровень A1–C2.",
+    };
+  if (max.value <= min.value)
+    return {
+      field: "language-scaleMax",
+      text: "Максимум шкалы должен быть больше минимума.",
+    };
+  if (result.value < min.value || result.value > max.value)
+    return {
+      field: "language-value",
+      text: "Результат должен находиться между минимумом и максимумом исходной шкалы.",
+    };
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || !Number.isFinite(Date.parse(date)))
+    return {
+      field: "language-date",
+      text: "Укажи действительную дату экзамена.",
+    };
+  return null;
+}
 export type PreflightIssue = {
   key: string;
   group: "BLOCK" | "SUGGEST" | "PENDING";
@@ -302,6 +369,7 @@ export function preflight(
   materials: Material[],
   rules: IntakeRules,
   program: string,
+  languageStatus?: string | null,
 ): PreflightIssue[] {
   const v = fields.intake ?? emptyIntake,
     r = routeFor(rules, v.entryType, program),
@@ -372,7 +440,12 @@ export function preflight(
       "videoUrl",
       r.source,
     );
-  for (const d of r.documents.filter((d) => d.required && applies(d.applies)))
+  for (const d of r.documents.filter(
+    (d) =>
+      d.required &&
+      applies(d.applies) &&
+      (d.purpose !== "LANGUAGE" || v.english.method === "CERTIFICATE"),
+  ))
     if (!materials.some((m) => m.purpose === d.purpose))
       add(
         "document-" + d.purpose,
@@ -391,7 +464,7 @@ export function preflight(
     add(
       "education",
       "BLOCK",
-      "Для образования укажи систему и год окончания.",
+      "Укажи образовательную систему и год окончания четырьмя цифрами, например 2026.",
       1,
       "education-system",
       "Полнота указанного образования",
@@ -442,8 +515,10 @@ export function preflight(
   )
     add(
       "grades",
-      "SUGGEST",
-      "Можно добавить исходные оценки или табель вместо GPA.",
+      r.gpaRequired ? "BLOCK" : "SUGGEST",
+      r.gpaRequired
+        ? "Если твоя система не использует GPA, добавь исходные оценки или табель."
+        : "Можно добавить исходные оценки или табель вместо GPA.",
       1,
       "original-grades",
     );
@@ -456,17 +531,29 @@ export function preflight(
       add(
         "exam-required-" + e.type,
         "BLOCK",
-        `Укажи результат ${e.type}.`,
+        `Для выбранного типа поступления и гражданства укажи результат ${e.type}.`,
         1,
         "exams",
         e.source,
       );
+  for (const requirement of r.exams.filter((e) => e.applies === "KZ" && applies(e.applies) && e.minimum !== null)) {
+    const submitted = v.exams.find((e) => e.type.toLowerCase() === requirement.type.toLowerCase());
+    if (submitted?.value && Number.isFinite(Number(submitted.value.replace(",", "."))) && Number(submitted.value.replace(",", ".")) < requirement.minimum!)
+      add(
+        "exam-minimum-" + requirement.type,
+        "BLOCK",
+        `${requirement.type}: для бакалавриата на странице университета указан минимум ${requirement.minimum} баллов. Проверь результат; если данные требуют уточнения, обратись в приёмную комиссию.`,
+        1,
+        "exams",
+        requirement.source,
+      );
+  }
   for (const [i, e] of v.exams.entries()) {
     if (!e.type || !e.value || !e.scaleMin || !e.scaleMax || !e.date)
       add(
         "exam-" + i,
         "BLOCK",
-        "Для добавленного экзамена укажи тип, результат, шкалу и дату.",
+        `Экзамен ${i + 1}: укажи тип, результат, границы шкалы и дату или убери незаполненную строку.`,
         1,
         "exams",
       );
@@ -548,6 +635,14 @@ export function preflight(
       4,
       "certificate",
     );
+  if (r.language.required && v.english.method === "UNDECIDED")
+    add(
+      "language-choice",
+      "BLOCK",
+      "Выбери способ подтверждения английского: сертификат или ответы в приложении.",
+      4,
+      "certificate",
+    );
   if (
     v.english.method === "CERTIFICATE" &&
     (!v.english.certificate.type ||
@@ -564,26 +659,23 @@ export function preflight(
     );
   if (v.english.method === "CERTIFICATE") {
     const c = v.english.certificate,
-      n = (s: string) => (s.trim() ? Number(s.replace(",", ".")) : NaN);
+      issue = certificateScaleIssue(c);
     if (
-      c.value &&
-      c.scaleMin &&
-      c.scaleMax &&
-      c.date &&
-      (![c.value, c.scaleMin, c.scaleMax].every((s) => Number.isFinite(n(s))) ||
-        n(c.scaleMax) <= n(c.scaleMin) ||
-        n(c.value) < n(c.scaleMin) ||
-        n(c.value) > n(c.scaleMax) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(c.date) ||
-        !Number.isFinite(Date.parse(c.date)))
+      r.language.required &&
+      !materials.some(
+        (m) =>
+          m.id === c.materialId &&
+          ["LANGUAGE", "GENERAL"].includes(m.purpose ?? ""),
+      )
     )
       add(
-        "certificate-scale",
+        "certificate-file",
         "BLOCK",
-        "Проверь результат, исходную шкалу и дату сертификата.",
+        "Приложи файл языкового сертификата под результатом английского.",
         4,
         "certificate",
       );
+    if (issue) add("certificate-scale", "BLOCK", issue.text, 4, issue.field);
     if (r.language.validityMonths !== null && c.date) {
       const expiry = new Date(c.date);
       expiry.setUTCMonth(expiry.getUTCMonth() + r.language.validityMonths);
@@ -597,6 +689,18 @@ export function preflight(
         );
     }
   }
+  if (
+    r.language.required &&
+    v.english.method === "INTERNAL" &&
+    !["PENDING_REVIEW", "REVIEWED"].includes(languageStatus ?? "")
+  )
+    add(
+      "language-response",
+      "BLOCK",
+      "Заверши ответы на английском в заявке.",
+      4,
+      "certificate",
+    );
   if (v.english.method !== "UNDECIDED")
     add(
       "language-check",

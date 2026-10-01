@@ -9,6 +9,7 @@ import { action } from "@/lib/client";
 import { requestMicrophone } from "@/lib/microphone";
 import { AudioProcessing, type AudioState } from "./audio-processing";
 import { languageTask } from "@/lib/audio-contract";
+import { placementQuestions } from "@/lib/language-placement";
 import { Recorder } from "./recorder";
 import { Feedback, useTask, Tag } from "./ui";
 export function LanguageWorkspace({
@@ -20,7 +21,7 @@ export function LanguageWorkspace({
   audio,
 }: {
   applicationId: string;
-  check: Pick<LanguageCheck,"id"|"state"|"revision"|"status"> | null;
+  check: Pick<LanguageCheck,"id"|"state"|"revision"|"status"|"result"> | null;
   consented: boolean;
   userId: string;
   submitted: boolean;
@@ -32,6 +33,7 @@ export function LanguageWorkspace({
       oralId: "",
       followupId: "",
       writtenNote: "",
+      placementAnswers: {},
     },
   );
   const [revision, setRevision] = useState(check?.revision ?? 0);
@@ -39,6 +41,7 @@ export function LanguageWorkspace({
   useEffect(() => () => micRequest.current?.abort(), []);
   const [mic, setMic] = useState("");
   const [comprehension, setComprehension] = useState("");
+  const [placement, setPlacement] = useState<{ level: string; correct: number; total: number } | null>(null);
   const task = useTask();
   const micTask = useTask();
   const router = useRouter();
@@ -49,9 +52,11 @@ export function LanguageWorkspace({
     const result = await action<{
       revision: number;
       comprehensionFeedback: string;
+      placement: { level: string; correct: number; total: number } | null;
     }>("language.save", { state: nextState, revision, finish });
     setRevision(result.revision);
     setComprehension(result.comprehensionFeedback);
+    if (result.placement) setPlacement(result.placement);
     setFinished(finish);
   }
   if (!consented)
@@ -202,6 +207,17 @@ export function LanguageWorkspace({
               </p>
             )}
           </section>
+          <section className="panel language-placement" style={{ marginTop: 24 }}>
+            <h2>Небольшой тест по английскому</h2>
+            <p className="subtle">Шесть коротких вопросов проверяют понимание текста и ясность формулировок. После отправки появится предварительный уровень по этим ответам; устную часть отдельно прослушает сотрудник.</p>
+            {placementQuestions.map((item, index) => <fieldset key={item.id}>
+              <legend><strong>{index + 1}. {item.prompt}</strong></legend>
+              {item.choices.map(([id, label]) => <label className="check-label" key={id} lang="en">
+                <input type="radio" name={`placement-${item.id}`} value={id} checked={state.placementAnswers?.[item.id] === id} onChange={() => { setState((previous) => ({ ...previous, placementAnswers: { ...previous.placementAnswers, [item.id]: id } })); setFinished(false); setPlacement(null); }} />
+                {label}
+              </label>)}
+            </fieldset>)}
+          </section>
           <Recorder
             title="Твой устный ответ"
             prompt={languageTask.oral}
@@ -270,7 +286,8 @@ export function LanguageWorkspace({
                 task.busy ||
                 !state.oralId ||
                 !state.followupId ||
-                !state.comprehension
+                !state.comprehension ||
+                placementQuestions.some((item) => !state.placementAnswers?.[item.id])
               }
               onClick={() =>
                 task.run(
@@ -291,6 +308,7 @@ export function LanguageWorkspace({
           {finished && (
             <div className="artifact-summary">
               <h3>Ответ сохранён для проверки</h3>
+              {(placement || check?.result.startsWith("Предварительный уровень")) && <p className="notice success">{placement ? `Предварительный уровень по письменным заданиям: ${placement.level} (${placement.correct} из ${placement.total}). Устная часть ожидает проверки.` : check?.result}</p>}
               <p className="subtle" style={{ margin: "12px 0 20px" }}>
                 {submitted
                   ? "Оригиналы обеих записей доступны сотруднику."

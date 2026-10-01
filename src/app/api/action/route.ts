@@ -43,7 +43,11 @@ import {
   tokenHash,
 } from "@/lib/security";
 import { journeyAction } from "@/lib/journey.server";
-import { accessFor, permittedReturnTo, requireFullCandidate } from "@/lib/access.server";
+import {
+  accessFor,
+  permittedReturnTo,
+  requireFullCandidate,
+} from "@/lib/access.server";
 import { reviewAction } from "@/lib/review-service.server";
 import { scoringAction, processScoringRun } from "@/lib/scoring-service.server";
 import { twinAction } from "@/lib/twin-service.server";
@@ -65,7 +69,10 @@ import { deskChatAction } from "@/lib/desk-chat.server";
 import { saveResource } from "@/lib/learning-resources.server";
 import { accessGrantAction } from "@/lib/access-grants.server";
 import { passkeyAction } from "@/lib/passkeys.server";
-import { verificationAction, reviewCaseAction } from "@/lib/verification.server";
+import {
+  verificationAction,
+  reviewCaseAction,
+} from "@/lib/verification.server";
 const id = z.string().min(1).max(100);
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
@@ -82,7 +89,9 @@ export async function POST(req: Request) {
     if (type === "session.revoke") {
       const user = await requireUser();
       const hash = z.string().length(64).parse(b.tokenHash);
-      const removed = await db.session.deleteMany({ where: { userId: user.id, tokenHash: hash } });
+      const removed = await db.session.deleteMany({
+        where: { userId: user.id, tokenHash: hash },
+      });
       result = { removed: removed.count > 0 };
     } else if (type.startsWith("passkey.")) {
       result = await passkeyAction(type, b, await actor());
@@ -143,7 +152,11 @@ export async function POST(req: Request) {
           "Сначала сохраните работу или войдите в аккаунт.",
           401,
         );
-      if (user.role !== "STAFF" && await accessFor(user) !== "FULL") throw new AppError("Личный профиль откроется после подачи заявки.", 403);
+      if (user.role !== "STAFF" && (await accessFor(user)) !== "FULL")
+        throw new AppError(
+          "Личный профиль откроется после подачи заявки.",
+          403,
+        );
       result = await profileAction(type, b, user);
       return NextResponse.json(
         { ok: true, data: result },
@@ -214,14 +227,23 @@ export async function POST(req: Request) {
               });
         await setSession(u.id);
         const space = await accessFor(u);
-        result = { role: u.role, destination: permittedReturnTo(v.returnTo, space) };
+        result = {
+          role: u.role,
+          destination: permittedReturnTo(v.returnTo, space),
+        };
       } else {
         const identifier = (v.identifier ?? v.email ?? "").trim();
-        const phone = identifier.startsWith("+") ? identifier.replace(/[\s()-]/g, "") : null;
+        const phone = identifier.startsWith("+")
+          ? identifier.replace(/[\s()-]/g, "")
+          : null;
         const existing = identifier.includes("@")
-          ? await db.user.findUnique({ where: { email: identifier.toLowerCase() } })
+          ? await db.user.findUnique({
+              where: { email: identifier.toLowerCase() },
+            })
           : phone && /^\+[1-9]\d{9,14}$/.test(phone)
-            ? await db.user.findFirst({ where: { phoneE164: phone, phoneVerifiedAt: { not: null } } })
+            ? await db.user.findFirst({
+                where: { phoneE164: phone, phoneVerifiedAt: { not: null } },
+              })
             : /^c[a-z0-9]{15,35}$/i.test(identifier)
               ? await db.user.findUnique({ where: { id: identifier } })
               : null;
@@ -275,7 +297,10 @@ export async function POST(req: Request) {
           });
         await setSession(existing.id);
         const space = await accessFor(existing);
-        result = { role: existing.role, destination: permittedReturnTo(v.returnTo, space) };
+        result = {
+          role: existing.role,
+          destination: permittedReturnTo(v.returnTo, space),
+        };
       }
     } else if (type === "logout") {
       const jar = await cookies();
@@ -283,10 +308,21 @@ export async function POST(req: Request) {
       if (token)
         await db.session.deleteMany({ where: { tokenHash: tokenHash(token) } });
       jar.delete("leader_session");
-    } else if (["project.save", "project.context", "project.hint", "project.progress"].includes(type)) {
+    } else if (
+      [
+        "project.save",
+        "project.context",
+        "project.hint",
+        "project.progress",
+      ].includes(type)
+    ) {
       if (type !== "project.progress") {
         const user = await requireFullCandidate();
-        if (user.origin !== "QA") throw new AppError("Эта учебная задача перемещена в личный архив.", 410);
+        if (user.origin !== "QA")
+          throw new AppError(
+            "Эта учебная задача перемещена в личный архив.",
+            410,
+          );
       }
       result = await journeyAction(type, b);
     } else if (type === "interest") {
@@ -458,7 +494,11 @@ export async function POST(req: Request) {
         await tx.$queryRaw`SELECT id FROM "Application" WHERE "userId"=${u.id} FOR UPDATE`;
         const app = await tx.application.findUnique({
           where: { userId: u.id },
-          include: { materials: true, transfers: true },
+          include: {
+            materials: true,
+            transfers: true,
+            language: { select: { status: true } },
+          },
         });
         if (!app) throw new AppError("Сначала заполните заявку.");
         if (app.submittedAt) {
@@ -484,7 +524,13 @@ export async function POST(req: Request) {
             409,
           );
         const issues = rules
-          ? preflight(fields, app.materials, rules, app.programSlug)
+          ? preflight(
+              fields,
+              app.materials,
+              rules,
+              app.programSlug,
+              app.language?.status,
+            )
               .filter((i) => i.group === "BLOCK")
               .map((i) => i.text)
           : submissionIssues(
@@ -699,17 +745,21 @@ export async function POST(req: Request) {
           data: { preparationEvent: { increment: 1 }, updatedAt: new Date() },
         });
         if (application.submittedAt) {
-          const { materialContext } = await import("@/lib/review-service.server");
+          const { materialContext } =
+            await import("@/lib/review-service.server");
           const material = await materialContext(tx, source.applicationId);
-          await tx.reReviewCase.create({ data: {
-            applicationId: source.applicationId,
-            basisKey: `correction:${correction.id}`,
-            kind: "CORRECTED_FACT",
-            reason: "Кандидат исправил или пояснил факт в ранее переданном материале.",
-            sourceIds: [source.id],
-            materialVersion: material.version,
-            openedBy: u.id,
-          } });
+          await tx.reReviewCase.create({
+            data: {
+              applicationId: source.applicationId,
+              basisKey: `correction:${correction.id}`,
+              kind: "CORRECTED_FACT",
+              reason:
+                "Кандидат исправил или пояснил факт в ранее переданном материале.",
+              sourceIds: [source.id],
+              materialVersion: material.version,
+              openedBy: u.id,
+            },
+          });
         }
         return correction;
       });
@@ -760,6 +810,7 @@ export async function POST(req: Request) {
         });
       });
     } else if (type === "language.save") {
+      const { placementResult } = await import("@/lib/language-placement.server");
       const u = await requireUser();
       const app = await db.application.findUnique({ where: { userId: u.id } });
       if (!app) throw new AppError("Сначала сохраните данные заявки.");
@@ -772,6 +823,7 @@ export async function POST(req: Request) {
           oralId: z.string().max(100),
           followupId: z.string().max(100),
           writtenNote: z.string().max(2000),
+          placementAnswers: z.record(z.string().max(40), z.string().max(30)).optional(),
         })
         .parse(b.state);
       for (const [kind, mid] of [
@@ -794,8 +846,11 @@ export async function POST(req: Request) {
         where: { applicationId: app.id },
       });
       const status = b.finish ? "PENDING_REVIEW" : "IN_PROGRESS";
+      const placement = placementResult(state.placementAnswers);
       const outcome = b.finish
-        ? "Ожидает проверки сотрудником"
+        ? placement
+          ? `Предварительный уровень по письменным заданиям: ${placement.level} (${placement.correct} из ${placement.total}). Устная часть ожидает проверки сотрудником.`
+          : "Ожидает проверки сотрудником"
         : "Ответ сохраняется";
       const comprehensionFeedback = state.comprehension
         ? state.comprehension === "later"
@@ -830,7 +885,7 @@ export async function POST(req: Request) {
               authorId: u.id,
             },
           });
-          result = { revision: rev + 1, comprehensionFeedback };
+          result = { revision: rev + 1, comprehensionFeedback, placement: b.finish ? placement : null };
         } else {
           const check = await tx.languageCheck.create({
             data: {
@@ -849,7 +904,7 @@ export async function POST(req: Request) {
               authorId: u.id,
             },
           });
-          result = { revision: 1, comprehensionFeedback };
+          result = { revision: 1, comprehensionFeedback, placement: b.finish ? placement : null };
         }
         await tx.audioJob.updateMany({
           where: {

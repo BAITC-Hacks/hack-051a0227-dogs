@@ -13,6 +13,7 @@ type Base = {
   stage: string;
   email: string;
 };
+type StageChoice = "ACCEPT" | "DECLINE" | "APPROVE_STAGE" | "REVIEW" | "CHECK" | "LANGUAGE" | "FINAL_REVIEW";
 type Interview = {
   id: string;
   revision: number;
@@ -28,13 +29,14 @@ type Interview = {
     errorCode: string | null;
   }[];
 };
-export function StageActions({ application: a, fixedChoice }: { application: Base; fixedChoice?: "APPROVE_STAGE" | "DECLINE" }) {
+export function StageActions({ application: a, fixedChoice }: { application: Base; fixedChoice?: "ACCEPT" | "DECLINE" }) {
   const router = useRouter(),
     task = useTask();
-  const [choice, setChoice] = useState<"APPROVE_STAGE" | "DECLINE">(
+  const [choice, setChoice] = useState<StageChoice>(
       fixedChoice ?? "APPROVE_STAGE",
     ),
     [reason, setReason] = useState(""),
+    [validation, setValidation] = useState(""),
     [preview, setPreview] = useState<{
       id: string;
       payload: {
@@ -50,21 +52,29 @@ export function StageActions({ application: a, fixedChoice }: { application: Bas
       : a.stage === "LANGUAGE"
         ? "Одобрить языковой этап"
         : "Одобрить рассмотрение материалов";
+  const validReason = () => {
+    if (reason.trim().length >= 10) return true;
+    setValidation("Укажи основание решения — хотя бы 10 символов.");
+    return false;
+  };
   return (
-    <section className={fixedChoice ? "stack stage-action-form" : "panel stack"} id="stage-actions">
-      {!fixedChoice && <><h3>Действие по текущему этапу</h3><p>Одобрение этапа позволяет продолжить рассмотрение и не означает зачисление.</p></>}
-      <div className="form-grid two">
+    <section className={fixedChoice ? "stack stage-action-form" : "panel stack"} id={fixedChoice ? undefined : "stage-actions"}>
+      {!fixedChoice && <><h3>Следующий этап</h3><p>Выбери этап и сохрани внутреннее основание перехода.</p></>}
+      <div className="form-grid two stage-action-fields">
         {!fixedChoice && <label className="field">
           Действие
           <select
             value={choice}
             onChange={(e) => {
-              setChoice(e.target.value as typeof choice);
+              setChoice(e.target.value as StageChoice);
               setPreview(null);
             }}
           >
             <option value="APPROVE_STAGE">{approveLabel}</option>
-            <option value="DECLINE">Отклонить заявку</option>
+            <option value="REVIEW">Рассмотрение материалов</option>
+            <option value="CHECK">Дополнительная проверка</option>
+            <option value="LANGUAGE">Языковая проверка</option>
+            <option value="FINAL_REVIEW">Итоговое рассмотрение</option>
           </select>
         </label>}
         <label className="field">
@@ -75,17 +85,20 @@ export function StageActions({ application: a, fixedChoice }: { application: Bas
             maxLength={4000}
             onChange={(e) => {
               setReason(e.target.value);
+              setValidation("");
               setPreview(null);
             }}
-            placeholder="Какие факты и материалы вы проверили?"
+            rows={5}
+            placeholder={fixedChoice === "ACCEPT" ? "На каких сведениях основано предложение зачисления?" : fixedChoice === "DECLINE" ? "На каких сведениях основан отказ?" : "Почему переводишь заявку на этот этап?"}
           />
         </label>
       </div>
+      {validation && <p className="intake-field-error" role="alert">{validation}</p>}
       {fixedChoice ? <button
         type="button"
         className="button primary"
-        disabled={task.busy || reason.trim().length < 10 || a.stage === "DECIDED"}
-        onClick={() => task.run(async () => {
+        disabled={task.busy || a.stage === "DECIDED"}
+        onClick={() => { if (!validReason()) return; void task.run(async () => {
           const checked = await action<{ id: string }>("stage.preview", {
             applicationId: a.id, revision: a.revision, materialVersion: a.materialVersion,
             action: fixedChoice, reason,
@@ -93,15 +106,14 @@ export function StageActions({ application: a, fixedChoice }: { application: Bas
           await action("stage.confirm", { previewId: checked.id, confirm: true });
           setReason("");
           router.refresh();
-        }, fixedChoice === "DECLINE" ? "Отклонение сохранено." : "Текущий этап одобрен.")}
-      >{fixedChoice === "DECLINE" ? "Отклонить заявку" : "Одобрить этап"}</button> : <button
+        }, fixedChoice === "DECLINE" ? "Отказ сохранён." : "Предложение зачисления сохранено."); }}
+      >{fixedChoice === "DECLINE" ? "Отказать в зачислении" : "Предложить зачисление"}</button> : <button
         type="button"
         className="button secondary"
-        disabled={
-          task.busy || reason.trim().length < 10 || a.stage === "DECIDED"
-        }
-        onClick={() =>
-          task.run(async () => {
+        disabled={task.busy || a.stage === "DECIDED"}
+        onClick={() => {
+          if (!validReason()) return;
+          void task.run(async () => {
             setPreview(
               await action("stage.preview", {
                 applicationId: a.id,
@@ -111,15 +123,13 @@ export function StageActions({ application: a, fixedChoice }: { application: Bas
                 reason,
               }),
             );
-          })
-        }
-      >Проверить действие</button>}
+          });
+        }}
+      >Сменить этап</button>}
       {!fixedChoice && preview && (
         <div className="calendar-preview">
           <h4>
-            {preview.payload.action === "DECLINE"
-              ? "Заявка будет отклонена"
-              : "Текущий этап будет одобрен"}
+            Заявка перейдёт на выбранный этап
           </h4>
           <p>{preview.payload.reason}</p>
           <p>
@@ -143,7 +153,7 @@ export function StageActions({ application: a, fixedChoice }: { application: Bas
             }
           >
             Подтвердить{" "}
-            {choice === "DECLINE" ? "отклонение" : "одобрение этапа"}
+            переход
           </button>
         </div>
       )}
@@ -177,7 +187,7 @@ export function CalendarForm({
   const router = useRouter(),
     task = useTask(),
     [people, setPeople] = useState<
-      { id: string; name: string; email: string }[]
+      { id: string; name: string; email: string; current: boolean }[]
     >([]);
   const current = interview?.attendees as {
     interviewers?: { id: string }[];
@@ -185,6 +195,7 @@ export function CalendarForm({
   } | null;
   const [open, setOpen] = useState(initiallyOpen),
     [cancel, setCancel] = useState(false),
+    [validation, setValidation] = useState(""),
     [value, setValue] = useState<MeetingInput>({
       localStart: interview
         ? localDate(interview.scheduledAt, interview.timezone)
@@ -192,8 +203,8 @@ export function CalendarForm({
       timezone: interview?.timezone ?? "Asia/Almaty",
       durationMinutes: interview?.durationMinutes ?? 30,
       interviewerIds: current?.interviewers?.map((i) => i.id) ?? [],
-      recipients: current?.recipients ?? [a.email],
-      mode: interview?.calendarStatus === "MANUAL" ? "MANUAL" : "GOOGLE",
+      recipients: current?.recipients ?? (a.email ? [a.email] : []),
+      mode: interview?.calendarStatus && interview.calendarStatus !== "MANUAL" ? "GOOGLE" : "MANUAL",
       manualUrl: interview?.meetUrl ?? "",
       publish: true,
       reason: "",
@@ -210,11 +221,25 @@ export function CalendarForm({
     };
   } | null>(null);
   useEffect(() => {
+    if (interview) return;
+    const timer = window.setTimeout(() => setValue((previous) => previous.localStart ? previous : {
+      ...previous,
+      localStart: localDate(new Date(Date.now() + 86400000), "Asia/Almaty"),
+    }), 0);
+    return () => window.clearTimeout(timer);
+  }, [interview]);
+  useEffect(() => {
     if (open)
       void action<typeof people>("calendar.people")
-        .then(setPeople)
+        .then((members) => {
+          setPeople(members);
+          if (!interview) setValue((previous) => previous.interviewerIds.length ? previous : {
+            ...previous,
+            interviewerIds: members.filter((member) => member.current).map((member) => member.id),
+          });
+        })
         .catch(() => {});
-  }, [open]);
+  }, [open, interview]);
   useEffect(() => {
     if (!interview || !["QUEUED", "PENDING"].includes(interview.calendarStatus))
       return;
@@ -224,6 +249,12 @@ export function CalendarForm({
   const change = <K extends keyof MeetingInput>(k: K, v: MeetingInput[K]) => {
     setValue((x) => ({ ...x, [k]: v }));
     setPreview(null);
+    setValidation("");
+  };
+  const validMeeting = () => {
+    const missing = !value.localStart ? "Выбери дату и время." : !value.interviewerIds.length ? "Выбери интервьюера." : value.reason.trim().length < 10 ? "Добавь короткое основание для комиссии — от 10 символов." : "";
+    setValidation(missing);
+    return !missing;
   };
   return (
     <section className={compact ? "stack calendar-form-compact" : "panel stack"} id="schedule-interview">
@@ -329,8 +360,8 @@ export function CalendarForm({
                   change("mode", e.target.value as "GOOGLE" | "MANUAL")
                 }
               >
+                <option value="MANUAL">Назначить в приложении</option>
                 <option value="GOOGLE">Создать Google Meet</option>
-                <option value="MANUAL">Указать готовую ссылку</option>
               </select>
             </label>
           </div>
@@ -340,12 +371,14 @@ export function CalendarForm({
             </Link>
           ) : (
             <label className="field">
-              Ссылка
+              Ссылка на встречу, если есть
               <input
                 type="url"
                 value={value.manualUrl}
                 onChange={(e) => change("manualUrl", e.target.value)}
+                placeholder="https://…"
               />
+              <small>Время появится у кандидата сразу. Ссылку можно добавить позже.</small>
             </label>
           )}
           <fieldset className="source-checks">
@@ -373,12 +406,12 @@ export function CalendarForm({
             <textarea
               rows={3}
               value={value.recipients.join("\n")}
-              onChange={(e) => change("recipients", e.target.value.split("\n"))}
+              onChange={(e) => change("recipients", e.target.value.split("\n").map((email) => email.trim()).filter(Boolean))}
             />
             {!compact && <small>
               {value.mode === "GOOGLE"
                 ? "Интервьюеры также получат приглашение Google. Проверь каждый адрес перед подтверждением."
-                : "Приглашение будет опубликовано в заявке. Внешние письма не отправляются."}
+                : "Время будет опубликовано в заявке. Внешние письма не отправляются."}
             </small>}
           </label>
           <label className="field">
@@ -387,6 +420,8 @@ export function CalendarForm({
               value={value.reason}
               onChange={(e) => change("reason", e.target.value)}
               maxLength={2000}
+              rows={4}
+              placeholder="Что обсудить с кандидатом на интервью?"
             />
           </label>
           {!compact && <label className="check-label">
@@ -414,14 +449,10 @@ export function CalendarForm({
           <button
             type="button"
             className="button secondary"
-            disabled={
-              task.busy ||
-              !value.localStart ||
-              !value.interviewerIds.length ||
-              value.reason.length < 10
-            }
-            onClick={() =>
-              task.run(async () => {
+            disabled={task.busy}
+            onClick={() => {
+              if (!validMeeting()) return;
+              void task.run(async () => {
                 setPreview(
                   await action("calendar.preview", {
                     applicationId: a.id,
@@ -432,11 +463,12 @@ export function CalendarForm({
                     cancel,
                   }),
                 );
-              })
-            }
+              });
+            }}
           >
             Проверить время и приглашение
           </button>
+          {validation && <p role="alert" className="intake-field-error">{validation}</p>}
           {preview && (
             <div className="calendar-preview">
               <h4>

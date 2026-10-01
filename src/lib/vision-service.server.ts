@@ -14,7 +14,8 @@ import {
   visionRequestSchema,
   visionVersion,
 } from "./vision-contract";
-import { visionContext } from "./vision-context.server";
+import { visionContext, visionCapability } from "./vision-context.server";
+import { knowledgeMatches } from "./knowledge-match";
 import { accessFor } from "./access.server";
 import { runVision } from "./vision-provider.server";
 import { digest } from "./scoring-input.server";
@@ -40,6 +41,7 @@ export async function visionAsk(
   assertSession?: () => Promise<void>,
 ) {
   const v = visionRequestSchema.parse(raw);
+  const faqKey = intakeQuestionKey(v.question);
   const c = await visionContext(user, v.scope, false);
   await rateLimit("vision:" + user.id, 25);
   const prior = v.previousId
@@ -80,6 +82,7 @@ export async function visionAsk(
     if (existing.userId !== user.id || digest(existing.request) !== digest(v))
       throw new AppError("Запрос недоступен.", 409);
     if (existing.status === "COMPLETED" && existing.inputHash === c.c.hash) {
+      await emit("answer", existing.answer);
       await emit("done", { id: existing.id });
       return existing;
     }
@@ -126,8 +129,7 @@ export async function visionAsk(
       );
   };
   try {
-    const faqKey = intakeQuestionKey(v.question),
-      fact = faqKey ? c.sources.find((s) => s.key === faqKey) : null;
+    const fact = faqKey ? c.sources.find((s) => s.key === faqKey) : null;
     if (fact) {
       const href = fact.href?.startsWith("/") ? fact.href : "/apply";
       const answer = validateProfileAnswer(
@@ -168,6 +170,34 @@ export async function visionAsk(
           }),
         },
       });
+      await emit("answer", answer);
+      await emit("done", { id: saved.id });
+      return saved;
+    }
+    if (faqKey)
+      throw new AppError(
+        "Сейчас нет подтверждённого ответа на этот вопрос. Передай его сотруднику.",
+        404,
+      );
+    if (run === runVision && !(await visionCapability(user)).available) {
+      const matched = knowledgeMatches(v.question, c.sources.filter((source) => source.current && source.text), 2);
+      const answer = validateProfileAnswer({
+        topic: "result",
+        text: matched.length ? "Вот что есть в доступных тебе материалах по этому вопросу." : "Не нашёл точного ответа в доступных материалах. Уточни вопрос или обратись к сотруднику по заявке.",
+        claims: matched.map((source) => {
+          const quote = source.text.slice(0, 600);
+          return { text: `${source.title}: ${quote}`, refs: [{ key: source.key, version: source.version, quote }] };
+        }),
+        actions: matched.filter((source) => source.href?.startsWith("/") && !source.href.startsWith("//")).map((source) => ({ key: source.key, kind: "LINK" as const, label: "Открыть материал", href: source.href! })),
+        dependencies: dependenciesFor(c.c, matched.map((source) => source.key)),
+        supported: matched.length > 0,
+      }, c.c);
+      await authorize();
+      const saved = await db.profileAnswer.update({
+        where: { id: row.id },
+        data: { provider: "local-knowledge", answer: json(answer), status: "COMPLETED", metadata: json({ scope: v.scope, contextHash: c.hash, dataPolicy: learningPolicy, operations: ["read_current_sources"] }) },
+      });
+      await emit("answer", answer);
       await emit("done", { id: saved.id });
       return saved;
     }
@@ -218,6 +248,7 @@ export async function visionAsk(
         }),
       },
     });
+    await emit("answer", result.answer);
     await emit("done", { id: saved.id });
     return saved;
   } catch (e) {
@@ -266,7 +297,8 @@ export async function visionAction(
     });
   }
   if (type === "vision.confirmPlan") {
-    if (await accessFor(user) !== "FULL") throw new AppError("Личный план откроется после подачи заявки.", 403);
+    if ((await accessFor(user)) !== "FULL")
+      throw new AppError("Личный план откроется после подачи заявки.", 403);
     const row = await db.profileAnswer.findFirst({
       where: {
         id: z.string().parse(b.answerId),

@@ -1,5 +1,7 @@
 # AI Leader ID
 
+[Работающая версия AI Leader ID](https://dogs.govtech-kz.com)
+
 ### Evidence-driven admissions for inVision U
 
 AI Leader ID is an evidence-driven admissions operating system for inVision U. It connects structured applications, source-backed AI assistance, human review and a candidate development experience in one deployable full-stack platform.

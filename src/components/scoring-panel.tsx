@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { action } from "@/lib/client";
 import { scoringActions, type ScoringView } from "@/lib/scoring-contract";
+import { axisPoints } from "@/lib/axis-profile";
 import { AxisProfile } from "./axis-profile";
 import { Feedback, Tag, useTask } from "./ui";
 
@@ -23,6 +24,9 @@ export function ScoringPanel({ applicationId, data, onSource, language }: {
   }
   const run = view.runs[0];
   const result = run?.reviews[0]?.result ?? run?.result;
+  const checkedPoints = run ? axisPoints(run, true).filter((point) => point.status === "Проверено сотрудником" && point.value !== null) : [];
+  const checkedSum = checkedPoints.reduce((sum, point) => sum + (point.value ?? 0), 0);
+  const writtenLevel = /Предварительный уровень по письменным заданиям: (A1|A2|B1|B2|C1)/u.exec(language)?.[1];
   const preliminary = run?.showcaseScore?.value === undefined
     ? result?.state === "READY" ? "есть основания для следующего шага" : "нужна проверка оснований"
     : run.showcaseScore.value >= 75 ? "сильные эпизоды для обсуждения"
@@ -45,10 +49,10 @@ export function ScoringPanel({ applicationId, data, onSource, language }: {
   }, [applicationId, processing, router]);
 
   return (
-    <section className="scoring-panel candidate-scoring" id="scoring" aria-label="AI-скоринг">
+    <section className="scoring-panel candidate-scoring" id="scoring" aria-label="Анализ заявки">
       <div className="scoring-hero">
         <div className="scoring-heading">
-          <h2>AI-скоринг</h2>
+          <h2>{run?.showcaseScore || run?.provider === "external" ? "AI-скоринг" : "Анализ заявки"}</h2>
           {run && <Tag tone={run.status === "COMPLETED" && run.current ? "blue" : "warning"}>
             {run.status === "COMPLETED" ? run.current ? "Требует проверки" : "Материалы изменились" : run.status === "FAILED" ? "Обработка прервалась" : "Обработка материалов"}
           </Tag>}
@@ -62,8 +66,8 @@ export function ScoringPanel({ applicationId, data, onSource, language }: {
               <p className="candidate-scoring-note">Рекомендация: {scoringActions[result.recommendation.action]}</p>
             </div>
             <div className="candidate-scoring-metrics" aria-label="Баллы">
-              <div className="candidate-scoring-metric"><strong>{run.showcaseScore?.value ?? "—"}</strong><span>Общий балл{run.showcaseScore ? " из 100" : " не установлен"}</span></div>
-              <div className="candidate-scoring-metric candidate-scoring-english"><span className="metric-label">Английский</span><strong>{run.showcaseEnglishScore?.value ?? "—"}</strong><span>{run.showcaseEnglishScore ? "из 100" : "Балл не установлен"}</span></div>
+              <div className="candidate-scoring-metric"><strong>{run.showcaseScore?.value ?? (checkedPoints.length ? `${checkedSum} / ${checkedPoints.length * 2}` : "—")}</strong><span>{run.showcaseScore ? "Общий балл из 100" : checkedPoints.length ? `Баллы сотрудника · ${checkedPoints.length} областей AXIS` : "Баллы AXIS выставляет сотрудник"}</span></div>
+              <div className="candidate-scoring-metric candidate-scoring-english"><span className="metric-label">Английский</span><strong>{run.showcaseEnglishScore?.value ?? writtenLevel ?? "—"}</strong><span>{run.showcaseEnglishScore ? "из 100" : writtenLevel ? "Предварительный письменный уровень" : "Результат ожидает проверки"}</span></div>
             </div>
           </div>
           <p className="candidate-scoring-language">Языковой этап: {language}</p>

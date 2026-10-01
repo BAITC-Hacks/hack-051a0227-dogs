@@ -149,8 +149,21 @@ test(
       fields.intake.gpa.min = "0";
       fields.videoUrl = "https://example.org/unverified-video";
       const identity = await candidate.upload("IDENTITY"),
-        grades = await candidate.upload("GRADES");
+        grades = await candidate.upload("GRADES"),
+        language = await candidate.upload("LANGUAGE");
       fields.intake.gpa.materialId = grades.id;
+      fields.intake.english = {
+        method: "CERTIFICATE",
+        certificate: {
+          ...fields.intake.english.certificate,
+          type: "IELTS",
+          value: "6.5",
+          scaleMin: "0",
+          scaleMax: "9",
+          date: "2026-08-15",
+          materialId: language.id,
+        },
+      };
       await other.call(
         "application.save",
         {

@@ -48,7 +48,7 @@ export function AuthForm({
           {staff ? <ShieldCheck size={19} /> : <BookmarkCheck size={19} />}{" "}
           {staff
             ? "Вход для сотрудников комиссии"
-            : "Прежние гостевые работы останутся с тобой после входа."}
+            : "Черновик заявки сохранится и будет доступен при следующем входе."}
         </p>
       </div>
       <div className="auth-form">

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 :root {
-  --cream: #f7f5e9;
+  --cream: #faf9f3;
   --paper: #fffef8;
   --lime: #c0f336;
   --ink: #20251d;
@@ -762,6 +762,10 @@ body:has(.staff-header) .brand-product { display: block; }
   display: grid;
   gap: 20px;
 }
+.language-placement { display: grid; gap: 18px; }
+.language-placement fieldset { min-width: 0; padding: 14px 0; border: 0; border-top: 1px solid var(--line); }
+.language-placement legend { padding: 0 0 10px; line-height: 1.45; }
+.language-placement .check-label { margin: 7px 0; }
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -1974,6 +1978,34 @@ video {
   align-items: start;
   gap: 26px;
 }
+.interview-layout > div { min-width: 0; }
+.interview-suggestions {
+  margin: 24px 0 8px;
+  padding: 22px;
+  border: 1px solid #cbdce3;
+  border-radius: 16px;
+  background: #e9f3f7;
+}
+.interview-suggestions-heading { margin-bottom: 14px; }
+.interview-suggestions-heading .eyebrow { color: #325970; font-size: 11px; letter-spacing: .13em; font-weight: 800; }
+.interview-suggestions-heading h3 { margin: 5px 0 0; font-size: 20px; }
+.interview-suggestion-list { display: grid; gap: 9px; }
+.interview-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid #d5e0dc;
+  border-radius: 11px;
+  background: var(--paper);
+}
+.interview-suggestion > div { min-width: 0; }
+.interview-suggestion-focus { color: #466472; font-size: 12px; font-weight: 700; }
+.interview-suggestion p { margin: 5px 0 7px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.interview-suggestion .text-link { font-size: 12px; }
+.interview-suggestion .button { flex: 0 0 auto; min-width: 100px; }
 #interview-source { scroll-margin-top: 24px; }
 .interview-layout .source-panel blockquote { font-size: 16px; }
 .interview-layout .source-panel select { font-size: 16px; }
@@ -2199,7 +2231,7 @@ video {
     top: 24px;
   }
   .interview-layout {
-    grid-template-columns: 1.6fr 1fr;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
     gap: 45px;
   }
   .source-panel blockquote {
@@ -2804,6 +2836,9 @@ video {
   .interview-question {
     padding: 14px;
   }
+  .interview-suggestions { padding: 16px; }
+  .interview-suggestion { align-items: stretch; flex-direction: column; gap: 12px; padding: 14px; }
+  .interview-suggestion .button { align-self: flex-start; }
 }
 
 @media (max-width: 700px) {
@@ -4421,9 +4456,9 @@ video {
 .desk-draft textarea { width: 100%; }
 
 /* Full-width illustrated welcome; copy has its own quiet reading area. */
-.home-welcome { position: relative; isolation: isolate; overflow: hidden; background: #f6f3e7; }
+.home-welcome { position: relative; isolation: isolate; overflow: hidden; background: var(--cream); }
 .welcome-art { position: absolute; inset: 0; z-index: -1; background: url('/images/invision/university-welcome-1536.webp') right center / cover no-repeat; }
-.home-welcome::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #f6f3e7 0%, rgb(246 243 231 / .92) 30%, rgb(246 243 231 / .3) 56%, transparent 72%); }
+.home-welcome::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #faf9f3 0%, rgb(250 249 243 / .92) 30%, rgb(250 249 243 / .3) 56%, transparent 72%); }
 .home-welcome .mission-hero { display: block; min-height: 620px; padding-block: 70px; }
 .home-welcome .hero-copy { width: 53%; max-width: 690px; }
 .home-welcome .hero h1 { font-size: clamp(44px, 4.8vw, 70px); line-height: 1.12; }
@@ -4448,7 +4483,7 @@ video {
  .home-welcome .hero h1 { font-size: 42px; line-height: 1.12; }
  .home-welcome .hero-intro { font-size: 17px; }
  .welcome-art { background-size: auto 490px; background-position: right bottom; }
- .home-welcome::before { background: linear-gradient(#f6f3e7 0%, #f6f3e7 54%, rgb(246 243 231 / .95) 62%, transparent 76%); }
+ .home-welcome::before { background: linear-gradient(#faf9f3 0%, #faf9f3 54%, rgb(250 249 243 / .95) 62%, transparent 76%); }
  .home-welcome .hero-actions { margin-top: 24px; }
 }
 .desk-dialog:not(.evidence-dialog)[open] { display: flex; flex-direction: column; height: min(820px, calc(100dvh - 32px)); overflow: hidden; padding: 0; }
