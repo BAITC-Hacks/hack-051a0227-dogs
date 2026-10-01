@@ -162,7 +162,7 @@ docker compose --env-file .env.production -f compose.yaml -f compose.public.yaml
 curl -fsS https://YOUR_DOMAIN/api/health
 ```
 
-Replace `YOUR_DOMAIN` with the configured domain. The image runs committed Prisma migrations before starting the long-lived Next.js server as a non-root user. Caddy handles TLS; PostgreSQL stays on the Compose network, while the app also binds only to server loopback for diagnostics. `/api/health` checks **only the web process and database query**, not external integrations or a complete user journey. The first staff account is created with a one-time stdin-only operator command documented in [DEPLOYMENT.md](DEPLOYMENT.md). No fictional seed runs on public startup. A public deployment has **not** yet been executed or accepted for this repository.
+Replace `YOUR_DOMAIN` with the configured domain. The image runs committed Prisma migrations before starting the long-lived Next.js server as a non-root user. Caddy handles TLS; PostgreSQL stays on the Compose network, while the app also binds only to server loopback for diagnostics. `/api/health` checks **only the web process and database query**, not external integrations or a complete user journey. The first staff account is created with a one-time stdin-only operator command documented in [DEPLOYMENT.md](DEPLOYMENT.md). No fictional seed runs on public startup. The team VPS at `https://dogs.govtech-kz.com` was reachable over HTTPS on 29 September 2026; live OpenAI, Google Meet and physical passkey flows remain separately unverified.
 
 | Setting | Meaning |
 | --- | --- |
@@ -174,7 +174,7 @@ Replace `YOUR_DOMAIN` with the configured domain. The image runs committed Prism
 | `ASSESSMENT_ENVIRONMENT` | `standard` for real applications; `isolated-local` only for controlled fictional fixtures. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional server-side Calendar OAuth Web client; callback `${APP_ORIGIN}/api/google/callback`. |
 
-OpenAI keys are **not** provisioned through an environment variable; the current owner flow uses `/settings/openai` and a persistent secret store. That owner-pairing flow is currently limited to a local macOS installation and its settings endpoint rejects a non-loopback origin. Consequently a **fresh Linux public deployment cannot enable live OpenAI through the included UI as shipped**; this does not block the application, local factual preparation, files or World. Do not advertise a public live-AI rollout until a secure server operator flow is implemented and tested. Google Calendar/Meet has an OAuth adapter and controlled tests, but real OAuth, event creation and a confirmed Meet link require external credentials and an authorized test calendar. See [DEPLOYMENT.md](DEPLOYMENT.md) for operational steps and limitations.
+OpenAI keys are **not** provisioned through an environment variable. On a fresh public Linux installation, the operator can bind the first verified staff account as connection owner with `--openai-owner` during bootstrap. The owner then saves the key in `/settings/openai` and enables Vision within a budget; the local macOS pairing flow remains limited to loopback installations. A saved key does not prove a successful paid OpenAI request, which still needs a controlled live check. Google Calendar/Meet has an OAuth adapter and controlled tests, but real OAuth, event creation and a confirmed Meet link require external credentials and an authorized test calendar. See [DEPLOYMENT.md](DEPLOYMENT.md) for operational steps and limitations.
 
 ## Testing and verification
 
