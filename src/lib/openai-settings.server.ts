@@ -10,14 +10,16 @@ import { z } from "zod";
 
 export function localConnectionOrigin() {
   const origin = new URL(process.env.APP_ORIGIN ?? "http://localhost:3000");
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
   if (
-    !["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname) ||
-    !["http:", "https:"].includes(origin.protocol) ||
+    (loopback ? !["http:", "https:"].includes(origin.protocol) : origin.protocol !== "https:") ||
     origin.username ||
     origin.password ||
-    origin.pathname !== "/"
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
   )
-    throw new AppError("Настройки доступны только в локальной установке.", 403);
+    throw new AppError("Укажите корректный HTTPS-адрес приложения в APP_ORIGIN.", 503);
   return origin;
 }
 export function checkConnectionRequest(headers: Headers, mutation = false) {
@@ -266,7 +268,9 @@ export async function beginOwnerSetup(
   rawEmail: unknown,
   deliver = deliverOwnerCode,
 ) {
-  localConnectionOrigin();
+  const origin = localConnectionOrigin();
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname))
+    throw new AppError("Первого владельца публичной установки назначает администратор сервера.", 403);
   if (user.role !== "STAFF")
     throw new AppError("Войдите в раздел сотрудника.", 403);
   const email = z.email().max(150).parse(rawEmail).toLowerCase();

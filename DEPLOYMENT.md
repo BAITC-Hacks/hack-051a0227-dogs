@@ -70,17 +70,17 @@ Create the first `STAFF` only after organizationally verifying the account holde
 ```sh
 read -r -s -p 'First staff password: ' INITIAL_STAFF_PASSWORD
 printf '\n'
-printf %s "$INITIAL_STAFF_PASSWORD" | docker compose --env-file .env.production -f compose.yaml -f compose.public.yaml exec -T app npm run staff:bootstrap -- staff@your-domain.example 'Full Name'
+printf %s "$INITIAL_STAFF_PASSWORD" | docker compose --env-file .env.production -f compose.yaml -f compose.public.yaml exec -T app npm run staff:bootstrap -- staff@your-domain.example 'Full Name' --openai-owner
 unset INITIAL_STAFF_PASSWORD
 ```
 
-Use the authorized person's real work email; the script does **not** verify email ownership. It is an operator action, not public staff registration. Do not use the fictional local seed password for this account. The bootstrap path was tested on a separate empty database; a public-host run has not been performed.
+Use the authorized person's real work email; the script does **not** verify email ownership. It is an operator action, not public staff registration. Do not use the fictional local seed password for this account. Omit `--openai-owner` if a separate staff member will manage the connection. The flag only works for the first staff account and binds the initially unowned connection in the same transaction.
 
-## OpenAI configuration and current limitation
+## OpenAI configuration
 
-Current intended control is `/settings/openai`: a distinct owner, server-stored connection key, model choices, permission switches, monetary budget and call history. The gateway rejects unavailable models and never reads a public `NEXT_PUBLIC_*` key. Ordinary local operation, submission, local factual preparation and World do not need an OpenAI key. Paid model calls require a connected key plus the relevant consent and budget.
+The owner controls `/settings/openai`: a server-stored encrypted connection key, model choices, permission switches, monetary budget and call history. The gateway rejects unavailable models and never reads a public `NEXT_PUBLIC_*` key. Ordinary application work and World do not need an OpenAI key. Paid model calls require a connected key plus the relevant consent and budget. Public `APP_ORIGIN` must be the exact HTTPS origin.
 
-**A fresh Linux VPS cannot currently complete the first-owner setup through that UI.** `src/lib/openai-settings.server.ts` accepts only a loopback `APP_ORIGIN`; `beginOwnerSetup()` presents its pairing code through a native macOS dialog. A public HTTPS request is rejected before the setup screen can operate, and Linux has no such dialog. The Compose configuration provides persistent master-key storage, but it does not solve owner pairing. Do not claim live OpenAI support for a clean public install or paste `OPENAI_API_KEY` into `.env.production` as a workaround. A separately specified, security-reviewed operator pairing path is required before enabling public live AI. An already encrypted connection can be restored only with its matching database **and** master-key volume, subject to origin/owner checks.
+For a fresh public Linux installation, the operator can bind the first verified staff account as owner with `--openai-owner` above. That staff member signs in and saves the key in `/settings/openai`, then enables Vision within a chosen daily/total budget. A saved key alone does not imply a successful paid provider check; verify models and a controlled request separately. The local macOS pairing flow remains available only for loopback installations. Do not paste `OPENAI_API_KEY` into `.env.production` as a workaround. An encrypted connection can be restored only with its matching database **and** master-key volume.
 
 For a local macOS installation, the owner connection can be established through its existing protected flow. The selected text, complex, transcription and speech model IDs are configurable in the owner screen; defaults are defined in `prisma/schema.prisma`. Tests use local or isolated transports and do not make paid requests.
 
@@ -115,7 +115,7 @@ Replace the dated directory name; move the result to encrypted off-host storage.
 ## Upgrade, rollback and recovery
 
 1. Record the currently running Git commit and test the backup pair on a **separate** environment. Do not run tests against the production database.
-2. Fetch the reviewed target commit, inspect migrations, then rebuild with the same `docker compose ... up -d --build` command. Docker starts `prisma migrate deploy` before Next.js. Never use `prisma migrate reset` on retained data.
+2. Fetch the reviewed target commit, inspect migrations, then rebuild with the same `docker compose ... up -d --build` command. Docker starts `prisma migrate deploy` before Next.js. The additive program-catalog and rubric-reference migrations initialize clean installations without running fictional seeds. Never use `prisma migrate reset` on retained data.
 3. Check `ps`, `/api/health`, sign-in, a private file, one authorized candidate/staff path, worker progress and one save/reload in World. Check external integrations only with approved test accounts/calendars.
 4. If an update fails, do not assume an old image can read a newly migrated schema. Stop external traffic, restore a **matching** pre-update PostgreSQL dump and master-key volume to an isolated staging installation, verify it, then execute an approved production recovery. Migrations are additive but are not automatically reversed by rolling back code.
 

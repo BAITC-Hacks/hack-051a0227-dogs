@@ -13,7 +13,7 @@ export type ReviewSource = {
   };
   corrections?: { id: string; explanation: string; createdAt: Date }[];
 };
-export function SourceContent({ source, interpretation }: { source: ReviewSource; interpretation?: string }) {
+export function SourceContent({ source, interpretation, interpretationLabel = "Как AI прочитал этот материал" }: { source: ReviewSource; interpretation?: string; interpretationLabel?: string }) {
   return (
     <>
       <h3>{source.messageContext ? "Ответ кандидата" : source.title}</h3>
@@ -96,7 +96,7 @@ export function SourceContent({ source, interpretation }: { source: ReviewSource
           </div>
         </div>
       ))}
-      <div className="source-interpretation"><strong>Как AI прочитал этот материал</strong><p>{interpretation || "Отдельный вывод по этому источнику пока не подготовлен."}</p></div>
+      {interpretation && <div className="source-interpretation"><strong>{interpretationLabel}</strong><p>{interpretation}</p></div>}
       <p className="source-foot">{source.kind} · {source.title}</p>
     </>
   );

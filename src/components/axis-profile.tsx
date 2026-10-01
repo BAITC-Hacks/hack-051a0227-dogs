@@ -42,6 +42,8 @@ export function AxisProfile({
   const [score, setScore] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [quote, setQuote] = useState("");
+  const [secondSourceId, setSecondSourceId] = useState("");
+  const [secondQuote, setSecondQuote] = useState("");
   const [explanation, setExplanation] = useState("");
   const [reason, setReason] = useState("");
   const task = useTask();
@@ -50,6 +52,7 @@ export function AxisProfile({
   const item = points[selected];
   const domain = result?.domains[selected];
   const selectedSource = run.sources.find((source) => source.id === sourceId);
+  const secondSource = run.sources.find((source) => source.id === secondSourceId);
   const sourceEvidence = item.evidenceIds
     .map((id) => result?.evidence.find((evidence) => evidence.id === id))
     .filter((evidence): evidence is NonNullable<typeof evidence> => !!evidence) ?? [];
@@ -57,6 +60,7 @@ export function AxisProfile({
   const episodeCount = new Set([
     ...sourceEvidence.map((entry) => run.sources.find((source) => source.id === entry.sourceId)?.episodeId),
     selectedSource?.episodeId,
+    secondSource?.episodeId,
   ].filter(Boolean)).size;
   const startEdit = () => {
     setEditing(true);
@@ -66,6 +70,8 @@ export function AxisProfile({
     const source = run.sources.find((entry) => entry.id === evidence?.sourceId) ?? run.sources.find((entry) => entry.assessable && entry.text);
     setSourceId(source?.id ?? "");
     setQuote(evidence?.quote ?? source?.text.slice(0, 240) ?? "");
+    setSecondSourceId("");
+    setSecondQuote("");
   };
   async function save() {
     if (!result || !domain) return;
@@ -78,6 +84,14 @@ export function AxisProfile({
       quote,
       explanation: reason,
     };
+    const existingSecond = score === "2" ? sourceEvidence.find((entry) => entry.sourceId === secondSourceId && entry.quote === secondQuote) : undefined;
+    const secondEvidence = score === "2" && secondSource ? existingSecond ?? {
+      id: `human-${crypto.randomUUID()}`,
+      sourceId: secondSource.id,
+      sourceVersion: secondSource.version,
+      quote: secondQuote,
+      explanation: reason,
+    } : null;
     const value = score ? Number(score) : null;
     const rating = value === null ? null : {
       label: value === 1 ? "Есть проявление" : "Устойчивое проявление",
@@ -85,16 +99,17 @@ export function AxisProfile({
     };
     const updated: ScoringResult = {
       ...result,
-      evidence: value === null || result.evidence.some((entry) => entry.id === evidenceId)
-        ? result.evidence
-        : [...result.evidence, evidence],
+      evidence: value === null ? result.evidence : [
+        ...result.evidence,
+        ...[evidence, secondEvidence].filter((entry): entry is NonNullable<typeof entry> => !!entry && !result.evidence.some((saved) => saved.id === entry.id)),
+      ],
       domains: result.domains.map((entry, index) => index === selected
         ? {
             ...entry,
             rating,
             interpretation: explanation,
             sufficiency: rating ? "Частично" : entry.sufficiency,
-            evidenceIds: rating ? [...new Set([...entry.evidenceIds, evidenceId])] : [],
+            evidenceIds: rating ? [...new Set([...entry.evidenceIds, evidenceId, ...(secondEvidence ? [secondEvidence.id] : [])])] : [],
           }
         : entry),
     };
@@ -144,22 +159,12 @@ export function AxisProfile({
           ))}
         </div>
       </div>
-      <div className="axis-ground-list" aria-label="Основания по девяти критериям">
-        {points.map((point, index) => {
-          const evidence = point.evidenceIds.map((id) => result?.evidence.find((entry) => entry.id === id)).filter((entry): entry is NonNullable<typeof entry> => !!entry);
-          return <article className="axis-ground" key={point.criterionId}>
-            <div className="axis-ground-head"><span className="axis-index">{String(index + 1).padStart(2, "0")}</span><h4>{point.criterionId}</h4><strong>{point.value === null ? "Нет оценки" : `${point.value} / ${point.maximum}`}</strong></div>
-            <p>{point.explanation}</p>
-            {evidence.map((entry) => <button type="button" key={entry.id} className="source-button" onClick={() => onSource(entry.sourceId)}>Источник: «{entry.quote.slice(0, 120)}{entry.quote.length > 120 ? "…" : ""}»</button>)}
-          </article>;
-        })}
-      </div>
       <div className="axis-detail">
         <div className="axis-detail-head">
           <div><span className="axis-kicker">Критерий {selected + 1}</span><h4>{item.criterionId}</h4></div>
           <strong>{item.value === null ? "Не оценено" : `${item.value} из ${item.maximum}`}</strong>
         </div>
-        {canEdit && !editing && <button type="button" className="button secondary" onClick={startEdit}>Изменить оценку</button>}
+        {canEdit && !editing && <button type="button" className="button secondary" onClick={startEdit}>{item.value === null ? "Выставить балл" : "Изменить балл"}</button>}
         {editing && <form className="axis-edit" onSubmit={(event) => { event.preventDefault(); task.run(save, "Оценка сохранена."); }}>
           <label className="field">Оценка
             <select value={score} onChange={(event) => setScore(event.target.value)}>
@@ -177,6 +182,17 @@ export function AxisProfile({
           <label className="field">Точная цитата из источника
             <textarea value={quote} onChange={(event) => setQuote(event.target.value)} minLength={1} maxLength={4000} required={!!score} />
           </label>
+          {score === "2" && episodeCount < 2 && <>
+            <label className="field">Второй самостоятельный эпизод
+              <select value={secondSourceId} onChange={(event) => { const source = run.sources.find((entry) => entry.id === event.target.value); setSecondSourceId(source?.id ?? ""); setSecondQuote(source?.text.slice(0, 240) ?? ""); }}>
+                <option value="">Выберите другой источник</option>
+                {run.sources.filter((source) => source.assessable && source.text && source.episodeId && source.episodeId !== selectedSource?.episodeId).map((source) => <option key={source.id} value={source.id}>{source.title}</option>)}
+              </select>
+            </label>
+            {secondSourceId && <label className="field">Цитата из второго эпизода
+              <textarea value={secondQuote} onChange={(event) => setSecondQuote(event.target.value)} minLength={1} maxLength={4000} required />
+            </label>}
+          </>}
           <label className="field">Объяснение оценки
             <textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} minLength={1} maxLength={4000} required />
           </label>
@@ -187,6 +203,16 @@ export function AxisProfile({
           <div className="axis-edit-actions"><button className="button primary" disabled={task.busy || (!!score && !selectedSource) || (score === "2" && episodeCount < 2)}>Сохранить оценку</button><button type="button" className="button quiet" onClick={() => setEditing(false)}>Отмена</button></div>
           <Feedback task={task} />
         </form>}
+      </div>
+      <div className="axis-ground-list" aria-label="Основания по девяти критериям">
+        {points.map((point, index) => {
+          const evidence = point.evidenceIds.map((id) => result?.evidence.find((entry) => entry.id === id)).filter((entry): entry is NonNullable<typeof entry> => !!entry);
+          return <article className="axis-ground" key={point.criterionId}>
+            <div className="axis-ground-head"><span className="axis-index">{String(index + 1).padStart(2, "0")}</span><h4>{point.criterionId}</h4><strong>{point.value === null ? "Нет оценки" : `${point.value} / ${point.maximum}`}</strong></div>
+            <p>{point.explanation}</p>
+            {evidence.map((entry) => <button type="button" key={entry.id} className="source-button" onClick={() => onSource(entry.sourceId)}>Источник: «{entry.quote.slice(0, 120)}{entry.quote.length > 120 ? "…" : ""}»</button>)}
+          </article>;
+        })}
       </div>
     </section>
   );

@@ -48,11 +48,13 @@ export async function selectionAction(
   adapterFactory = adapterFor,
 ) {
   staff(user);
-  if (type === "calendar.people")
-    return db.user.findMany({
+  if (type === "calendar.people") {
+    const people = await db.user.findMany({
       where: { role: "STAFF", email: { not: null } },
       select: { id: true, name: true, email: true },
     });
+    return people.map((person) => ({ ...person, current: person.id === user.id }));
+  }
   if (type === "stage.preview" || type === "calendar.preview") {
     const applicationId = id.parse(b.applicationId),
       app = await assertApplication(applicationId, user),
@@ -70,7 +72,7 @@ export async function selectionAction(
       throw new AppError("Сначала возобнови рассмотрение.", 409);
     let payload: unknown;
     if (type === "stage.preview") {
-      const action = z.enum(["APPROVE_STAGE", "DECLINE"]).parse(b.action),
+      const action = z.enum(["ACCEPT", "DECLINE", "APPROVE_STAGE", "REVIEW", "CHECK", "LANGUAGE", "FINAL_REVIEW"]).parse(b.action),
         reason = z.string().trim().min(10).max(4000).parse(b.reason);
       if (action === "APPROVE_STAGE" && app.stage === "APPROVED")
         throw new AppError("Этот этап уже одобрен.", 409);
@@ -80,7 +82,7 @@ export async function selectionAction(
         revision: app.revision,
         materialVersion: context.version,
         fromStage: app.stage,
-        toStage: action === "DECLINE" ? "DECIDED" : "APPROVED",
+        toStage: action === "DECLINE" || action === "ACCEPT" ? "DECIDED" : action === "APPROVE_STAGE" ? "APPROVED" : action,
         snapshot: context.snapshot,
       };
     } else {
@@ -158,7 +160,7 @@ export async function selectionAction(
           availability = emails.map((id) => ({ id, state: "UNKNOWN" }));
         }
       }
-      if (input.mode === "MANUAL") {
+      if (input.mode === "MANUAL" && input.manualUrl.trim()) {
         let url: URL;
         try {
           url = new URL(input.manualUrl);
@@ -323,7 +325,7 @@ export async function selectionAction(
           calendarConnectionId: v.connectionId,
           // A previous publication never authorizes the newly edited time or URL.
           invitationPublishedAt: null,
-          meetUrl: google ? (old?.meetUrl ?? null) : v.input.manualUrl,
+          meetUrl: google ? (old?.meetUrl ?? null) : (v.input.manualUrl.trim() || null),
           materialVersion: context.version,
         };
         const meeting = old
@@ -460,7 +462,7 @@ async function publishInvitation(
       kind: cancel ? "INTERVIEW_CANCELLED" : "INTERVIEW",
       body: cancel
         ? `Интервью ${date} (${i.timezone}) отменено. Новое время появится в сообщениях.`
-        : `${reschedule ? "Время интервью изменено:" : "Приглашаем на интервью"} ${date} (${i.timezone}), ${i.durationMinutes} мин. Ссылка: ${i.meetUrl}`,
+        : `${reschedule ? "Время интервью изменено:" : "Приглашаем на интервью"} ${date} (${i.timezone}), ${i.durationMinutes} мин.${i.meetUrl ? ` Ссылка: ${i.meetUrl}` : " Ссылку или место встречи сообщит сотрудник."}`,
     },
   });
   await tx.interview.update({

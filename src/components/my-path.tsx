@@ -159,9 +159,9 @@ export function MyPath({
                 href: "/apply",
               }
           : {
-              title: "Продолжи своё развитие",
-              body: "В дереве навыков тебя ждёт следующий личный шаг.",
-              label: "Открыть дерево навыков",
+              title: tree.nodes.find((node) => node.id === tree.recommendedId)?.title ?? "Выбери следующий шаг",
+              body: `${tree.domains.find((domain) => domain.id === tree.nodes.find((node) => node.id === tree.recommendedId)?.domain)?.title ?? "Древо навыков"} · ${tree.nodes.find((node) => node.id === tree.recommendedId)?.branch ?? "Новый шаг"}. Попробуй ситуацию и сохрани своё решение.`,
+              label: "Продолжить шаг",
               href: `/my?view=route&node=${tree.recommendedId}`,
             };
   return (

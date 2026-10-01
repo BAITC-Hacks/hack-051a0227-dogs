@@ -16,7 +16,7 @@ export const meetingSchema = z
     timezone: timezoneSchema,
     durationMinutes: z.number().int().min(10).max(180),
     interviewerIds: z.array(z.string().min(1)).min(1).max(5),
-    recipients: z.array(z.email()).min(1).max(10),
+    recipients: z.array(z.email()).max(10),
     mode: z.enum(["GOOGLE", "MANUAL"]),
     manualUrl: z.string().max(1000).default(""),
     publish: z.boolean(),
@@ -88,7 +88,7 @@ export const calendarMessages: Record<string, string> = {
   FAILED:
     "Не удалось подтвердить встречу. Параметры сохранены; повтори операцию.",
   READY: "Встреча и ссылка подтверждены.",
-  MANUAL: "Встреча назначена с указанной сотрудником ссылкой.",
+  MANUAL: "Встреча назначена. Время доступно кандидату в сообщениях.",
   CANCELLED: "Встреча отменена.",
   STALE: "Материалы или доступ изменились. Проверь параметры заново.",
 };

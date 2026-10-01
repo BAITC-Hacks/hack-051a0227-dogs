@@ -18,6 +18,7 @@ import type { interviewData } from "@/lib/data";
 import { action, dateLabel } from "@/lib/client";
 import { Feedback, useTask, Tag } from "./ui";
 import { SourceContent } from "./review-source";
+import { interviewSuggestions } from "@/lib/interview-suggestions";
 export function InterviewWorkspace({
   interview: i,
 }: {
@@ -81,6 +82,12 @@ export function InterviewWorkspace({
   const scoring = i.scoring.runs.find(
     (r) => r.current && r.status === "COMPLETED",
   );
+  const suggestions = interviewSuggestions({
+    origin: i.application.origin,
+    email: (i.application.fields as { email?: string }).email ?? null,
+    sources: i.application.sources,
+    scoringQuestions: scoring?.result?.questions,
+  });
   function add(
     text: string,
     section: string,
@@ -143,66 +150,45 @@ export function InterviewWorkspace({
       </div>
       <div className="interview-layout">
         <div>
-          <section className="notice info">
-            <div>
-              <strong>Подготовка и встреча сохраняются отдельно</strong>
-              <p>
-                Вопросы и план не являются ответами или наблюдениями. Пять
-                секций ATOLA остаются обязательной структурой разговора.
-              </p>
-            </div>
-          </section>
           <section className="review-section">
             <h2>План интервью</h2>
-            {scoring?.result && (
-              <details className="scoring-scale">
-                <summary>Вопросы AI-скоринга к этим материалам</summary>
-                <p>
-                  Выберите нужные вопросы, затем измените их в соответствующей
-                  секции и сохраните план.
-                </p>
-                {scoring.result.questions.map((q) => (
-                  <div className="scoring-question" key={q.id}>
-                    <p>{q.text}</p>
-                    <p>Пробел: {q.gap}</p>
-                    <button
-                      className="text-link"
-                      onClick={() => openSource(q.sourceId)}
-                    >
-                      Открыть материал
-                    </button>
-                    <button
-                      className="button secondary"
-                      disabled={plan.questions.some(
-                        (p) =>
-                          p.scoringRunId === scoring.id &&
-                          p.scoringQuestionId === q.id,
-                      )}
-                      onClick={() =>
-                        setPlan((p) => ({
-                          ...p,
-                          questions: [
-                            ...p.questions,
-                            {
-                              id: crypto.randomUUID(),
-                              section: q.section,
-                              text: q.text,
-                              sourceId: q.sourceId,
-                              scoringRunId: scoring.id,
-                              scoringQuestionId: q.id,
-                            },
-                          ],
-                        }))
-                      }
-                    >
-                      Добавить в{" "}
-                      {sections
-                        .find((s) => s.key === q.section)
-                        ?.title.toLowerCase()}
-                    </button>
-                  </div>
-                ))}
-              </details>
+            <p className="section-subtitle">Выберите вопросы к материалам кандидата или добавьте свой. Сохранённый план остаётся отдельно от результатов встречи.</p>
+            {suggestions.length > 0 && (
+              <div className="interview-suggestions">
+                <div className="interview-suggestions-heading">
+                  <span className="eyebrow">VISION DESK</span>
+                  <h3>Что стоит уточнить</h3>
+                </div>
+                <div className="interview-suggestion-list">
+                  {suggestions.map((suggestion) => {
+                    const added = plan.questions.some((question) =>
+                      suggestion.scoringQuestionId
+                        ? question.scoringRunId === scoring?.id && question.scoringQuestionId === suggestion.scoringQuestionId
+                        : question.sourceId === suggestion.sourceId && question.text === suggestion.text,
+                    );
+                    return (
+                      <article className="interview-suggestion" key={suggestion.id}>
+                        <div>
+                          <span className="interview-suggestion-focus">{suggestion.focus}</span>
+                          <p>{suggestion.text}</p>
+                          <button className="text-link" onClick={() => openSource(suggestion.sourceId)}>
+                            {suggestion.sourceTitle} ↗
+                          </button>
+                        </div>
+                        <button
+                          className="button secondary small"
+                          disabled={added || plan.questions.length >= 30}
+                          onClick={() => setPlan((current) => ({ ...current, questions: [...current.questions, {
+                            id: crypto.randomUUID(), section: suggestion.section, text: suggestion.text,
+                            sourceId: suggestion.sourceId,
+                            ...(suggestion.scoringQuestionId && scoring ? { scoringRunId: scoring.id, scoringQuestionId: suggestion.scoringQuestionId } : {}),
+                          }] }))}
+                        >{added ? "В плане" : "Добавить"}</button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             {sections.map((s) => (
               <section className="interview-step" key={s.key}>
@@ -284,7 +270,7 @@ export function InterviewWorkspace({
                   ))}
               </section>
             ))}
-            <details className="versions" open={reviews.length > 0}>
+            {reviews.length > 0 && <details className="versions">
               <summary>
                 Вопросы по отмеченным пробелам · {reviews.length}
               </summary>
@@ -320,7 +306,7 @@ export function InterviewWorkspace({
                   </div>
                 );
               })}
-            </details>
+            </details>}
             <div className="panel">
               <h3>Свой дополнительный вопрос</h3>
               <label className="field">
@@ -597,7 +583,9 @@ export function InterviewWorkspace({
             >
               Вернуться к вопросу
             </button>
-            {source && <SourceContent source={source} />}
+            {source && <SourceContent source={source}
+              interpretation={suggestions.find((question) => question.sourceId === source.id)?.text}
+              interpretationLabel="Вопрос для обсуждения" />}
           </div>
         </aside>
       </div>

@@ -15,6 +15,62 @@ import { runVision } from "../../src/lib/vision-provider.server";
 import { profileView } from "../../src/lib/profile-service.server";
 import { treeView } from "../../src/lib/development-tree.server";
 import { emptyFields } from "../../src/lib/validation";
+import { emptyIntake } from "../../src/lib/intake-contract";
+
+test("Vision answers a draft applicant's submission blockers from current rules without an external call", async () => {
+  const user = await db.user.create({
+    data: {
+      role: "CANDIDATE",
+      origin: "QA",
+      name: "Тестовая Кандидатка",
+      email: `intake-vision-${randomUUID()}@qa.local`,
+    },
+  });
+  try {
+    await db.application.create({
+      data: {
+        userId: user.id,
+        programSlug: "digital-products",
+        fields: json({
+          ...emptyFields,
+          name: user.name,
+          email: user.email,
+          citizenship: "Казахстан",
+          intake: emptyIntake,
+        }),
+      },
+    });
+    const events: { type: string; value: unknown }[] = [];
+    const row = await visionAsk(
+      user,
+      {
+        scope: {},
+        question: "Почему я не могу отправить заявку?",
+        requestKey: randomUUID(),
+      },
+      new AbortController().signal,
+      async (type, value) => {
+        events.push({ type, value });
+      },
+      async () => {
+        throw new Error("External provider must not run for intake rules");
+      },
+    );
+    assert.equal(row.provider, "intake-rules");
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "answer" &&
+          JSON.stringify(event.value).includes("Нужно исправить"),
+      ),
+    );
+    assert.equal(events.at(-1)?.type, "done");
+  } finally {
+    await db.profileAnswer.deleteMany({ where: { userId: user.id } });
+    await db.application.deleteMany({ where: { userId: user.id } });
+    await db.user.delete({ where: { id: user.id } });
+  }
+});
 
 test("Vision text: allowlisted context without a consent switch, explicit revocation and owner isolation", async () => {
   const user = await db.user.create({

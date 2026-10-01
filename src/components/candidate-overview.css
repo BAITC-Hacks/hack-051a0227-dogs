@@ -93,10 +93,10 @@ body:has(.candidate-reference) .site-header .brand {
 }
 .overview-student {
   position: absolute;
-  width: 150px;
-  height: 153px;
+  width: 116px;
+  height: 118px;
   object-fit: contain;
-  bottom: -28px;
+  bottom: -3px;
   right: 104px;
 }
 .overview-motto {
@@ -206,6 +206,9 @@ body:has(.candidate-reference) .site-header .brand {
   padding: 24px 14px;
   position: relative;
   overflow: hidden;
+}
+.overview-next-development .overview-next-surface {
+  min-height: 340px;
 }
 .overview-task-mark {
   position: absolute;
@@ -501,6 +504,11 @@ body:has(.candidate-reference) .site-header .brand {
   width: 46px;
   height: 46px;
   border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #20271a;
 }
 .overview-skill .skill-people {
   background: #eefacb;
@@ -747,19 +755,24 @@ body:has(.candidate-reference) .site-header .brand {
   background: #e5f2ff;
 }
 .overview-closing-note {
-  position: relative;
-  width: fit-content;
-  padding-left: 25px;
-  font-family: "Bradley Hand", "Comic Sans MS", cursive;
-  font-size: 23px;
-  line-height: 1.1;
-  font-weight: 700;
-  transform: rotate(-9deg);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #20271a;
 }
 .overview-closing-note svg {
-  position: absolute;
-  right: -38px;
-  top: 17px;
+  color: #679c06;
+  flex-shrink: 0;
+}
+.overview-closing-note strong {
+  font-size: 24px;
+  line-height: 1;
+}
+.overview-closing-note small {
+  max-width: 80px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 600;
 }
 .reference-overview .overview-closing h2 {
   font-size: 14px;
@@ -1017,8 +1030,7 @@ body:has(.candidate-reference) .site-header .brand {
     padding-left: 20px;
   }
   .overview-closing-note {
-    font-size: 19px;
-    padding: 0;
+    gap: 6px;
   }
 }
 @media (max-width: 900px) {

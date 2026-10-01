@@ -677,6 +677,9 @@
 .candidate-actions > .panel { margin-top: 16px; background: #f7f9ee; }
 .candidate-actions > .stage-action-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
 .candidate-actions > .calendar-form-compact { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6d8; }
+.candidate-stage-details { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e1e6d8; }
+.candidate-stage-details > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #355d50; }
+.candidate-stage-details > .panel { margin-top: 12px; padding: 16px; background: #f7f9ee; }
 .candidate-scoring .scoring-hero { padding: 24px; }
 .candidate-scoring-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: start; }
 .candidate-scoring-main h3 { margin: 4px 0 9px; font-size: clamp(21px, 2vw, 27px); line-height: 1.2; }

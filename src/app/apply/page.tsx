@@ -9,7 +9,8 @@ export default async function Apply({
 }: {
   searchParams: Promise<{ program?: string; section?: string; field?: string }>;
 }) {
-  const space = await accessFor(await actor());
+  const user = await actor();
+  const space = await accessFor(user);
   if (space === "GUEST") {
     const q = await searchParams;
     const saved = new URLSearchParams();
@@ -17,7 +18,10 @@ export default async function Apply({
     redirect(`/login?mode=register&next=${encodeURIComponent(`/apply${saved.size ? `?${saved}` : ""}`)}`);
   }
   if (space === "RESTRICTED") redirect("/account");
-  const [data, params] = await Promise.all([myData(), searchParams]);
+  const [data, params] = await Promise.all([
+    myData(),
+    searchParams,
+  ]);
   if (!data || data.user.role === "GUEST") redirect("/login?mode=register&next=/apply");
   if (data.user.role === "STAFF") redirect("/admissions");
   if (data.application?.submittedAt) redirect("/my?view=university");

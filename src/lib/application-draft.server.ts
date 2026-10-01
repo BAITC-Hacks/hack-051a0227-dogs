@@ -89,6 +89,7 @@ export async function applicationPreflight(u: User) {
       materials: {
         select: { id: true, kind: true, purpose: true, name: true },
       },
+      language: { select: { status: true } },
     },
   });
   if (!app) throw new AppError("Сначала сохраните заявку.");
@@ -106,6 +107,7 @@ export async function applicationPreflight(u: User) {
             app.materials,
             rules,
             app.programSlug,
+            app.language?.status,
           ),
   };
 }

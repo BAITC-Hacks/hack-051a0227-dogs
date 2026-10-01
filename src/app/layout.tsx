@@ -16,7 +16,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f5e9",
+  themeColor: "#faf9f3",
 };
 export const dynamic = "force-dynamic";
 export default async function RootLayout({

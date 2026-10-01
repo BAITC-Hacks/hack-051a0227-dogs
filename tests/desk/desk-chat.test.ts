@@ -86,7 +86,8 @@ test("Desk chat: isolated role context, real request lifecycle, citations and co
   try {
     await db.openAIConnection.update({
       where: { id: "local" },
-      data: { deskEnabled: true },
+      // The injected transport is isolated; the placeholder enables the external branch.
+      data: { deskEnabled: true, secretCipher: "qa-transport-only" },
     });
     const a = await make(
         "Кира Проверочная",
@@ -374,8 +375,31 @@ test("Desk chat: isolated role context, real request lifecycle, citations and co
     await db.profileAnswer.deleteMany({ where: { id: { in: answers } } });
     await db.openAIConnection.update({
       where: { id: "local" },
-      data: { deskEnabled: config.deskEnabled },
+      data: { deskEnabled: config.deskEnabled, secretCipher: config.secretCipher },
     });
     await cleanupRun(db, emails);
+  }
+});
+
+test("Desk chat answers a free question locally from staff-visible source without external consent", async () => {
+  const config = await db.openAIConnection.upsert({ where: { id: "local" }, create: {}, update: {} });
+  assert.equal(config.secretCipher, null);
+  const staff = await db.user.findUniqueOrThrow({ where: { email: "admissions@invision.local" } });
+  const email = `local-chat-${randomUUID()}@qa.local`;
+  const candidate = await db.user.create({ data: { email, name: "Тестовый кандидат", origin: "QA", role: "CANDIDATE" } });
+  let answerId = "";
+  try {
+    const app = await db.application.create({ data: { userId: candidate.id, origin: "QA", programSlug: "digital-products", fields: json(emptyFields), submittedAt: new Date(), stage: "REVIEW" } });
+    await db.applicationVersion.create({ data: { applicationId: app.id, revision: 1, kind: "SUBMITTED", snapshot: json({ fields: emptyFields, materialIds: [], transfers: [] }) } });
+    const source = await db.source.create({ data: { applicationId: app.id, title: "Опыт и личная роль", kind: "Дневник проекта", content: "Я организовал книжную ярмарку и согласовал расписание с тремя волонтёрами." } });
+    const result = await askDeskChat(staff, { question: "Что кандидат организовал на книжной ярмарке?", applicationIds: [app.id], sourceId: source.id, requestKey: randomUUID() }, async () => { throw new Error("External provider must not run"); });
+    answerId = result.id;
+    assert.equal(result.status, "COMPLETED");
+    assert.equal(result.answer?.sources[0]?.sourceId, source.id);
+    assert.match(result.answer?.paragraphs[0]?.text ?? "", /книжную ярмарку/);
+    assert.equal((await db.profileAnswer.findUniqueOrThrow({ where: { id: answerId } })).provider, "local-desk-chat");
+  } finally {
+    if (answerId) await db.profileAnswer.delete({ where: { id: answerId } });
+    await cleanupRun(db, [email]);
   }
 });

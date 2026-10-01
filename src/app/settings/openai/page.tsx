@@ -6,6 +6,7 @@ import {
   checkConnectionRequest,
   connection,
   connectionView,
+  localConnectionOrigin,
 } from "@/lib/openai-settings.server";
 import { OpenAISettings, OwnerSetup } from "@/components/openai-settings";
 
@@ -18,8 +19,8 @@ export default async function OpenAIPage() {
   } catch {
     return (
       <div className="page wrap">
-        <h1>Локальные настройки недоступны</h1>
-        <p>Откройте приложение по адресу этой установки.</p>
+        <h1>Адрес подключения не совпадает</h1>
+        <p>Откройте приложение по его настроенному адресу.</p>
         <Link href="/settings">К настройкам</Link>
       </div>
     );
@@ -43,8 +44,13 @@ export default async function OpenAIPage() {
       </div>
       {config.ownerId ? (
         <OpenAISettings initial={await connectionView(user)} />
-      ) : (
+      ) : localConnectionOrigin().hostname === "localhost" || localConnectionOrigin().hostname === "127.0.0.1" || localConnectionOrigin().hostname === "[::1]" ? (
         <OwnerSetup />
+      ) : (
+        <section className="review-section owner-setup">
+          <h2>Подключение ещё не настроено</h2>
+          <p>Первого владельца назначает администратор сервера. После этого он добавляет ключ OpenAI и лимиты здесь; Vision станет доступен вошедшим пользователям согласно их правам.</p>
+        </section>
       )}
     </div>
   );

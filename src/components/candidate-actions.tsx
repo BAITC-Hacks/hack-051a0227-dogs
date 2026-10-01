@@ -30,9 +30,13 @@ export function CandidateActions({ application: a }: { application: Candidate })
             <button type="button" className="button action-interview" aria-pressed={choice === "interview"} onClick={() => setChoice(choice === "interview" ? null : "interview")}>Интервью</button>
             <button type="button" className="button action-decline" aria-pressed={choice === "decline"} onClick={() => setChoice(choice === "decline" ? null : "decline")}>Отклонить</button>
           </div>
-          {choice === "approve" && <StageActions key="approve" application={base} fixedChoice="APPROVE_STAGE" />}
+          {choice === "approve" && <StageActions key="approve" application={base} fixedChoice="ACCEPT" />}
           {choice === "decline" && <StageActions key="decline" application={base} fixedChoice="DECLINE" />}
           {choice === "interview" && <CalendarForm key="interview" application={base} interview={interview} initiallyOpen compact />}
+          <details className="candidate-stage-details">
+            <summary>Перевести на другой этап</summary>
+            <StageActions application={base} />
+          </details>
         </>
       )}
     </section>

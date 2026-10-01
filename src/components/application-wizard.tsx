@@ -11,6 +11,8 @@ import { action, upload } from "@/lib/client";
 import { Feedback, useTask, Tag } from "./ui";
 import {
   emptyIntake,
+  emptyCredential,
+  entSubjectPair,
   preflight,
   routeFor,
   type IntakeRules,
@@ -24,6 +26,7 @@ import {
   materialPurposes,
 } from "./intake-fields";
 import "./intake.css";
+import { IntakeVision } from "./intake-vision";
 const steps = [
   "О себе",
   "Образование и результаты",
@@ -70,7 +73,7 @@ export function ApplicationWizard({
       ? Number(initialSection)
       : (app?.formSection ?? 0),
   );
-  const [purpose, setPurpose] = useState<MaterialPurpose>("GENERAL");
+  const [purpose, setPurpose] = useState<MaterialPurpose>("IDENTITY");
   const [saveState, setSaveState] = useState("Все изменения сохранены");
   const [saveError, setSaveError] = useState("");
   const revRef = useRef(app?.revision ?? 0),
@@ -82,12 +85,42 @@ export function ApplicationWizard({
   const [materials, setMaterials] = useState(app?.materials ?? []);
   const [removing, setRemoving] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [attached, setAttached] = useState(
-    app?.transfers.map((t) => t.attemptId) ?? [],
-  );
-  const [attachId, setAttachId] = useState("");
+  const [submitHint, setSubmitHint] = useState("");
   const task = useTask();
   const router = useRouter();
+  const linkDocument = (selectedPurpose: MaterialPurpose, id: string) => {
+    setFields((current) => {
+      const intake = current.intake ?? emptyIntake;
+      if (selectedPurpose === "EDUCATION") return { ...current, intake: { ...intake, education: { ...intake.education, materialId: id } } };
+      if (selectedPurpose === "GRADES") return { ...current, intake: { ...intake, gpa: { ...intake.gpa, materialId: id } } };
+      if (selectedPurpose === "ESSAY") return { ...current, intake: { ...intake, essay: { ...intake.essay, materialId: id } } };
+      if (selectedPurpose === "EXAM") {
+        const index = intake.exams.findIndex((exam) => exam.type.toUpperCase() === "ЕНТ");
+        const exams = index < 0
+          ? [...intake.exams, { ...emptyCredential, type: "ЕНТ", scaleMin: "0", scaleMax: "140", period: entSubjectPair[programSlug] ?? "", materialId: id }]
+          : intake.exams.map((exam, currentIndex) => currentIndex === index ? { ...exam, materialId: id } : exam);
+        return { ...current, intake: { ...intake, exams } };
+      }
+      if (selectedPurpose === "OTHER_EXAM") {
+        const index = intake.exams.findLastIndex((exam) => exam.type.toUpperCase() !== "ЕНТ");
+        if (index >= 0) return { ...current, intake: { ...intake, exams: intake.exams.map((exam, currentIndex) => currentIndex === index ? { ...exam, materialId: id } : exam) } };
+      }
+      return current;
+    });
+  };
+  const unlinkDocument = (id: string) => setFields((current) => {
+    if (!current.intake) return current;
+    const intake = current.intake;
+    const clear = (value: string) => value === id ? "" : value;
+    return { ...current, intake: {
+      ...intake,
+      education: { ...intake.education, materialId: clear(intake.education.materialId) },
+      gpa: { ...intake.gpa, materialId: clear(intake.gpa.materialId) },
+      essay: { ...intake.essay, materialId: clear(intake.essay.materialId) },
+      english: { ...intake.english, certificate: { ...intake.english.certificate, materialId: clear(intake.english.certificate.materialId) } },
+      exams: intake.exams.map((exam) => ({ ...exam, materialId: clear(exam.materialId) })),
+    } };
+  });
   const update = <K extends keyof ApplicationFields>(
     k: K,
     v: ApplicationFields[K],
@@ -149,15 +182,23 @@ export function ApplicationWizard({
     const field = initialField ?? app?.formField;
     if (field) document.getElementById(field)?.focus();
   }, [app?.formField, initialField]);
-  const checks = preflight(fields, materials, rules, programSlug),
+  const checks = preflight(
+      fields,
+      materials,
+      rules,
+      programSlug,
+      app?.language?.status,
+    ),
     issues = checks.filter((i) => i.group === "BLOCK");
   const go = (i: number, field?: string) =>
     task.run(async () => {
       await save(i);
       setStep(i);
-      requestAnimationFrame(() =>
-        document.getElementById(field ?? "")?.focus(),
-      );
+      requestAnimationFrame(() => {
+        const target = document.getElementById(field ?? "");
+        target?.scrollIntoView({ block: "center", behavior: "auto" });
+        target?.focus();
+      });
     });
   return (
     <div className="page wrap">
@@ -165,11 +206,14 @@ export function ApplicationWizard({
         <div>
           <h1>Давай познакомимся ближе</h1>
           <p>
-            Расскажи о своём выборе и опыте. Проектное знакомство проходить
-            необязательно.
+            Расскажи о своём образовании, опыте и выборе программы. Черновик
+            сохраняется по мере заполнения.
           </p>
         </div>
-        <Tag>{revision ? `Заявка · версия ${revision}` : "Твоя заявка"}</Tag>
+        <div className="application-title-actions">
+          <IntakeVision onNavigate={go} />
+          <Tag>{revision ? `Заявка · версия ${revision}` : "Твоя заявка"}</Tag>
+        </div>
       </div>
       <div className="draft-save-state" role="status">
         {saveState}
@@ -348,7 +392,7 @@ export function ApplicationWizard({
                 <h2>Опиши опыт своими словами</h2>
                 <p>
                   Выбери один конкретный эпизод из учёбы, работы, кружка или
-                  инициативы. Масштаб проекта не важнее твоего действия.
+                  инициативы. Масштаб деятельности не важнее твоего действия.
                 </p>
                 <div className="stack">
                   <label className="field">
@@ -373,10 +417,6 @@ export function ApplicationWizard({
                     />
                   </label>
                 </div>
-                <p className="subtle" style={{ marginTop: 16 }}>
-                  Учебную работу из знакомства можно приложить отдельно. Она
-                  сохраняет своё обозначение и не заменяет жизненный опыт.
-                </p>
               </>
             )}
             {step === 2 && (
@@ -409,10 +449,17 @@ export function ApplicationWizard({
             )}
             {step === 3 && (
               <>
-                <h2>Материалы к твоей истории</h2>
+                <h2>Документы для поступления</h2>
                 <p>
                   Файлы доступны тебе и уполномоченным сотрудникам после
                   отправки заявки. Максимум 25 МБ на файл.
+                </p>
+                <p className="subtle">
+                  Подготовь удостоверение личности или паспорт, аттестат и выписку оценок,
+                  сертификат ЕНТ для бакалавриата при гражданстве Казахстана,
+                  а также сертификат английского, если выбрал этот способ проверки.
+                  При наличии можно приложить результат другого экзамена и сведения о поддержке.
+                  Видеопрезентацию добавь ссылкой или файлом ниже.
                 </p>
                 <div className="stack">
                   <label className="field">
@@ -454,6 +501,7 @@ export function ApplicationWizard({
                               requestKey: crypto.randomUUID(),
                             });
                             setMaterials((a) => [...a, m]);
+                            linkDocument(purpose, m.id);
                           }, "Документ загружен.");
                       }}
                     />
@@ -551,6 +599,7 @@ export function ApplicationWizard({
                                     setMaterials((items) =>
                                       items.filter((item) => item.id !== m.id),
                                     );
+                                    unlinkDocument(m.id);
                                     setRemoving("");
                                   }, "Файл удалён из черновика.")
                                 }
@@ -581,83 +630,84 @@ export function ApplicationWizard({
                     </div>
                   ))}
                 </div>
-                <div className="stack" style={{ marginTop: 28 }}>
-                  <label className="check-label">
-                    <input
-                      type="checkbox"
-                      checked={fields.audioConsent}
-                      onChange={(e) => update("audioConsent", e.target.checked)}
-                    />
-                    Разрешаю запись и хранение моих устных ответов для языковой
-                    проверки сотрудником. Записи не используются для анализа
-                    личности.
-                  </label>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={!fields.audioConsent || task.busy}
-                    onClick={() =>
-                      task.run(async () => {
-                        await save();
-                        router.push("/apply/english");
-                      })
-                    }
-                  >
-                    Перейти к языковой проверке
-                  </button>
-                </div>
-                {data.attempts.length > 0 && (
-                  <div className="artifact-summary">
-                    <h3>Добавить учебную работу</h3>
-                    <p className="subtle">
-                      Это отдельное решение. Упражнение не становится жизненным
-                      достижением.
-                    </p>
-                    <label className="field" style={{ marginTop: 16 }}>
-                      Версия работы
-                      <select
-                        value={attachId}
-                        onChange={(e) => setAttachId(e.target.value)}
-                      >
-                        <option value="">Выбери работу для передачи</option>
-                        {data.attempts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {programFor(a.slug)?.artifact} · версия {a.revision}
-                            {attached.includes(a.id) ? " · приложено" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="button secondary small"
-                      disabled={
-                        !attachId || attached.includes(attachId) || task.busy
-                      }
-                      style={{ marginTop: 16 }}
-                      onClick={() =>
-                        task.run(async () => {
-                          await save();
-                          await action("work.transfer", {
-                            attemptId: attachId,
-                            revision: data.attempts.find(
-                              (a) => a.id === attachId,
-                            )?.revision,
-                            consent: true,
-                          });
-                          setAttached((a) => [...a, attachId]);
-                        }, "Учебная работа приложена с твоего разрешения.")
-                      }
-                    >
-                      Подтверждаю передачу этой работы
-                    </button>
-                  </div>
-                )}
               </>
             )}
             {step === 4 && (
               <>
                 <CertificateFields {...intakeProps} />
+                {intake.english.method === "CERTIFICATE" && (
+                  <label className="upload-zone intake-certificate-upload">
+                    Загрузить языковой сертификат · PDF, JPEG, PNG
+                    <input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png"
+                      disabled={task.busy}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        task.run(async () => {
+                          await save(4);
+                          const material = await upload(file, "document", {
+                            purpose: "LANGUAGE",
+                            requestKey: crypto.randomUUID(),
+                          });
+                          setMaterials((current) => [...current, material]);
+                          setFields((current) => ({
+                            ...current,
+                            intake: {
+                              ...current.intake!,
+                              english: {
+                                ...current.intake!.english,
+                                certificate: {
+                                  ...current.intake!.english.certificate,
+                                  materialId: material.id,
+                                },
+                              },
+                            },
+                          }));
+                        }, "Сертификат прикреплён к языковому результату.");
+                      }}
+                    />
+                  </label>
+                )}
+                {intake.english.method === "INTERNAL" && (
+                  <div className="language-entry">
+                    <p>
+                      {app?.language?.status === "PENDING_REVIEW" ||
+                      app?.language?.status === "REVIEWED"
+                        ? "Ответы на английском сохранены для проверки."
+                        : "Для отправки заявки ответь на вопросы и сохрани две записи на английском."}
+                    </p>
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={fields.audioConsent}
+                        onChange={(e) =>
+                          update("audioConsent", e.target.checked)
+                        }
+                      />
+                      Разрешаю запись и хранение моих устных ответов для
+                      языковой проверки сотрудником.
+                    </label>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={!fields.audioConsent || task.busy}
+                      onClick={() =>
+                        task.run(async () => {
+                          await save(4);
+                          router.push("/apply/english");
+                        })
+                      }
+                    >
+                      {app?.language?.status === "PENDING_REVIEW" ||
+                      app?.language?.status === "REVIEWED"
+                        ? "Открыть языковые ответы"
+                        : "Ответить на английском"}
+                    </button>
+                  </div>
+                )}
                 <h2>Как ты подходишь к работе?</h2>
                 <p className="subtle">
                   Дополнительный ответ, если он не включён в обязательные
@@ -714,53 +764,116 @@ export function ApplicationWizard({
             )}
             {step === 5 && (
               <>
-                <h2>Посмотри на заявку целиком</h2>
+                <h2>Проверка перед отправкой</h2>
                 <p>
-                  После отправки эта версия фиксируется. Дополнительные сведения
-                  и исправления можно будет передать в переписке.
+                  {issues.length
+                    ? `Осталось исправить ${issues.length} ${issues.length === 1 ? "обязательный пункт" : issues.length < 5 ? "обязательных пункта" : "обязательных пунктов"}. Нажми на замечание, чтобы открыть нужное поле.`
+                    : "Обязательные поля заполнены. Проверь ответы и подтверди отправку."}
                 </p>
-                <IntakeSummary fields={fields} rules={rules} />
-                <dl>
-                  {[
-                    ["Имя", fields.name],
-                    ["Почта", fields.email],
-                    ["Город", fields.city],
-                    ["Программа", programFor(programSlug)?.title ?? ""],
-                    ["Опыт", fields.experience],
-                    ["Личная роль", fields.personalRole],
-                    ["Мотивация", fields.motivation],
-                    [
-                      "Видеопрезентация",
-                      fields.videoUrl ||
-                        materials.find((m) => m.kind === "video")?.name ||
-                        "Добавь ссылку или файл",
-                    ],
-                    [
-                      "Документы",
-                      materials
-                        .filter((m) => m.kind === "document")
-                        .map((m) => m.name)
-                        .join(", ") ||
-                        fields.documentNote ||
-                        "Не приложены",
-                    ],
-                    [
-                      "Выбор",
-                      `Больше: ${fields.most ? forcedStatements[Number(fields.most)] : "не выбрано"}. Меньше: ${fields.least ? forcedStatements[Number(fields.least)] : "не выбрано"}.`,
-                    ],
-                    [
-                      "Учебные работы",
-                      attached.length
-                        ? `${attached.length} · переданы с отдельным разрешением`
-                        : "Не приложены",
-                    ],
-                  ].map(([label, value]) => (
-                    <div className="review-item" key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
+                <div className="preflight" aria-live="polite">
+                  <section
+                    className={
+                      issues.length ? "preflight-blockers" : "preflight-ready"
+                    }
+                  >
+                    <h3>
+                      {issues.length
+                        ? `Обязательно исправить · ${issues.length}`
+                        : "Можно отправлять"}
+                    </h3>
+                    {issues.length ? (
+                      issues.map((issue) => (
+                        <button
+                          type="button"
+                          key={issue.key}
+                          onClick={() => go(issue.section, issue.field)}
+                          className="preflight-item"
+                        >
+                          <span>{steps[issue.section]}</span>
+                          {issue.text}
+                        </button>
+                      ))
+                    ) : (
+                      <p>Формальных замечаний нет.</p>
+                    )}
+                  </section>
+                  {checks.some((issue) => issue.group !== "BLOCK") && (
+                    <details className="preflight-other">
+                      <summary>Советы и материалы на проверке</summary>
+                      {(["SUGGEST", "PENDING"] as const).map((group) => {
+                        const items = checks.filter(
+                          (issue) => issue.group === group,
+                        );
+                        return items.length ? (
+                          <section key={group}>
+                            <h3>
+                              {group === "SUGGEST"
+                                ? "Можно уточнить"
+                                : "Ожидает проверки"}
+                            </h3>
+                            {items.map((issue) => (
+                              <button
+                                type="button"
+                                key={issue.key}
+                                onClick={() => go(issue.section, issue.field)}
+                                className="preflight-item"
+                              >
+                                {issue.text}
+                              </button>
+                            ))}
+                          </section>
+                        ) : null;
+                      })}
+                    </details>
+                  )}
+                </div>
+                <details
+                  className="application-review-details"
+                  key={issues.length ? "incomplete" : "ready"}
+                  open={issues.length === 0}
+                >
+                  <summary>Посмотреть введённые ответы</summary>
+                  <p>
+                    После отправки эта версия фиксируется. Дополнительные
+                    сведения можно будет передать в переписке.
+                  </p>
+                  <IntakeSummary fields={fields} rules={rules} />
+                  <dl>
+                    {[
+                      ["Имя", fields.name],
+                      ["Почта", fields.email],
+                      ["Город", fields.city],
+                      ["Программа", programFor(programSlug)?.title ?? ""],
+                      ["Опыт", fields.experience],
+                      ["Личная роль", fields.personalRole],
+                      ["Мотивация", fields.motivation],
+                      [
+                        "Видеопрезентация",
+                        fields.videoUrl ||
+                          materials.find((m) => m.kind === "video")?.name ||
+                          "Добавь ссылку или файл",
+                      ],
+                      [
+                        "Документы",
+                        materials
+                          .filter((m) => m.kind === "document")
+                          .map((m) => m.name)
+                          .join(", ") ||
+                          fields.documentNote ||
+                          "Не приложены",
+                      ],
+                      [
+                        "Выбор",
+                        `Больше: ${fields.most ? forcedStatements[Number(fields.most)] : "не выбрано"}. Меньше: ${fields.least ? forcedStatements[Number(fields.least)] : "не выбрано"}.`,
+                      ],
+                    ].map(([label, value]) => (
+                      <div className="review-item" key={label}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
                 <div className="stack" style={{ marginTop: 26 }}>
                   <label className="check-label">
                     <input
@@ -776,6 +889,7 @@ export function ApplicationWizard({
                   <label className="check-label">
                     <input
                       type="checkbox"
+                      id="ai-summary-consent"
                       checked={intake.aiConsent}
                       onChange={(e) =>
                         update("intake", {
@@ -784,11 +898,7 @@ export function ApplicationWizard({
                         })
                       }
                     />
-                    Разрешаю OpenAI подготовить фактическую сводку из
-                    отправленного опыта, мотивации, эссе и последующих уточнений
-                    для комиссии. Удостоверение, контакты и сведения о поддержке
-                    не передаются. Это необязательно; разрешение можно отозвать
-                    после отправки.
+                    Разрешаю Vision подготовить сводку моих ответов для комиссии
                   </label>
                   <label className="check-label">
                     <input
@@ -802,47 +912,33 @@ export function ApplicationWizard({
                   <label className="check-label">
                     <input
                       type="checkbox"
+                      id="review-confirmed"
                       checked={confirmed}
-                      onChange={(e) => setConfirmed(e.target.checked)}
+                      onChange={(e) => {
+                        setConfirmed(e.target.checked);
+                        setSubmitHint("");
+                      }}
                     />
                     Я просмотрел заявку и подтверждаю отправку этой версии.
                   </label>
                 </div>
-                <div className="preflight" aria-live="polite">
-                  {(
-                    [
-                      ["BLOCK", "Обязательно исправить"],
-                      ["SUGGEST", "Можно уточнить"],
-                      ["PENDING", "Ожидает проверки"],
-                    ] as const
-                  ).map(([group, title]) => (
-                    <section key={group}>
-                      <h3>{title}</h3>
-                      {checks.filter((i) => i.group === group).length ? (
-                        checks
-                          .filter((i) => i.group === group)
-                          .map((i) => (
-                            <button
-                              type="button"
-                              key={i.key}
-                              onClick={() => go(i.section, i.field)}
-                              className="preflight-item"
-                            >
-                              {i.text}
-                            </button>
-                          ))
-                      ) : (
-                        <p className="subtle">Замечаний нет</p>
-                      )}
-                    </section>
-                  ))}
-                </div>
                 <button
                   type="button"
                   className="button primary large"
-                  disabled={!confirmed || issues.length > 0 || task.busy}
+                  disabled={task.busy}
                   style={{ marginTop: 24 }}
-                  onClick={() =>
+                  onClick={() => {
+                    if (issues.length) {
+                      go(issues[0].section, issues[0].field);
+                      return;
+                    }
+                    if (!confirmed) {
+                      setSubmitHint(
+                        "Подтверди просмотр заявки перед отправкой.",
+                      );
+                      document.getElementById("review-confirmed")?.focus();
+                      return;
+                    }
                     task.run(async () => {
                       const saved = await save();
                       await action("application.submit", {
@@ -852,11 +948,18 @@ export function ApplicationWizard({
                       });
                       router.push("/apply/complete");
                       router.refresh();
-                    })
-                  }
+                    });
+                  }}
                 >
-                  Отправить заявку
+                  {issues.length
+                    ? `Исправить обязательное · ${issues.length}`
+                    : "Отправить заявку"}
                 </button>
+                {submitHint && (
+                  <p role="alert" className="application-submit-hint">
+                    {submitHint}
+                  </p>
+                )}
               </>
             )}
             <div className="form-bottom">
@@ -878,70 +981,53 @@ export function ApplicationWizard({
               ) : (
                 <span />
               )}
-              <button
-                type="button"
-                className="button secondary"
-                disabled={task.busy}
-                onClick={() =>
-                  task.run(async () => {
-                    await save();
-                  }, "Прогресс сохранён.")
-                }
-              >
-                <Save size={16} />
-                Сохранить
-              </button>
-              {step < 5 && (
+              <div className="form-bottom-actions">
                 <button
-                  className="button dark"
-                  type="submit"
+                  type="button"
+                  className="button secondary"
                   disabled={task.busy}
+                  onClick={() =>
+                    task.run(async () => {
+                      await save();
+                    }, "Прогресс сохранён.")
+                  }
                 >
-                  Дальше
+                  <Save size={16} />
+                  Сохранить
                 </button>
-              )}
+                {step < 5 && (
+                  <button
+                    className="button dark"
+                    type="submit"
+                    disabled={task.busy}
+                  >
+                    Дальше
+                  </button>
+                )}
+              </div>
             </div>
           </form>
           <Feedback task={task} />
         </div>
         <aside className="application-aside">
-          <h3>Условия твоего набора</h3>
+          <h3>Что нужно заполнить</h3>
           <p>
             {intake.entryType === "FOUNDATION" ? "Foundation" : "Бакалавриат"} ·{" "}
             {rules.intake}
           </p>
           <p className="subtle">
-            Сведения проверены {rules.checkedAt}. Это условия указанного набора;
-            будущие сроки и условия уточняются у комиссии.
+            Правила набора проверены {rules.checkedAt}. GPA, эссе и способ
+            проверки английского обязательны для этой заявки; это не отдельные
+            пороги университета.
+          </p>
+          <h3>Перед отправкой</h3>
+          <p>
+            Укажи образование и GPA в исходной шкале. Если школа не использует
+            GPA, добавь исходные оценки или табель.
           </p>
           <p>
-            GPA и письменное эссе{" "}
-            {routeFor(rules, intake.entryType, programSlug).gpaRequired ||
-            routeFor(rules, intake.entryType, programSlug).essay.required
-              ? "зависят от правил набора"
-              : "можно добавить по желанию"}
-            .
-          </p>
-          <h3>Три отдельных взгляда</h3>
-          <p>
-            <strong>Готовность</strong>
-            <br />
-            Документы и язык рассматриваются по требованиям программы.
-          </p>
-          <p>
-            <strong>Выбор и мотивация</strong>
-            <br />
-            Что ты хочешь изучать и почему.
-          </p>
-          <p>
-            <strong>Опыт</strong>
-            <br />
-            Конкретные действия, личная роль и источники.
-          </p>
-          <hr className="divider" />
-          <p>
-            Решение принимает человек. Проектное знакомство и языковой ответ не
-            превращаются в скрытый общий балл.
+            Напиши эссе и выбери подтверждение английского: сертификат с файлом
+            или языковые ответы в заявке.
           </p>
           <Link
             href={routeFor(rules, intake.entryType, programSlug).source}

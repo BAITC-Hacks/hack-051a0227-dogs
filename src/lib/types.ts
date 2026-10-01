@@ -34,6 +34,7 @@ export type LanguageState = {
   oralId: string;
   followupId: string;
   writtenNote: string;
+  placementAnswers?: Record<string, string>;
 };
 export type Feedback = {
   checks: { label: string; passed: boolean; detail: string }[];
